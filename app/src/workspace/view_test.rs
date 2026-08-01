@@ -42,6 +42,7 @@ use crate::system::SystemStats;
 use crate::tab_configs::tab_config::{TabConfigPaneNode, TabConfigPaneType};
 use crate::terminal::history::History;
 use crate::terminal::keys::TerminalKeybindings;
+use crate::terminal::resizable_data::{ModalType, ResizableData};
 #[cfg(windows)]
 use crate::util::traffic_lights::windows::RendererState;
 use crate::workspaces::user_profiles::UserProfiles;
@@ -1963,6 +1964,49 @@ fn test_vertical_tabs_panel_visibility_restores_from_window_snapshot() {
         });
         restored_open.read(&app, |workspace, _| {
             assert!(workspace.vertical_tabs_panel_open);
+        });
+    });
+}
+
+#[test]
+fn test_vertical_tabs_panel_width_restores_from_window_snapshot() {
+    let _vertical_tabs_guard = FeatureFlag::VerticalTabs.override_enabled(true);
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.update(|ctx| {
+            TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+                report_if_error!(settings.use_vertical_tabs.set_value(true, ctx));
+            });
+        });
+
+        let workspace = mock_workspace(&mut app);
+        let snapshot = workspace.update(&mut app, |workspace, ctx| {
+            let width_handle = ResizableData::handle(ctx)
+                .as_ref(ctx)
+                .get_handle(ctx.window_id(), ModalType::VerticalTabsPanelWidth)
+                .expect("vertical tabs panel width handle should exist");
+            width_handle
+                .lock()
+                .expect("vertical tabs panel width handle should not be poisoned")
+                .set_size(376.);
+            workspace.snapshot(ctx.window_id(), false, ctx)
+        });
+
+        assert_eq!(snapshot.vertical_tabs_panel_width, Some(376.));
+
+        let restored = restored_workspace(&mut app, snapshot);
+        restored.read(&app, |workspace, ctx| {
+            let width_handle = ResizableData::handle(ctx)
+                .as_ref(ctx)
+                .get_handle(workspace.window_id, ModalType::VerticalTabsPanelWidth)
+                .expect("restored vertical tabs panel width handle should exist");
+            assert_eq!(
+                width_handle
+                    .lock()
+                    .expect("vertical tabs panel width handle should not be poisoned")
+                    .size(),
+                376.
+            );
         });
     });
 }

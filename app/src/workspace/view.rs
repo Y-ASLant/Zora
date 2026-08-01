@@ -2444,6 +2444,10 @@ impl Workspace {
         resizable_data.update(ctx, |model, _| {
             model.insert(window_id, new_resizable_modal_sizes)
         });
+        let vertical_tabs_panel_resizable_state = resizable_data
+            .as_ref(ctx)
+            .get_handle(window_id, ModalType::VerticalTabsPanelWidth)
+            .expect("vertical tabs panel resizable state should be initialized");
 
         terminal::platform::init().expect("Terminal platform initialized");
 
@@ -2939,7 +2943,7 @@ impl Workspace {
             ai_fact_view,
             left_panel_open: false,
             vertical_tabs_panel_open: false,
-            vertical_tabs_panel: Default::default(),
+            vertical_tabs_panel: VerticalTabsPanelState::new(vertical_tabs_panel_resizable_state),
             left_panel_view,
             left_panel_views,
             right_panel_view,
@@ -9662,6 +9666,13 @@ impl Workspace {
                 .unwrap_or(DEFAULT_RIGHT_PANEL_WIDTH)
         });
 
+        let vertical_tabs_panel_width = modal_sizes.map(|ms| {
+            ms.vertical_tabs_panel_width
+                .lock()
+                .expect("should be able to lock vertical tabs panel resizable state handle")
+                .size()
+        });
+
         WindowSnapshot {
             tabs,
             active_tab_index,
@@ -9674,6 +9685,7 @@ impl Workspace {
             warp_drive_index_width,
             left_panel_open: self.left_panel_open,
             vertical_tabs_panel_open: self.vertical_tabs_panel_open,
+            vertical_tabs_panel_width,
             left_panel_width,
             right_panel_width,
             agent_management_filters: None,

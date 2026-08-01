@@ -31,6 +31,7 @@ use crate::pane_group::{
     CodePane, NotebookPane, PaneGroup, PaneId, TabBarHoverIndex, WorkflowPane,
 };
 use crate::tab::{tab_position_id, SelectedTabColor, TabData};
+use crate::terminal::resizable_data::DEFAULT_VERTICAL_TABS_PANEL_WIDTH;
 use crate::terminal::session_settings::SessionSettings;
 use crate::terminal::TerminalView;
 use crate::themes::theme::Fill as ThemeFill;
@@ -81,7 +82,6 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::ui_components::text_input::TextInput;
 use warpui::{AppContext, EntityId, SingletonEntity, ViewHandle, WindowId};
 
-const PANEL_WIDTH: f32 = 248.;
 const MIN_PANEL_WIDTH: f32 = 200.;
 const MAX_PANEL_WIDTH_RATIO: f32 = 0.5;
 const DETAIL_SIDECAR_SECTION_PADDING: f32 = 12.;
@@ -599,9 +599,15 @@ pub(super) struct VerticalTabsPanelState {
 
 impl Default for VerticalTabsPanelState {
     fn default() -> Self {
+        Self::new(resizable_state_handle(DEFAULT_VERTICAL_TABS_PANEL_WIDTH))
+    }
+}
+
+impl VerticalTabsPanelState {
+    pub(super) fn new(resizable_state: ResizableStateHandle) -> Self {
         Self {
             scroll_state: ClippedScrollStateHandle::default(),
-            resizable_state: resizable_state_handle(PANEL_WIDTH),
+            resizable_state,
             group_mouse_states: RefCell::default(),
             pane_row_mouse_states: RefCell::default(),
             pane_title_mouse_states: RefCell::default(),

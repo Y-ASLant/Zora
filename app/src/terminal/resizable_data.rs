@@ -15,6 +15,7 @@ pub const DEFAULT_WARP_DRIVE_INDEX_WIDTH: f32 = 300.;
 pub const DEFAULT_SETTINGS_PANEL_WIDTH: f32 = 194.;
 pub const DEFAULT_LEFT_PANEL_WIDTH: f32 = 240.;
 pub const DEFAULT_RIGHT_PANEL_WIDTH: f32 = 480.;
+pub const DEFAULT_VERTICAL_TABS_PANEL_WIDTH: f32 = 248.;
 /// A naming system for the ResizableStateHandles
 pub enum ModalType {
     UniversalSearchWidth,
@@ -24,6 +25,7 @@ pub enum ModalType {
     SettingsPanelWidth,
     LeftPanelWidth,
     RightPanelWidth,
+    VerticalTabsPanelWidth,
 }
 
 /// A grouping of state handles for the resizables that should be stored and loaded as a part
@@ -36,6 +38,7 @@ pub struct ModalSizes {
     pub settings_panel_width: ResizableStateHandle,
     pub left_panel_width: ResizableStateHandle,
     pub right_panel_width: ResizableStateHandle,
+    pub vertical_tabs_panel_width: ResizableStateHandle,
 }
 
 impl ModalSizes {
@@ -62,6 +65,9 @@ impl ModalSizes {
         let right_panel_width = window_snapshot
             .right_panel_width
             .unwrap_or(right_panel_size);
+        let vertical_tabs_panel_width = window_snapshot
+            .vertical_tabs_panel_width
+            .unwrap_or(DEFAULT_VERTICAL_TABS_PANEL_WIDTH);
 
         Self {
             universal_search_width: resizable_state_handle(universal_search_width),
@@ -71,6 +77,7 @@ impl ModalSizes {
             settings_panel_width: resizable_state_handle(settings_panel_width),
             left_panel_width: resizable_state_handle(left_panel_width),
             right_panel_width: resizable_state_handle(right_panel_width),
+            vertical_tabs_panel_width: resizable_state_handle(vertical_tabs_panel_width),
         }
     }
 
@@ -83,6 +90,7 @@ impl ModalSizes {
             settings_panel_width: resizable_state_handle(DEFAULT_SETTINGS_PANEL_WIDTH),
             left_panel_width: resizable_state_handle(left_default),
             right_panel_width: resizable_state_handle(right_default),
+            vertical_tabs_panel_width: resizable_state_handle(DEFAULT_VERTICAL_TABS_PANEL_WIDTH),
         }
     }
 
@@ -96,6 +104,7 @@ impl ModalSizes {
             ModalType::SettingsPanelWidth => self.settings_panel_width.clone(),
             ModalType::LeftPanelWidth => self.left_panel_width.clone(),
             ModalType::RightPanelWidth => self.right_panel_width.clone(),
+            ModalType::VerticalTabsPanelWidth => self.vertical_tabs_panel_width.clone(),
         }
     }
 }
@@ -111,6 +120,7 @@ impl Default for ModalSizes {
             settings_panel_width: resizable_state_handle(DEFAULT_SETTINGS_PANEL_WIDTH),
             left_panel_width: resizable_state_handle(DEFAULT_LEFT_PANEL_WIDTH),
             right_panel_width: resizable_state_handle(DEFAULT_RIGHT_PANEL_WIDTH),
+            vertical_tabs_panel_width: resizable_state_handle(DEFAULT_VERTICAL_TABS_PANEL_WIDTH),
         }
     }
 }
@@ -159,3 +169,7 @@ impl Entity for ResizableData {
 }
 
 impl SingletonEntity for ResizableData {}
+
+#[cfg(test)]
+#[path = "resizable_data_tests.rs"]
+mod tests;
