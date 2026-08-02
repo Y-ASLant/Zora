@@ -1019,6 +1019,8 @@ settings-ai-autodetect-terminal-commands = Autodetect terminal commands in agent
 settings-ai-natural-language-detection = Natural language detection
 settings-ai-natural-language-denylist = Natural language denylist
 settings-ai-natural-language-denylist-description = Commands listed here will never trigger natural language detection.
+settings-ai-autodetect-description-incorrect-detection = Encountered an incorrect detection?
+settings-ai-natural-language-detection-description = Enabling natural language detection will detect when natural language is written in the terminal input, and then automatically switch to Agent Mode for AI queries.
 settings-ai-let-us-know = Let us know
 
 # MCP Servers
@@ -1040,6 +1042,8 @@ settings-ai-rules-description = Rules help the Zap Agent follow your conventions
 settings-ai-voice-input-label = Voice Input
 settings-ai-voice-key = Key for Activating Voice Input
 settings-ai-voice-key-hint = Press and hold to activate.
+settings-ai-voice-input-description-prefix = Voice input allows you to control Zap by speaking directly to your terminal (powered by
+settings-ai-voice-input-description-suffix = ).
 
 # Other section
 settings-ai-show-use-agent-footer = Show "Use Agent" footer
@@ -2434,6 +2438,10 @@ menu-tab-default-no-color = Default (no color)
 menu-pane-copy-link = Copy link
 menu-pane-stop-sharing-session = Stop session broadcast
 menu-pane-open-on-desktop = Open on Desktop
+menu-pane-rename = Rename pane
+menu-pane-reset-name = Reset pane name
+menu-pane-rename-active = Rename active pane
+menu-pane-reset-active-name = Reset active pane name
 
 # --- 文件树右键菜单(code/file_tree/view.rs) ---
 menu-filetree-open-in-new-pane = Open in new pane

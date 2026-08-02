@@ -1004,6 +1004,8 @@ settings-ai-autodetect-terminal-commands = 在智能体输入中自动检测终�
 settings-ai-natural-language-detection = 自然语言检测
 settings-ai-natural-language-denylist = 自然语言拒绝列表
 settings-ai-natural-language-denylist-description = 列出的命令永远不会触发自然语言检测。
+settings-ai-autodetect-description-incorrect-detection = 检测结果不正确？
+settings-ai-natural-language-detection-description = 启用自然语言检测后，系统会检测终端输入中的自然语言，并自动切换到智能体模式以处理 AI 请求。
 settings-ai-let-us-know = 告诉我们
 
 # MCP 服务器
@@ -1025,6 +1027,8 @@ settings-ai-rules-description = 规则帮助 Zap 智能体遵循你的约定，�
 settings-ai-voice-input-label = 语音输入
 settings-ai-voice-key = 激活语音输入的按键
 settings-ai-voice-key-hint = 按住以激活。
+settings-ai-voice-input-description-prefix = 语音输入让你可以通过直接对终端讲话来控制 Zap（由
+settings-ai-voice-input-description-suffix = 提供支持）。
 
 # 其他区段
 settings-ai-show-use-agent-footer = 显示「使用智能体」页脚
@@ -2362,6 +2366,10 @@ menu-tab-default-no-color = 默认（无颜色）
 menu-pane-copy-link = 复制链接
 menu-pane-stop-sharing-session = 停止会话广播
 menu-pane-open-on-desktop = 在桌面端打开
+menu-pane-rename = 重命名窗格
+menu-pane-reset-name = 重置窗格名称
+menu-pane-rename-active = 重命名活动窗格
+menu-pane-reset-active-name = 重置活动窗格名称
 
 # --- 文件树右键菜单（code/file_tree/view.rs） ---
 menu-filetree-open-in-new-pane = 在新面板中打开

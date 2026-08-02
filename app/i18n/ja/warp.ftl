@@ -927,6 +927,8 @@ settings-ai-autodetect-terminal-commands = エージェント入力中のター�
 settings-ai-natural-language-detection = 自然言語の検出
 settings-ai-natural-language-denylist = 自然言語拒否リスト
 settings-ai-natural-language-denylist-description = ここに登録したコマンドは自然言語検出をトリガーしません。
+settings-ai-autodetect-description-incorrect-detection = 検出結果が正しくありませんか？
+settings-ai-natural-language-detection-description = 自然言語検出を有効にすると、ターミナル入力内の自然言語を検出し、AI の問い合わせに対して自動的にエージェントモードへ切り替えます。
 settings-ai-let-us-know = フィードバックを送る
 
 # MCP Servers
@@ -948,6 +950,8 @@ settings-ai-rules-description = ルールは、Zap エージェントがコー�
 settings-ai-voice-input-label = 音声入力
 settings-ai-voice-key = 音声入力を有効化するキー
 settings-ai-voice-key-hint = 押し続けると有効になります。
+settings-ai-voice-input-description-prefix = 音声でターミナルに直接話しかけて Zap を操作できます（提供：
+settings-ai-voice-input-description-suffix = ）。
 
 # Other section
 settings-ai-show-use-agent-footer = 「Use Agent」フッターを表示
@@ -2310,6 +2314,10 @@ menu-tab-default-no-color = デフォルト (色なし)
 menu-pane-copy-link = リンクをコピー
 menu-pane-stop-sharing-session = セッションブロードキャストを停止
 menu-pane-open-on-desktop = デスクトップで開く
+menu-pane-rename = ペイン名を変更
+menu-pane-reset-name = ペイン名をリセット
+menu-pane-rename-active = アクティブなペイン名を変更
+menu-pane-reset-active-name = アクティブなペイン名をリセット
 
 # --- 文件树右键菜单(code/file_tree/view.rs) ---
 menu-filetree-open-in-new-pane = 新しいペインで開く

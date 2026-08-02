@@ -5378,16 +5378,16 @@ impl AIInputWidget {
         let mut section = Flex::column();
 
         if FeatureFlag::AgentView.is_enabled() {
-            static AUTODETECTION_DESCRIPTION_FRAGMENTS: LazyLock<Vec<FormattedTextFragment>> =
-                LazyLock::new(|| {
-                    vec![
-                        FormattedTextFragment::plain_text("Encountered an incorrect detection? "),
-                        FormattedTextFragment::hyperlink(
-                            "Let us know",
-                            "https://warpdotdev.typeform.com/to/offrTIpq",
-                        ),
-                    ]
-                });
+            let autodetection_description_fragments = vec![
+                FormattedTextFragment::plain_text(format!(
+                    "{} ",
+                    crate::t!("settings-ai-autodetect-description-incorrect-detection")
+                )),
+                FormattedTextFragment::hyperlink(
+                    crate::t!("settings-ai-let-us-know"),
+                    "https://warpdotdev.typeform.com/to/offrTIpq",
+                ),
+            ];
 
             section.add_children([
                 render_ai_setting_toggle::<NLDInTerminalEnabled>(
@@ -5411,7 +5411,7 @@ impl AIInputWidget {
                 Container::new(
                     FormattedTextElement::new(
                         FormattedText::new([FormattedTextLine::Line(
-                            (*AUTODETECTION_DESCRIPTION_FRAGMENTS).clone(),
+                            autodetection_description_fragments,
                         )]),
                         appearance.ui_font_body(),
                         appearance.ui_font_family(),
@@ -5432,22 +5432,19 @@ impl AIInputWidget {
                 .finish(),
             ])
         } else {
-            static NATURAL_LANGUAGE_DETECTION_DESCRIPTION_FRAGMENTS: LazyLock<
-                Vec<FormattedTextFragment>,
-            > = LazyLock::new(|| {
-                vec![
-                    FormattedTextFragment::plain_text(
-                        "Enabling natural language detection will detect when natural language is written in the terminal input, and then automatically switch to Agent Mode for AI queries.",
-                    ),
-                    FormattedTextFragment::plain_text(
-                        " Encountered an incorrect input detection? ",
-                    ),
-                    FormattedTextFragment::hyperlink(
-                        "Let us know",
-                        "https://warpdotdev.typeform.com/to/offrTIpq",
-                    ),
-                ]
-            });
+            let natural_language_detection_description_fragments = vec![
+                FormattedTextFragment::plain_text(crate::t!(
+                    "settings-ai-natural-language-detection-description"
+                )),
+                FormattedTextFragment::plain_text(format!(
+                    " {} ",
+                    crate::t!("settings-ai-autodetect-description-incorrect-detection")
+                )),
+                FormattedTextFragment::hyperlink(
+                    crate::t!("settings-ai-let-us-know"),
+                    "https://warpdotdev.typeform.com/to/offrTIpq",
+                ),
+            ];
 
             section.add_children([
                 render_ai_setting_toggle::<AIAutoDetectionEnabled>(
@@ -5462,7 +5459,7 @@ impl AIInputWidget {
                 Container::new(
                     FormattedTextElement::new(
                         FormattedText::new([FormattedTextLine::Line(
-                            (*NATURAL_LANGUAGE_DETECTION_DESCRIPTION_FRAGMENTS).clone(),
+                            natural_language_detection_description_fragments,
                         )]),
                         appearance.ui_font_body(),
                         appearance.ui_font_family(),
@@ -5820,11 +5817,14 @@ impl VoiceWidget {
         ));
 
         let voice_input_description_text_fragments = vec![
-            FormattedTextFragment::plain_text(
-                "Voice input allows you to control Zap by speaking directly to your terminal (powered by ",
-            ),
+            FormattedTextFragment::plain_text(format!(
+                "{} ",
+                crate::t!("settings-ai-voice-input-description-prefix")
+            )),
             FormattedTextFragment::hyperlink("Wispr Flow", WISPR_FLOW_URL),
-            FormattedTextFragment::plain_text(")."),
+            FormattedTextFragment::plain_text(crate::t!(
+                "settings-ai-voice-input-description-suffix"
+            )),
         ];
 
         let voice_input_description = FormattedTextElement::new(

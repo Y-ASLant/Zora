@@ -117,11 +117,11 @@ pub enum NewSessionMenuItem {
     CreateNewTabConfig,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct PaneNameMenuTarget {
     pub locator: PaneViewLocator,
-    pub rename_label: &'static str,
-    pub reset_label: &'static str,
+    pub rename_label: String,
+    pub reset_label: String,
 }
 
 /// TabData struct holds the state of the given tab. It includes the pane group and mouse states
