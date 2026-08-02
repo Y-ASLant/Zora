@@ -17,6 +17,12 @@ fn matches_sudo_password_prompt() {
 }
 
 #[test]
+fn matches_localized_sudo_password_prompt() {
+    assert!(matches("[sudo] user 的密码："));
+    assert!(matches("[sudo] 用户的密码： "));
+}
+
+#[test]
 fn matches_passphrase_prompt() {
     assert!(matches("Enter passphrase for key '/home/u/.ssh/id_rsa': "));
 }

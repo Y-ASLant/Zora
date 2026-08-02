@@ -10788,6 +10788,17 @@ impl TerminalView {
             ModelEvent::Typeahead => {
                 self.handle_typeahead_event(ctx);
             }
+            ModelEvent::AgentPasswordPromptDetected { action_id } => {
+                for rich_content in &self.rich_content_views {
+                    let Some(ai_metadata) = rich_content.ai_block_metadata() else {
+                        continue;
+                    };
+                    let action_id = action_id.clone();
+                    ai_metadata.ai_block_handle.update(ctx, move |block, ctx| {
+                        block.expand_requested_command_view(&action_id, ctx);
+                    });
+                }
+            }
             ModelEvent::Handler(AnsiHandlerEvent::InitShell {
                 pending_session_info,
             }) => {

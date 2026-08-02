@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use instant::Instant;
 
+use crate::ai::agent::AIAgentActionId;
 use crate::server::ids::SyncId;
 use crate::server::telemetry::ImageProtocol;
 use crate::terminal::model::block::BlockMetadata;
@@ -43,6 +44,10 @@ pub enum Event {
         block_id: BlockId,
         command: String,
         is_for_in_band_command: bool,
+    },
+    /// PTY 输出表明 Agent 请求的命令正在等待用户输入密码。
+    AgentPasswordPromptDetected {
+        action_id: AIAgentActionId,
     },
     /// Sent when a new block is created.
     BlockMetadataReceived(BlockMetadataReceivedEvent),
@@ -412,6 +417,9 @@ impl Debug for Event {
                 event.block_metadata, event.is_done_bootstrapping
             ),
             Event::AfterBlockStarted { .. } => write!(f, "BlockExecutionStarted"),
+            Event::AgentPasswordPromptDetected { .. } => {
+                write!(f, "AgentPasswordPromptDetected")
+            }
             Event::BackgroundBlockStarted => write!(f, "BackgroundBlockStarted"),
             Event::VisibleBootstrapBlock => write!(f, "VisibleBootstrapBlock"),
             Event::Title(title) => write!(f, "Title({title})"),

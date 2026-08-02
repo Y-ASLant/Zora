@@ -20,6 +20,7 @@ use warp_terminal::model::{KeyboardModes, KeyboardModesApplyBehavior};
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::agent_view::{AgentViewDisplayMode, AgentViewState};
+use crate::ssh_manager::password_prompt::bytes_look_like_password_prompt;
 use crate::{
     ai::agent::redaction::redact_secrets,
     context_chips::prompt_snapshot::PromptSnapshot,
@@ -3260,6 +3261,13 @@ impl ansi::Handler for Block {
     }
 
     fn on_finish_byte_processing(&mut self, input: &ansi::ProcessorInput<'_>) {
+        if self.is_executing() && bytes_look_like_password_prompt(input.bytes()) {
+            if let Some(action_id) = self.requested_command_action_id().cloned() {
+                self.event_proxy
+                    .send_terminal_event(Event::AgentPasswordPromptDetected { action_id });
+            }
+        }
+
         delegate!(self.on_finish_byte_processing(input));
     }
 

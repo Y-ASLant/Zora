@@ -2,7 +2,10 @@ use std::{collections::HashMap, pin::pin, time::Duration};
 
 use super::*;
 use crate::{
-    ai::blocklist::agent_view::AgentViewState,
+    ai::{
+        agent::{conversation::AIConversationId, AIAgentActionId},
+        blocklist::agent_view::AgentViewState,
+    },
     terminal::model::{
         ansi::{Attr, Handler},
         cell::Flags,
@@ -513,6 +516,41 @@ pub fn test_block_emits_block_completed_event_for_in_band_command() {
             _ => false,
         }));
     assert!(block_completed_event.is_some());
+}
+
+#[test]
+fn test_block_emits_agent_password_prompt_event() {
+    let (events_tx, events_rx) = async_channel::unbounded();
+    let event_proxy = ChannelEventListener::builder_for_test()
+        .with_terminal_events_tx(events_tx)
+        .build();
+    let mut block = TestBlockBuilder::new()
+        .with_event_proxy(event_proxy)
+        .build();
+    let action_id = AIAgentActionId::from("password-action".to_owned());
+
+    block.precmd(Default::default());
+    block.start();
+    block.set_agent_interaction_mode_for_requested_command(
+        action_id.clone(),
+        None,
+        AIConversationId::new(),
+    );
+    block.preexec(PreexecValue {
+        command: "sudo apt-get clean -y".to_owned(),
+    });
+    block.on_finish_byte_processing(&ansi::ProcessorInput::new(
+        "[sudo] user 的密码：".as_bytes(),
+    ));
+
+    let mut password_prompt_event = None;
+    while let Ok(event) = events_rx.try_recv() {
+        if let Event::AgentPasswordPromptDetected { action_id } = event {
+            password_prompt_event = Some(action_id);
+            break;
+        }
+    }
+    assert_eq!(password_prompt_event, Some(action_id));
 }
 
 /// Tests the multiline lprompt and multiline command case for selecting text across grids.

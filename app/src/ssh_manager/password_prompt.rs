@@ -1,7 +1,7 @@
 use lazy_static::lazy_static;
 use regex::bytes::Regex;
 
-const PASSWORD_PROMPT_PATTERN: &str = r"(?im)(password|passphrase)[^\n]*:\s*$";
+const PASSWORD_PROMPT_PATTERN: &str = r"(?im)(password|passphrase|密码|口令|密碼)[^\n]*[:：]\s*$";
 
 lazy_static! {
     static ref PASSWORD_PROMPT_REGEX: Regex =

@@ -1,6 +1,7 @@
 use crate::server::telemetry::ImageProtocol;
 use crate::terminal::model::session::Sessions;
 
+use crate::ai::agent::AIAgentActionId;
 use crate::terminal::event::{
     AfterBlockCompletedEvent, BlockCompletedEvent, BlockMetadataReceivedEvent, Event,
     ExecutedExecutorCommandEvent, InitSshEvent, InitSubshellEvent, SourcedRcFileInSubshellEvent,
@@ -229,6 +230,9 @@ impl ModelEventDispatcher {
                 command,
                 is_for_in_band_command,
             },
+            Event::AgentPasswordPromptDetected { action_id } => {
+                ModelEvent::AgentPasswordPromptDetected { action_id }
+            }
             Event::BlockMetadataReceived(block_metadata_received_event) => {
                 ModelEvent::BlockMetadataReceived(block_metadata_received_event)
             }
@@ -387,6 +391,10 @@ pub enum ModelEvent {
         block_id: BlockId,
         command: String,
         is_for_in_band_command: bool,
+    },
+    /// PTY 输出表明 Agent 请求的命令正在等待用户输入密码。
+    AgentPasswordPromptDetected {
+        action_id: AIAgentActionId,
     },
     /// Sent when a new block is created.
     BlockMetadataReceived(BlockMetadataReceivedEvent),
