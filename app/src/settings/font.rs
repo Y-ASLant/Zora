@@ -14,7 +14,7 @@ use warpui::elements::{HeadingFontSizeMultipliers, DEFAULT_UI_LINE_HEIGHT_RATIO}
 
 use super::EnforceMinimumContrast as EnforceMinimumContrastEnum;
 
-pub const DEFAULT_MONOSPACE_FONT_NAME: &str = "Hack";
+pub const DEFAULT_MONOSPACE_FONT_NAME: &str = "Lilex";
 pub const DEFAULT_MONOSPACE_FALLBACK_FONT_NAME: &str = "";
 
 // Markdown 标题字号倍率的合法区间（与 UI 层 clamp 保持一致）

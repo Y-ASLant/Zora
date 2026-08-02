@@ -23,6 +23,7 @@ fn mock_appearance() -> Appearance {
         13.0,
         Weight::Normal,
         FamilyId(1),
+        FamilyId(1),
         1.4,
         FamilyId(0),
         None,

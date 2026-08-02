@@ -2435,10 +2435,17 @@ impl Workspace {
 
         let (left_panel_size, right_panel_size) =
             compute_default_panel_widths(ctx, window_id, has_horizontal_split);
+        let persist_vertical_tabs_panel_width =
+            *TabSettings::as_ref(ctx).persist_vertical_tabs_panel_width;
         let new_resizable_modal_sizes = match workspace_setting.clone() {
             NewWorkspaceSource::Restored {
                 window_snapshot, ..
-            } => ModalSizes::from_restored(&window_snapshot, left_panel_size, right_panel_size),
+            } => ModalSizes::from_restored(
+                &window_snapshot,
+                left_panel_size,
+                right_panel_size,
+                persist_vertical_tabs_panel_width,
+            ),
             _ => ModalSizes::default_with_panel_defaults(left_panel_size, right_panel_size),
         };
         resizable_data.update(ctx, |model, _| {
@@ -3193,6 +3200,10 @@ impl Workspace {
                 {
                     self.vertical_tabs_panel_open = true;
                 }
+                ctx.notify();
+            }
+            TabSettingsChangedEvent::PersistVerticalTabsPanelWidth { .. } => {
+                ctx.dispatch_global_action("workspace:save_app", ());
                 ctx.notify();
             }
             TabSettingsChangedEvent::ShowCodeReviewButton { .. } => {
@@ -9666,12 +9677,17 @@ impl Workspace {
                 .unwrap_or(DEFAULT_RIGHT_PANEL_WIDTH)
         });
 
-        let vertical_tabs_panel_width = modal_sizes.map(|ms| {
-            ms.vertical_tabs_panel_width
-                .lock()
-                .expect("should be able to lock vertical tabs panel resizable state handle")
-                .size()
-        });
+        let vertical_tabs_panel_width =
+            if *TabSettings::as_ref(app).persist_vertical_tabs_panel_width {
+                modal_sizes.map(|ms| {
+                    ms.vertical_tabs_panel_width
+                        .lock()
+                        .expect("should be able to lock vertical tabs panel resizable state handle")
+                        .size()
+                })
+            } else {
+                None
+            };
 
         WindowSnapshot {
             tabs,

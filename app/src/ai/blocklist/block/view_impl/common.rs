@@ -545,9 +545,7 @@ pub fn render_warping_indicator_base(
         is_passive_code_diff,
         secondary_element,
     } = props;
-    // Unicode code point for the Zap glyph that is embedded in the version of Roboto we bundle
-    // into the app. This code point MUST be rendered using Roboto (the default ui font) or else the
-    // glyph may not be rendered.
+    // Zap 图标字形来自单独嵌入的品牌字体，不能使用普通 UI 字体渲染。
     const WARP_GLYPH: &str = "\u{E500}";
 
     let appearance = Appearance::as_ref(app);
@@ -587,7 +585,7 @@ pub fn render_warping_indicator_base(
             let font_size = appearance.monospace_font_size() - 3.;
             let glyph_indent = Text::new_inline(
                 format!("{WARP_GLYPH} "),
-                appearance.ui_font_family(),
+                appearance.warp_glyph_font_family(),
                 font_size,
             )
             .with_color(ColorU::new(0, 0, 0, 0))

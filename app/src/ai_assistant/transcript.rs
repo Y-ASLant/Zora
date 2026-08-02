@@ -9,10 +9,10 @@ use warpui::units::Pixels;
 use warpui::{
     elements::{
         Align, Border, ChildAnchor, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox,
-        Container, CornerRadius, CrossAxisAlignment, EventHandler, Fill, Flex,
+        Container, CornerRadius, CrossAxisAlignment, EventHandler, Expanded, Fill, Flex,
         FormattedTextElement, HyperlinkUrl, Icon, MainAxisAlignment, MainAxisSize,
         MouseStateHandle, ParentAnchor, ParentElement, Radius, SavePosition, ScrollbarWidth,
-        Expanded, Shrinkable, Text, Wrap,
+        Shrinkable, Text, Wrap,
     },
     keymap::Keystroke,
     platform::Cursor,
@@ -49,7 +49,6 @@ const TERMINAL_INPUT_SVG_PATH: &str = "bundled/svg/terminal-input.svg";
 const USER_ICON_SVG_PATH: &str = "bundled/svg/user.svg";
 const SAVE_WORKFLOW_ICON_PATH: &str = "bundled/svg/workflow.svg";
 
-
 const PANEL_LEFT_MARGIN: f32 = 15.;
 const DETAILS_BOTTOM_MARGIN: f32 = 12.;
 
@@ -60,10 +59,6 @@ const SAVE_AS_WORKFLOW_BUTTON_SIZE: f32 = 20.;
 const HOW_DO_I_FIX_PROMPT: &str = "How do I fix this?";
 const SHOW_EXAMPLES_PROMPT: &str = "Show examples.";
 const WHAT_TO_DO_NEXT_PROMPT: &str = "What should I do next?";
-const IN_FLIGHT_REQUEST_TEXT: &str = "Generating answer...";
-const ACCURACY_NOTICE_TEXT: &str = "AI responses can be inaccurate.";
-const MISSING_CONTEXT_NOTICE_TEXT: &str =
-    "Zap AI might forget earlier answers as conversations get long.";
 
 lazy_static::lazy_static! {
     static ref SCROLL_BUFFER_OFFSET_PX: Pixels = (10.).into_pixels();
@@ -434,7 +429,7 @@ impl Transcript {
             .finish();
 
         buttons.add_child(appearance.ui_builder().tool_tip_on_element(
-            "Copy code to clipboard [Cmd + C]".to_string(),
+            crate::t!("ai-assistant-copy-code-tooltip"),
             mouse_state_handles.copy_button_tooltip.clone(),
             copy_button,
             ParentAnchor::TopRight,
@@ -469,7 +464,7 @@ impl Transcript {
 
             buttons.add_child(
                 Container::new(appearance.ui_builder().tool_tip_on_element(
-                    "Insert code into terminal input [Cmd + Enter]".to_string(),
+                    crate::t!("ai-assistant-insert-code-tooltip"),
                     mouse_state_handles.play_button_tooltip.clone(),
                     insert_button,
                     ParentAnchor::TopRight,
@@ -504,7 +499,7 @@ impl Transcript {
             buttons.add_child(
                 SavePosition::new(
                     Container::new(appearance.ui_builder().tool_tip_on_element(
-                        "Save as workflow [Cmd + S]".to_string(),
+                        crate::t!("ai-assistant-save-workflow-tooltip"),
                         mouse_state_handles.save_as_workflow_button_tooltip.clone(),
                         save_as_workflow_button,
                         ParentAnchor::TopRight,
@@ -566,7 +561,7 @@ impl Transcript {
                     .finish();
 
                 appearance.ui_builder().tool_tip_on_element(
-                    "Copy answer to clipboard".to_string(),
+                    crate::t!("ai-assistant-copy-answer-tooltip"),
                     tooltip_handle,
                     copy_button,
                     ParentAnchor::TopRight,
@@ -801,6 +796,7 @@ impl Transcript {
                 self.mouse_state_handles.what_to_do_next_button.clone(),
                 None,
                 Some(8.),
+                crate::t!("ai-assistant-prepared-prompt-what-to-do-next"),
                 WHAT_TO_DO_NEXT_PROMPT,
             ))
             .with_child(
@@ -809,6 +805,7 @@ impl Transcript {
                     self.mouse_state_handles.show_examples_button.clone(),
                     None,
                     Some(8.),
+                    crate::t!("ai-assistant-prepared-prompt-show-examples"),
                     SHOW_EXAMPLES_PROMPT,
                 ))
                 .with_margin_left(10.)
@@ -820,6 +817,7 @@ impl Transcript {
                 self.mouse_state_handles.how_do_i_fix_button.clone(),
                 None,
                 Some(8.),
+                crate::t!("ai-assistant-prepared-prompt-how-do-i-fix"),
                 HOW_DO_I_FIX_PROMPT,
             ))
             .finish()
@@ -867,10 +865,11 @@ impl View for Transcript {
             blocks.add_child(self.render_user_prompt(request, appearance));
 
             let transcript_part_index = transcript.len();
+            let in_flight_request_text = crate::t!("ai-assistant-generating-answer");
             let in_flight_request_markdown = markdown_segments_from_text(
                 transcript_part_index,
                 TranscriptPartSubType::Answer,
-                IN_FLIGHT_REQUEST_TEXT,
+                &in_flight_request_text,
             );
             blocks.add_child(self.render_assistant_answer(
                 transcript_part_index,
@@ -879,7 +878,7 @@ impl View for Transcript {
                     copy_all_tooltip_and_button_mouse_handles: None,
                     formatted_message: FormattedTranscriptMessage {
                         markdown: in_flight_request_markdown,
-                        raw: IN_FLIGHT_REQUEST_TEXT.to_owned(),
+                        raw: in_flight_request_text,
                     },
                 },
                 appearance,
@@ -920,7 +919,10 @@ impl View for Transcript {
 
             blocks.add_child(
                 Container::new(
-                    self.render_warning_message(ACCURACY_NOTICE_TEXT.to_string(), appearance),
+                    self.render_warning_message(
+                        crate::t!("ai-assistant-accuracy-notice"),
+                        appearance,
+                    ),
                 )
                 .with_margin_top(DETAILS_BOTTOM_MARGIN)
                 .with_margin_bottom(if current_transcript_summarized {
@@ -934,7 +936,7 @@ impl View for Transcript {
             if current_transcript_summarized {
                 blocks.add_child(
                     Container::new(self.render_warning_message(
-                        MISSING_CONTEXT_NOTICE_TEXT.to_string(),
+                        crate::t!("ai-assistant-missing-context-notice"),
                         appearance,
                     ))
                     .with_margin_bottom(DETAILS_BOTTOM_MARGIN)

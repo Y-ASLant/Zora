@@ -1976,6 +1976,9 @@ fn test_vertical_tabs_panel_width_restores_from_window_snapshot() {
         app.update(|ctx| {
             TabSettings::handle(ctx).update(ctx, |settings, ctx| {
                 report_if_error!(settings.use_vertical_tabs.set_value(true, ctx));
+                report_if_error!(settings
+                    .persist_vertical_tabs_panel_width
+                    .set_value(true, ctx));
             });
         });
 
@@ -2008,6 +2011,34 @@ fn test_vertical_tabs_panel_width_restores_from_window_snapshot() {
                 376.
             );
         });
+    });
+}
+
+#[test]
+fn test_vertical_tabs_panel_width_is_not_saved_by_default() {
+    let _vertical_tabs_guard = FeatureFlag::VerticalTabs.override_enabled(true);
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.update(|ctx| {
+            TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+                report_if_error!(settings.use_vertical_tabs.set_value(true, ctx));
+            });
+        });
+
+        let workspace = mock_workspace(&mut app);
+        let snapshot = workspace.update(&mut app, |workspace, ctx| {
+            let width_handle = ResizableData::handle(ctx)
+                .as_ref(ctx)
+                .get_handle(ctx.window_id(), ModalType::VerticalTabsPanelWidth)
+                .expect("vertical tabs panel width handle should exist");
+            width_handle
+                .lock()
+                .expect("vertical tabs panel width handle should not be poisoned")
+                .set_size(376.);
+            workspace.snapshot(ctx.window_id(), false, ctx)
+        });
+
+        assert_eq!(snapshot.vertical_tabs_panel_width, None);
     });
 }
 

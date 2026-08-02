@@ -167,6 +167,7 @@ fn build_appearance(
         13.0,
         Weight::Normal,
         ui_font_family,
+        ui_font_family,
         1.4,
         ai_font_family,
         None,

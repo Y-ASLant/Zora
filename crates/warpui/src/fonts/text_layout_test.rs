@@ -68,32 +68,44 @@ fn test_fixed_width_tab_size_matches_spaces_width() -> Result<()> {
     Ok(())
 }
 
-/// Read the bundled Roboto font's bytes from the filesystem.
-fn load_roboto_bytes() -> Vec<Vec<u8>> {
+/// Read the bundled IBM Plex Sans font's bytes from the filesystem.
+fn load_ibm_plex_sans_bytes() -> Vec<Vec<u8>> {
     use std::{fs::read, path::PathBuf};
     let root = env!("CARGO_MANIFEST_DIR");
-    let typeface_files = ["Roboto-Italic.ttf", "Roboto-Bold.ttf", "Roboto-Regular.ttf"];
+    let typeface_files = [
+        "IBMPlexSans-Italic.ttf",
+        "IBMPlexSans-Bold.ttf",
+        "IBMPlexSans-Regular.ttf",
+    ];
     typeface_files
         .iter()
         .map(|font_file| {
             let path = [
-                root, "..", "..", "app", "assets", "bundled", "fonts", "roboto", font_file,
+                root,
+                "..",
+                "..",
+                "app",
+                "assets",
+                "bundled",
+                "fonts",
+                "ibm-plex-sans",
+                font_file,
             ]
             .iter()
             .collect::<PathBuf>();
             Ok(read(path)?)
         })
         .collect::<Result<Vec<_>>>()
-        .expect("should be able to read roboto font bytes from filesystem")
+        .expect("should be able to read IBM Plex Sans font bytes from filesystem")
 }
 
 pub(crate) fn init_fonts() -> (FontDB, FamilyId) {
     let mut font_db = FontDB::new();
-    let font_bytes = load_roboto_bytes();
-    let roboto = font_db
-        .load_from_bytes("Roboto", font_bytes)
-        .expect("should be able to load Roboto font for test");
-    (font_db, roboto)
+    let font_bytes = load_ibm_plex_sans_bytes();
+    let ibm_plex_sans = font_db
+        .load_from_bytes("IBM Plex Sans", font_bytes)
+        .expect("should be able to load IBM Plex Sans font for test");
+    (font_db, ibm_plex_sans)
 }
 
 pub(crate) fn collect_glyph_indices(frame: &TextFrame) -> Vec<Vec<usize>> {

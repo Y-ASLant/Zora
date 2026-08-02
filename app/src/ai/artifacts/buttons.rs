@@ -135,7 +135,9 @@ fn collect_buttons(
                 // openWarp 本地化:只要能解析出本地 AIDocumentId 就显示按钮,
                 // 点击打开本地 AIDocument pane;不再依赖云 notebook 镜像。
                 if let Ok(document_uid) = AIDocumentId::try_from(document_uid.as_str()) {
-                    let button_text = title.clone().unwrap_or("Untitled Plan".to_string());
+                    let button_text = title
+                        .clone()
+                        .unwrap_or_else(|| crate::t!("ai-artifact-untitled-plan"));
                     let theme = theme.clone();
                     buttons.push(ctx.add_typed_action_view(move |_| {
                         make_plan_button(button_text, document_uid, theme)
@@ -195,7 +197,7 @@ fn make_plan_button(
     make_artifact_button(
         title,
         Icon::Compass,
-        "Open plan",
+        crate::t!("ai-artifact-open-plan-tooltip"),
         None,
         ArtifactButtonAction::OpenPlan { document_uid },
         theme,
@@ -206,7 +208,7 @@ fn make_branch_button(branch: String, theme: Arc<dyn ActionButtonTheme>) -> Acti
     make_artifact_button(
         branch.clone(),
         Icon::GitBranch,
-        "Copy branch name",
+        crate::t!("ai-artifact-copy-branch-tooltip"),
         Some(AnsiColorIdentifier::Green),
         ArtifactButtonAction::CopyBranch { branch },
         theme,
@@ -228,7 +230,7 @@ fn make_pr_button(
     make_artifact_button(
         display_text,
         Icon::Github,
-        "Open pull request",
+        crate::t!("ai-artifact-open-pull-request-tooltip"),
         None,
         ArtifactButtonAction::OpenPullRequest { url },
         theme,
@@ -238,7 +240,7 @@ fn make_pr_button(
 fn make_artifact_button(
     display_text: String,
     icon: Icon,
-    tooltip: &str,
+    tooltip: String,
     icon_color: Option<AnsiColorIdentifier>,
     action: ArtifactButtonAction,
     theme: Arc<dyn ActionButtonTheme>,

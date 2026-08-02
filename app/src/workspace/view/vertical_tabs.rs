@@ -1502,6 +1502,11 @@ fn render_vertical_tabs_panel(
         .on_resize(|ctx, _| {
             ctx.notify();
         })
+        .on_end_resizing(|_, app| {
+            if *TabSettings::as_ref(app).persist_vertical_tabs_panel_width {
+                app.dispatch_global_action("workspace:save_app", ());
+            }
+        })
         .with_bounds_callback(Box::new(|window_size| {
             let max_width = window_size.x() * MAX_PANEL_WIDTH_RATIO;
             (MIN_PANEL_WIDTH, max_width.max(MIN_PANEL_WIDTH))

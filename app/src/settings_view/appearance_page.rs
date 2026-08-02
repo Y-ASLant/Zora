@@ -57,10 +57,10 @@ use crate::window_settings::{
 };
 use crate::workspace::header_toolbar_editor::HeaderToolbarInlineEditor;
 use crate::workspace::tab_settings::{
-    DirectoryTabColor, PreserveActiveTabColor, ShowCodeReviewButton, ShowIndicatorsButton,
-    ShowTitleBarSearchBar, ShowVerticalTabPanelInRestoredWindows, TabCloseButtonPosition,
-    TabSettings, TabSettingsChangedEvent, UseLatestUserPromptAsConversationTitleInTabNames,
-    UseVerticalTabs, WorkspaceDecorationVisibility,
+    DirectoryTabColor, PersistVerticalTabsPanelWidth, PreserveActiveTabColor, ShowCodeReviewButton,
+    ShowIndicatorsButton, ShowTitleBarSearchBar, ShowVerticalTabPanelInRestoredWindows,
+    TabCloseButtonPosition, TabSettings, TabSettingsChangedEvent,
+    UseLatestUserPromptAsConversationTitleInTabNames, UseVerticalTabs, WorkspaceDecorationVisibility,
 };
 use crate::workspace::WorkspaceAction;
 use crate::{editor::EditorView, themes::theme_chooser::ThemeChooserMode};
@@ -481,6 +481,7 @@ pub enum AppearancePageAction {
     TogglePreserveActiveTabColor,
     ToggleVerticalTabs,
     ToggleShowVerticalTabPanelInRestoredWindows,
+    TogglePersistVerticalTabsPanelWidth,
     ToggleShowTitleBarSearchBar,
     ToggleUseLatestUserPromptAsConversationTitleInTabNames,
     ToggleLigatureRendering,
@@ -642,6 +643,9 @@ impl TypedActionView for AppearanceSettingsPageView {
             ToggleVerticalTabs => self.toggle_vertical_tabs(ctx),
             ToggleShowVerticalTabPanelInRestoredWindows => {
                 self.toggle_show_vertical_tab_panel_in_restored_windows(ctx)
+            }
+            TogglePersistVerticalTabsPanelWidth => {
+                self.toggle_persist_vertical_tabs_panel_width(ctx)
             }
             ToggleShowTitleBarSearchBar => self.toggle_show_title_bar_search_bar(ctx),
             ToggleUseLatestUserPromptAsConversationTitleInTabNames => {
@@ -1585,6 +1589,7 @@ impl AppearanceSettingsPageView {
             tab_settings_widgets.push(Box::new(
                 ShowVerticalTabPanelInRestoredWindowsWidget::default(),
             ));
+            tab_settings_widgets.push(Box::new(PersistVerticalTabsPanelWidthWidget::default()));
             tab_settings_widgets.push(Box::new(ShowTitleBarSearchBarWidget::default()));
             tab_settings_widgets.push(Box::new(
                 UseLatestUserPromptAsConversationTitleInTabNamesWidget::default(),
@@ -2515,7 +2520,7 @@ impl AppearanceSettingsPageView {
             })
             .collect();
 
-        // Add Hack font to the available monospace families so user could switch back to it.
+        // Add the bundled monospace font to the available families so users can select it.
         if let Some(family_id) = ctx
             .font_cache()
             .family_id_for_name(DEFAULT_MONOSPACE_FONT_NAME)
@@ -2875,6 +2880,14 @@ impl AppearanceSettingsPageView {
         TabSettings::handle(ctx).update(ctx, |settings, ctx| {
             report_if_error!(settings
                 .show_vertical_tab_panel_in_restored_windows
+                .toggle_and_save_value(ctx));
+        });
+    }
+
+    fn toggle_persist_vertical_tabs_panel_width(&mut self, ctx: &mut ViewContext<Self>) {
+        TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+            report_if_error!(settings
+                .persist_vertical_tabs_panel_width
                 .toggle_and_save_value(ctx));
         });
     }
@@ -5532,6 +5545,55 @@ impl SettingsWidget for ShowVerticalTabPanelInRestoredWindowsWidget {
                 .finish(),
             Some(crate::t!(
                 "settings-appearance-tab-show-vertical-panel-in-restored-windows-description"
+            )),
+        )
+    }
+}
+
+#[derive(Default)]
+struct PersistVerticalTabsPanelWidthWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for PersistVerticalTabsPanelWidthWidget {
+    type View = AppearanceSettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "vertical tabs panel width resize remember persist restore"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let tab_settings = TabSettings::as_ref(app);
+
+        render_body_item::<AppearancePageAction>(
+            crate::t!("settings-appearance-tab-persist-vertical-panel-width-label"),
+            None,
+            LocalOnlyIconState::for_setting(
+                PersistVerticalTabsPanelWidth::storage_key(),
+                PersistVerticalTabsPanelWidth::sync_to_cloud(),
+                &mut view.local_only_icon_tooltip_states.borrow_mut(),
+                app,
+            ),
+            ToggleState::Enabled,
+            appearance,
+            appearance
+                .ui_builder()
+                .switch(self.switch_state.clone())
+                .check(*tab_settings.persist_vertical_tabs_panel_width)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(
+                        AppearancePageAction::TogglePersistVerticalTabsPanelWidth,
+                    );
+                })
+                .finish(),
+            Some(crate::t!(
+                "settings-appearance-tab-persist-vertical-panel-width-description"
             )),
         )
     }

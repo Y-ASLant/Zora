@@ -37,6 +37,7 @@ pub struct Appearance {
     // We cache the family id for the ui font - note that this
     // isn't actually a changeable setting right now.
     ui_font_family: FamilyId,
+    warp_glyph_font_family: FamilyId,
     ai_font_family: FamilyId,
     terminal_fallback_font_family: Option<FamilyId>,
     /// A font that is used for password fields.
@@ -106,6 +107,7 @@ impl Appearance {
         monospace_font_size: f32,
         monospace_font_weight: Weight,
         ui_font_family: FamilyId,
+        warp_glyph_font_family: FamilyId,
         line_height_ratio: f32,
         ai_font_family: FamilyId,
         terminal_fallback_font_family: Option<FamilyId>,
@@ -119,6 +121,7 @@ impl Appearance {
             monospace_font_size,
             monospace_font_weight,
             ui_font_family,
+            warp_glyph_font_family,
             line_height_ratio,
             ui_builder: UiBuilder::new(
                 theme,
@@ -156,6 +159,7 @@ impl Appearance {
         );
         let line_height_ratio = 1.4;
         let ui_font_family = FamilyId(1);
+        let warp_glyph_font_family = ui_font_family;
 
         Self {
             theme: mock_theme.clone(),
@@ -171,6 +175,7 @@ impl Appearance {
                 line_height_ratio,
             ),
             ui_font_family,
+            warp_glyph_font_family,
             ai_font_family: FamilyId(0),
             terminal_fallback_font_family: None,
             password_font_family: FamilyId(0),
@@ -465,6 +470,10 @@ impl Appearance {
 
     pub fn ui_font_family(&self) -> FamilyId {
         self.ui_font_family
+    }
+
+    pub fn warp_glyph_font_family(&self) -> FamilyId {
+        self.warp_glyph_font_family
     }
 
     pub fn ui_font_size(&self) -> f32 {

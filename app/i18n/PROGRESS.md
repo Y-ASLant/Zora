@@ -27,7 +27,7 @@
 |---|---|---|---|---|---|---|---|
 | 0 | common (基础原子) | `app/i18n/{en,zh-CN}/common.ftl` | ✅ | ✅ | n/a | foundation | 通用按钮/状态文案 |
 | 1 | settings (PoC 起点) | `app/src/settings_view/**` | 🟡 (AI + mod nav + about/main + referrals + agent_providers) | 🟡 | mod.rs:31, about/main:21, referrals:24, agent_providers:30 | foundation, agent-settings-mod, agent-settings-about, agent-settings-referrals, agent-settings-agent-providers | AI 页基础 key 已建;mod.rs SettingsSection Display + pane menu + debug 已替换;about_page.rs(1 key/1 cs)+ main_page.rs(20 key/20 cs);referrals_page.rs(28 key/24 cs);agent_providers_widget.rs ✅ (33 key/30 cs:title/description/empty/add-button/search-placeholder/quick-add-title/refresh-catalog/loading-catalog/catalog-empty/no-match/collapse/expand-remaining/row-missing/field-name/-base-url/-api-key/-api-type/api-type-hint/name-placeholder/api-key-placeholder/models-label/-empty-hint/-header-{name,id,context,output}/model-{name,id,context,output}-placeholder/add-model/fetch-from-api/sync-models-dev/remove)。BYOP 配置 UI 全译;文件中新增的 reasoning chip section(ReasoningEffortSetting,在 i18n 进行中由其他 agent 添加)未在本轮范围内。整 crate `cargo check` 失败因 `app/src/lib.rs` 缺 `mod i18n;`(基础设施 agent 责任,非本任务) |
-| 2 | ai 主体 | `app/src/ai/**`, `app/src/ai_assistant/**` | ⬜ | ⬜ | ⬜ | (free) | BYOP / agent / blocklist / mcp 子目录较多,可再拆 |
+| 2 | ai 主体 | `app/src/ai/**`, `app/src/ai_assistant/**` | 🟡 | 🟡 | 🟡 | root | 已完成 `ai_assistant` 面板、转录区、额度提示与 `ai/artifacts/buttons.rs` 的高频 UI 文案；Warpify、subshell、workflow、Zap AI、Git、AWS、Pull Request 等专名保留。BYOP / agent / blocklist / mcp 子目录较多,可再拆 |
 | 3 | command_palette | `app/src/command_palette.rs`, `app/src/palette/**` | ⬜ | ⬜ | ⬜ | (free) | |
 | 4 | drive | `app/src/drive/**` | ⬜ | ⬜ | ⬜ | (free) | |
 | 5 | onboarding | `crates/onboarding/**`, `app/src/coding_entrypoints/**` | ⬜ | ⬜ | ⬜ | (free) | 跨 crate 注意:`onboarding` 是独立 crate,要看是否单独建 i18n |
@@ -53,7 +53,7 @@
 | - | slash-commands | `app/src/search/slash_command_menu/static_commands/commands.rs` | ✅ | ✅ | 33 desc + 13 hint | agent-slash-commands | 命令面板 `/agent` `/skills` `/profile` 等斜杠命令的 description 与 argument hint_text。新 ANCHOR-SUB-SLASH-COMMANDS。原 `pub const StaticCommand` 全部转 `pub static LazyLock<StaticCommand>`(因为 `description: &'static str` 字段无法在 const ctx 调函数);新增 `t_static!` 宏(`app/src/i18n.rs`)= `Box::leak(t!(...).into_boxed_str())` 一次性泄漏给 `&'static str` 字段使用,仅在 LazyLock init 调一次。`zero_state.rs:48-55` prioritized_commands vec 里 `&commands::CONVERSATIONS/PROMPTS/AGENT` 改 `&*`(LazyLock 不会自动从 `&LazyLock<T>` coerce 到 `&T`)。`all_commands()` 中原 const push 全部改 `.clone()`。`rename_tab_command_requires_argument` 单测加 `crate::i18n::init(Some("en"))` 才能拿到真实 hint。cargo check -p warp --lib 0 error / 92s。 |
 | - | keybinding descriptions | binding 注册点 (workspace/mod.rs 等) | ✅ | ✅ | 156 | agent-keybinding-descriptions | binding description 文案。新 ANCHOR-SUB-KEYBINDING-DESC,116 key,聚焦 `app/src/workspace/mod.rs`(workspace 内全部用户可见 description 已替换:FixedBinding::custom + EditableBinding::new + BindingDescription::new + with_custom_description(MAC_MENUS_CONTEXT) + with_dynamic_override 闭包)。`BindingDescription::new` 已经是 `S: Into<String>` 泛型,直接接受 `crate::t!()` 返回的 `String`,无需改 API;`titlecase` 仍会被应用,但中文不受影响。binding `name`(协议字段)未动。**未碰**:`[Debug]/[a11y]/sample_process/dump_heap_profile/crash` 等仅 debug build 出现的工程类条目(对终端用户不可见,刻意跳过减负);其它 binding 文件 — `terminal/view/init.rs`(77 处,terminal binding/agent context 等)、`editor/view/mod.rs`(60)、`notebooks/editor/view.rs`(51)、`code/editor/view/actions.rs`(39)、`pane_group/mod.rs`(14)、`terminal/input.rs`(14) 全部待续作。cargo check -p warp --lib 0 error 27s。 |
 
-## Agent 工作流(拷贝执行)
+## Agent workflow(拷贝执行)
 
 每个并行 agent 接到 surface 名后按这个流程走:
 
@@ -74,7 +74,7 @@
 | Agent | 智能体 | warp 自家 + BYOP 通用 |
 | Block | 命令块 | warp 核心概念 |
 | Drive | 云盘 | zap drive 文件协作产品 |
-| Workflow | 工作流 | |
+| Workflow | workflow | 保留产品术语 |
 | Notebook | 笔记本 | |
 | Profile | 配置 | execution profile / agent profile |
 | Permission | 权限 | |
@@ -90,6 +90,7 @@
 | Pane | 窗格 | terminal pane |
 | Tab | 标签页 | |
 | Subagent | 子智能体 | |
+| Subshell | subshell | 保留终端术语 |
 
 ## 反模式(别这么做)
 

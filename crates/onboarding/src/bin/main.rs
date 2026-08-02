@@ -440,6 +440,7 @@ fn build_appearance(theme: WarpTheme, ctx: &mut AppContext) -> Appearance {
         13.0,
         Weight::Normal,
         ui_font_family,
+        ui_font_family,
         1.2,
         ui_font_family,
         None,
@@ -451,30 +452,32 @@ fn build_appearance(theme: WarpTheme, ctx: &mut AppContext) -> Appearance {
 
 fn load_default_ui_font_family(ctx: &mut AppContext) -> anyhow::Result<FamilyId> {
     Cache::handle(ctx).update(ctx, |font_cache, _| {
-        // On Windows, default to use Segoe UI as the UI font.
-        #[cfg(windows)]
-        if let Ok(font_family_id) = font_cache.load_system_font("Segoe UI") {
-            return Ok(font_family_id);
-        }
-
         font_cache.load_family_from_bytes(
-            "Roboto",
+            "IBM Plex Sans",
             vec![
                 ASSETS
-                    .get("bundled/fonts/roboto/Roboto-Italic.ttf")?
-                    .to_vec(),
-                ASSETS.get("bundled/fonts/roboto/Roboto-Bold.ttf")?.to_vec(),
-                ASSETS
-                    .get("bundled/fonts/roboto/Roboto-Regular.ttf")?
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-Italic.ttf")?
                     .to_vec(),
                 ASSETS
-                    .get("bundled/fonts/roboto/Roboto-Medium.ttf")?
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-Bold.ttf")?
                     .to_vec(),
                 ASSETS
-                    .get("bundled/fonts/roboto/RobotoFlex-Semibold.ttf")?
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-Regular.ttf")?
                     .to_vec(),
                 ASSETS
-                    .get("bundled/fonts/roboto/Roboto-BoldItalic.ttf")?
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-Medium.ttf")?
+                    .to_vec(),
+                ASSETS
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-SemiBold.ttf")?
+                    .to_vec(),
+                ASSETS
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-BoldItalic.ttf")?
+                    .to_vec(),
+                ASSETS
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-MediumItalic.ttf")?
+                    .to_vec(),
+                ASSETS
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-SemiBoldItalic.ttf")?
                     .to_vec(),
             ],
         )

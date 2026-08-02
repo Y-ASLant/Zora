@@ -4,7 +4,7 @@ use warp_core::ui::appearance::Appearance;
 use warpui::elements::shimmering_text::{
     ShimmerConfig, ShimmeringTextElement, ShimmeringTextStateHandle,
 };
-use warpui::elements::Element;
+use warpui::elements::{Element, Flex, ParentElement, Text};
 use warpui::{AppContext, SingletonEntity};
 
 /// Zap icon glyph character
@@ -27,9 +27,18 @@ pub fn shimmering_warp_loading_text(
     // Hardcoded shimmer config for consistent animation
     let config = ShimmerConfig::default();
 
-    // Create a single shimmering element with glyph and text
-    ShimmeringTextElement::new(
-        format!("{} {}", WARP_GLYPH, text.into()),
+    let glyph = Text::new_inline(
+        format!("{WARP_GLYPH} "),
+        appearance.warp_glyph_font_family(),
+        font_size,
+    )
+    .with_color(base_color)
+    .with_selectable(false)
+    .soft_wrap(false)
+    .finish();
+
+    let shimmering_text = ShimmeringTextElement::new(
+        text.into(),
         appearance.ui_font_family(),
         font_size,
         base_color,
@@ -37,5 +46,10 @@ pub fn shimmering_warp_loading_text(
         config,
         shimmer_handle,
     )
-    .finish()
+    .finish();
+
+    Flex::row()
+        .with_child(glyph)
+        .with_child(shimmering_text)
+        .finish()
 }

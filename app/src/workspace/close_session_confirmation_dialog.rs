@@ -134,11 +134,10 @@ impl View for CloseSessionConfirmationDialog {
 
         let dialog = Container::new(
             Dialog::new(
-                "Close session?".into(),
-                Some(
-                    "You are about to close a session that is currently being shared. Closing it will end sharing for everyone."
-                        .into(),
-                ),
+                crate::t!("workspace-close-session-confirmation-title"),
+                Some(crate::t!(
+                    "workspace-close-session-confirmation-description"
+                )),
                 UiComponentStyles {
                     width: Some(460.),
                     padding: Some(Coords::uniform(24.)),

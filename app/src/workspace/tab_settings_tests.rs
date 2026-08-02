@@ -56,3 +56,30 @@ fn show_vertical_tab_panel_in_restored_windows_uses_vertical_tabs_path() {
         "show_panel_in_restored_windows"
     );
 }
+
+#[test]
+fn persist_vertical_tabs_panel_width_defaults_to_false() {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+
+        TabSettings::handle(&app).read(&app, |settings, _ctx| {
+            assert!(!*settings.persist_vertical_tabs_panel_width);
+        });
+    });
+}
+
+#[test]
+fn persist_vertical_tabs_panel_width_uses_vertical_tabs_path() {
+    assert_eq!(
+        PersistVerticalTabsPanelWidth::toml_path(),
+        Some("appearance.vertical_tabs.persist_panel_width")
+    );
+    assert_eq!(
+        PersistVerticalTabsPanelWidth::hierarchy(),
+        Some("appearance.vertical_tabs")
+    );
+    assert_eq!(
+        PersistVerticalTabsPanelWidth::toml_key(),
+        "persist_panel_width"
+    );
+}

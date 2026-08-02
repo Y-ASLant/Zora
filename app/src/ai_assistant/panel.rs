@@ -50,7 +50,7 @@ use super::transcript::{Transcript, TranscriptEvent};
 use super::utils::{render_prepared_response_button, render_request_limit_info, TranscriptPart};
 use super::{
     AskAIType, AI_ASSISTANT_FEATURE_NAME, AI_ASSISTANT_LOGO_COLOR, AI_ASSISTANT_SVG_PATH,
-    ASK_AI_ASSISTANT_TEXT, PROMPT_CHARACTER_LIMIT,
+    PROMPT_CHARACTER_LIMIT,
 };
 
 const INFO_ICON_SVG_PATH: &str = "bundled/svg/info.svg";
@@ -69,8 +69,6 @@ const PANEL_HORIZONTAL_PADDING: f32 = 6.;
 const EDITOR_MARGIN: f32 = 16.;
 const LOGO_SIZE: f32 = 20.;
 
-
-const ZERO_STATE_HELP_TEXT: &str = "Shift + ctrl + space a block or text selection to ask Zap AI.";
 const SCRIPT_ZERO_STATE_PROMPT: &str = "Write a script to connect to an AWS EC2 instance.";
 const GIT_ZERO_STATE_PROMPT: &str = "How do I undo the most recent commits in git?";
 const FILES_ZERO_STATE_PROMPT: &str = "How do I find all files containing specific text?";
@@ -78,7 +76,6 @@ const FILES_ZERO_STATE_PROMPT: &str = "How do I find all files containing specif
 // The placeholder texts are prepended with a space to give them cushion from the cursor.
 const INIT_PLACEHOLDER_TEXT: &str = " Ask a question...";
 const FOLLOWUP_PLACEHOLDER_TEXT: &str = " Type a response or click one above...";
-const RESTART_BUTTON_TEXT: &str = "Restart";
 
 const ASK_AI_BLOCK_INPUT_LIMIT: usize = 100;
 
@@ -294,28 +291,29 @@ impl AIAssistantPanelView {
                 populate_input_box,
             } => {
                 if *populate_input_box {
-                    let prefix = "Explain the following:\n";
+                    let prefix = crate::t!("ai-assistant-prompt-explain-prefix");
                     let code_block_formatting_len = self.format_as_code_block("").len();
-                    let truncated =
-                        if text.chars().count() + prefix.len() + code_block_formatting_len
-                            > PROMPT_CHARACTER_LIMIT
-                        {
-                            // Take the first k characters of the text selection, where k is the
-                            // remaining length after we limit the prompt and add formatting to it.
-                            let truncated: String = text
-                                .chars()
-                                // Take 3 for the ellipsis
-                                .take(
-                                    PROMPT_CHARACTER_LIMIT
-                                        - prefix.len()
-                                        - code_block_formatting_len
-                                        - 3,
-                                )
-                                .collect();
-                            format!("{truncated}...")
-                        } else {
-                            text.to_string()
-                        };
+                    let truncated = if text.chars().count()
+                        + prefix.chars().count()
+                        + code_block_formatting_len
+                        > PROMPT_CHARACTER_LIMIT
+                    {
+                        // Take the first k characters of the text selection, where k is the
+                        // remaining length after we limit the prompt and add formatting to it.
+                        let truncated: String = text
+                            .chars()
+                            // Take 3 for the ellipsis
+                            .take(
+                                PROMPT_CHARACTER_LIMIT
+                                    - prefix.chars().count()
+                                    - code_block_formatting_len
+                                    - 3,
+                            )
+                            .collect();
+                        format!("{truncated}...")
+                    } else {
+                        text.to_string()
+                    };
 
                     self.editor.update(ctx, |editor, ctx| {
                         editor.set_buffer_text(
@@ -340,15 +338,17 @@ impl AIAssistantPanelView {
 
                 // Formatting strings.
                 let question = if block_successful {
-                    "\nWhat should I do next?"
+                    crate::t!("ai-assistant-prompt-next-step")
                 } else {
-                    "\nHow do I fix this?"
+                    crate::t!("ai-assistant-prompt-fix")
                 };
-                let prefix = "I ran the command: `";
-                let suffix = "` and got the following output:\n";
+                let prefix = crate::t!("ai-assistant-prompt-command-prefix");
+                let suffix = crate::t!("ai-assistant-prompt-command-suffix");
                 let code_block_formatting_len = self.format_as_code_block("").len();
-                let non_input_output_len =
-                    prefix.len() + suffix.len() + question.len() + code_block_formatting_len;
+                let non_input_output_len = prefix.chars().count()
+                    + suffix.chars().count()
+                    + question.chars().count()
+                    + code_block_formatting_len;
 
                 let input_len = input.chars().count();
                 let output_len = output.chars().count();
@@ -820,7 +820,7 @@ impl AIAssistantPanelView {
                 Some(hover_style),
                 Some(hover_style),
             )
-            .with_text_label(RESTART_BUTTON_TEXT.to_owned())
+            .with_text_label(crate::t!("ai-assistant-restart"))
             .build()
             .on_click(move |ctx, _, _| ctx.dispatch_typed_action(AIAssistantAction::ResetContext))
             .with_cursor(Cursor::PointingHand)
@@ -836,7 +836,7 @@ impl AIAssistantPanelView {
             .with_children([
                 Container::new(
                     Text::new_inline(
-                        "Character limit exceeded.",
+                        crate::t!("ai-assistant-character-limit-exceeded"),
                         appearance.ui_font_family(),
                         appearance.ui_font_body_large(),
                     )
@@ -900,9 +900,13 @@ impl AIAssistantPanelView {
             )
             .with_child(
                 Container::new(
-                    Text::new_inline(ASK_AI_ASSISTANT_TEXT, appearance.ui_font_family(), 14.)
-                        .with_color(sub_text_color)
-                        .finish(),
+                    Text::new_inline(
+                        crate::t!("ai-assistant-title"),
+                        appearance.ui_font_family(),
+                        14.,
+                    )
+                    .with_color(sub_text_color)
+                    .finish(),
                 )
                 .with_margin_top(8.)
                 .finish(),
@@ -915,6 +919,7 @@ impl AIAssistantPanelView {
                     self.mouse_state_handles.git_zero_state_prompt.clone(),
                     Some(300.),
                     None,
+                    crate::t!("ai-assistant-prepared-prompt-git"),
                     GIT_ZERO_STATE_PROMPT,
                 ))
                 .with_margin_top(20.)
@@ -925,6 +930,7 @@ impl AIAssistantPanelView {
                     self.mouse_state_handles.files_zero_state_prompt.clone(),
                     Some(300.),
                     None,
+                    crate::t!("ai-assistant-prepared-prompt-files"),
                     FILES_ZERO_STATE_PROMPT,
                 ))
                 .with_margin_bottom(10.)
@@ -934,6 +940,7 @@ impl AIAssistantPanelView {
                     self.mouse_state_handles.script_zero_state_prompt.clone(),
                     Some(300.),
                     None,
+                    crate::t!("ai-assistant-prepared-prompt-script"),
                     SCRIPT_ZERO_STATE_PROMPT,
                 ))
                 .finish(),
@@ -963,7 +970,7 @@ impl AIAssistantPanelView {
                             1.,
                             appearance
                                 .ui_builder()
-                                .wrappable_text(ZERO_STATE_HELP_TEXT.to_string(), true)
+                                .wrappable_text(crate::t!("ai-assistant-zero-state-help"), true)
                                 .with_style(UiComponentStyles {
                                     font_family_id: Some(appearance.ui_font_family()),
                                     font_size: Some(appearance.ui_font_body()),

@@ -343,13 +343,13 @@ impl SingletonEntity for AppearanceManager {}
 fn load_default_monospace_font_family(ctx: &mut AppContext) -> anyhow::Result<FamilyId> {
     warpui::fonts::Cache::handle(ctx).update(ctx, |font_cache, _| {
         let default_monospace_font_family = font_cache.load_family_from_bytes(
-            "Hack",
+            "Lilex",
             vec![
-                ASSETS.get("bundled/fonts/hack/Hack-Italic.ttf")?.to_vec(),
-                ASSETS.get("bundled/fonts/hack/Hack-Bold.ttf")?.to_vec(),
-                ASSETS.get("bundled/fonts/hack/Hack-Regular.ttf")?.to_vec(),
+                ASSETS.get("bundled/fonts/lilex/Lilex-Italic.ttf")?.to_vec(),
+                ASSETS.get("bundled/fonts/lilex/Lilex-Bold.ttf")?.to_vec(),
+                ASSETS.get("bundled/fonts/lilex/Lilex-Regular.ttf")?.to_vec(),
                 ASSETS
-                    .get("bundled/fonts/hack/Hack-BoldItalic.ttf")?
+                    .get("bundled/fonts/lilex/Lilex-BoldItalic.ttf")?
                     .to_vec(),
             ],
         )?;
@@ -369,38 +369,46 @@ fn load_default_monospace_font_family(ctx: &mut AppContext) -> anyhow::Result<Fa
 
 fn load_default_ui_font_family(ctx: &mut AppContext) -> anyhow::Result<FamilyId> {
     warpui::fonts::Cache::handle(ctx).update(ctx, |font_cache, _| {
-        let roboto = font_cache.load_family_from_bytes(
-            "Roboto",
+        font_cache.load_family_from_bytes(
+            "IBM Plex Sans",
             vec![
                 ASSETS
-                    .get("bundled/fonts/roboto/Roboto-Italic.ttf")?
-                    .to_vec(),
-                ASSETS.get("bundled/fonts/roboto/Roboto-Bold.ttf")?.to_vec(),
-                ASSETS
-                    .get("bundled/fonts/roboto/Roboto-Regular.ttf")?
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-Italic.ttf")?
                     .to_vec(),
                 ASSETS
-                    .get("bundled/fonts/roboto/Roboto-Medium.ttf")?
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-Bold.ttf")?
                     .to_vec(),
                 ASSETS
-                    .get("bundled/fonts/roboto/RobotoFlex-Semibold.ttf")?
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-Regular.ttf")?
                     .to_vec(),
                 ASSETS
-                    .get("bundled/fonts/roboto/Roboto-BoldItalic.ttf")?
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-Medium.ttf")?
+                    .to_vec(),
+                ASSETS
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-SemiBold.ttf")?
+                    .to_vec(),
+                ASSETS
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-BoldItalic.ttf")?
+                    .to_vec(),
+                ASSETS
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-MediumItalic.ttf")?
+                    .to_vec(),
+                ASSETS
+                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-SemiBoldItalic.ttf")?
                     .to_vec(),
             ],
-        );
+        )
+    })
+}
 
-        // On Windows, default to use Segoe UI as the UI font. This font is recommended by
-        // Windows when rendering any UI text: https://learn.microsoft.com/en-us/windows/win32/uxguide/vis-fonts.
-        // This font should be bundled with any modern version of Windows, if we can't load it for
-        // any reason we fallback to using our normal bundled font.
-        #[cfg(windows)]
-        if let Ok(font_family_id) = font_cache.load_system_font("Segoe UI") {
-            return Ok(font_family_id);
-        }
-
-        roboto
+fn load_warp_glyph_font_family(ctx: &mut AppContext) -> anyhow::Result<FamilyId> {
+    warpui::fonts::Cache::handle(ctx).update(ctx, |font_cache, _| {
+        font_cache.load_family_from_bytes(
+            "ZapGlyph",
+            vec![ASSETS
+                .get("bundled/fonts/zap-glyph/RobotoFlex-Semibold.ttf")?
+                .to_vec()],
+        )
     })
 }
 
@@ -422,7 +430,7 @@ fn get_or_load_font_family(_font_name: &str, _ctx: &mut AppContext) -> Option<Fa
 #[cfg(not(target_family = "wasm"))]
 /// If we're running on a native platform (where we support font loading),
 /// make sure we load the user's selected monospace font. We first check
-/// the font cache in case we are using a pre-bundled font like Hack.
+/// the font cache in case we are using a pre-bundled font like Lilex.
 /// Then we fall back to loading a system font.
 fn get_or_load_font_family(font_name: &str, ctx: &mut AppContext) -> Option<FamilyId> {
     warpui::fonts::Cache::handle(ctx).update(ctx, |font_cache, _| {
@@ -481,6 +489,8 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
 
     let ui_font_name = FontSettings::as_ref(ctx).ui_font_name.value().clone();
     let ui_font_size = *FontSettings::as_ref(ctx).ui_font_size.value();
+    let warp_glyph_font_family =
+        load_warp_glyph_font_family(ctx).expect("unable to load Zap glyph font family");
 
     let ui_font_family = if ui_font_name.is_empty() {
         load_default_ui_font_family(ctx).expect("unable to load default ui font family")
@@ -514,6 +524,7 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
         monospace_font_size,
         monospace_font_weight,
         ui_font_family,
+        warp_glyph_font_family,
         line_height_ratio,
         am_font_family_from_settings.unwrap_or(default_monospace_font_family),
         monospace_fallback_font_family_from_settings,

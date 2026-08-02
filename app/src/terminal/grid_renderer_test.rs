@@ -182,7 +182,7 @@ fn fallback_font_family_for_char_skips_font_lookup_when_unconfigured() {
     assert_eq!(counts.glyph_for_char.load(Ordering::Relaxed), 0);
 }
 
-// TODO(CORE-2002): Make test non-Mac specific by switching to using bundled Roboto font.
+// TODO(CORE-2002): Make test non-Mac specific by switching to using bundled IBM Plex Sans font.
 #[test]
 #[cfg_attr(
     not(target_os = "macos"),

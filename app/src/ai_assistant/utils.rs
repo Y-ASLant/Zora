@@ -18,7 +18,6 @@ use crate::{appearance::Appearance, ui_components::blended_colors};
 
 use super::{panel::AIAssistantAction, requests::Requests, transcript::CodeBlockMouseStateHandles};
 
-
 const SQUARE_ALERT_SVG_PATH: &str = "bundled/svg/alert-square.svg";
 const TRIANGLE_ALERT_SVG_PATH: &str = "bundled/svg/alert-triangle.svg";
 
@@ -260,6 +259,7 @@ pub fn render_prepared_response_button(
     mouse_state_handle: MouseStateHandle,
     width: Option<f32>,
     right_left_padding: Option<f32>,
+    label: String,
     prompt: &'static str,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
@@ -299,7 +299,7 @@ pub fn render_prepared_response_button(
             Some(hovered_and_clicked_styles),
             Some(hovered_and_clicked_styles),
         )
-        .with_centered_text_label(prompt.to_string())
+        .with_centered_text_label(label)
         .build()
         .with_cursor(Cursor::PointingHand)
         .on_click(move |ctx, _, _| {
@@ -328,7 +328,11 @@ pub fn render_request_limit_info(
         .with_cross_axis_alignment(CrossAxisAlignment::Center)
         .with_child(
             Text::new_inline(
-                format!("Credits used: {num_requests_used} / {request_limit}.",),
+                crate::t!(
+                    "ai-assistant-credits-used",
+                    used = num_requests_used,
+                    limit = request_limit
+                ),
                 appearance.ui_font_family(),
                 appearance.ui_font_footnote(),
             )
@@ -369,7 +373,7 @@ pub fn render_request_limit_info(
         row.add_child(
             Container::new(
                 Text::new_inline(
-                    format!("{next_refresh_time} until refresh."),
+                    crate::t!("ai-assistant-credits-refresh", time = next_refresh_time),
                     appearance.ui_font_family(),
                     appearance.ui_font_footnote(),
                 )
