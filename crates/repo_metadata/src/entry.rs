@@ -463,6 +463,33 @@ pub fn should_ignore_git_path(path: &Path) -> bool {
     !is_commit_related_git_file(path) && !is_index_lock_file(path)
 }
 
+/// 判断仓库 watcher 是否应递归进入 `path`。
+///
+/// `.git/` 内部路径遵循 watcher allowlist；目录 symlink 会被剪枝，避免
+/// 递归跟随到仓库外的大型目录树。被监听的根目录本身仍允许是 symlink。
+#[cfg(feature = "local_fs")]
+pub fn should_watch_repo_directory(path: &Path, repo_root: &Path) -> bool {
+    if is_within_symlink(path, repo_root) {
+        return false;
+    }
+
+    !should_ignore_git_path(path)
+}
+
+/// 判断 `path` 本身或它的祖先是否是 symlink。
+///
+/// 递归 watcher 需要这个检查保持单调性：如果一个 symlink 目录被拒绝，
+/// 那么它的后代也必须被拒绝，即便后代路径本身不是 symlink。
+#[cfg(feature = "local_fs")]
+fn is_within_symlink(path: &Path, repo_root: &Path) -> bool {
+    path.ancestors()
+        .take_while(|ancestor| *ancestor != repo_root && ancestor.starts_with(repo_root))
+        .any(|ancestor| {
+            std::fs::symlink_metadata(ancestor)
+                .is_ok_and(|metadata| metadata.file_type().is_symlink())
+        })
+}
+
 pub fn path_passes_filters(path: &Path, gitignores: &[Gitignore]) -> bool {
     let to_check_path = if path.exists() {
         match dunce::canonicalize(path) {

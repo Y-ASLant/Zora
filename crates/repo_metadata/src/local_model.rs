@@ -392,9 +392,10 @@ impl LocalRepoMetadataModel {
                 if !is_unsafe_watch_root(&local_path) {
                     let watch_path = local_path.clone();
                     watcher.update(ctx, |watcher, _ctx| {
-                        use crate::entry::should_ignore_git_path;
-                        let watch_filter = WatchFilter::with_filter(Arc::new(move |watch_path| {
-                            !should_ignore_git_path(watch_path)
+                        use crate::entry::should_watch_repo_directory;
+                        let repo_root = watch_path.clone();
+                        let watch_filter = WatchFilter::with_filter(Arc::new(move |path| {
+                            should_watch_repo_directory(path, &repo_root)
                         }));
                         std::mem::drop(watcher.register_path(
                             &watch_path,

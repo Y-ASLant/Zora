@@ -821,15 +821,53 @@ fn is_prompt_suggestions_enabled(ctx: &ModelContext<PassiveSuggestionsModel>) ->
         && UserWorkspaces::as_ref(ctx).is_prompt_suggestions_toggleable()
 }
 
+/// 构建被动代码 diff 上下文时，最多扫描这些字节的 block 文本来检测文件路径。
+/// 这个上限把每个 block 的 token 扫描和文件系统 stat 循环限制在固定工作量内，
+/// 避免超大 shell 输出导致 CPU 和内存占用失控。
+///
+/// 预算会分给文本开头和结尾：相关路径通常聚集在输出开头，或栈追踪、测试失败
+/// 这类返回 prompt 前的输出结尾。
+#[cfg(feature = "local_fs")]
+const MAX_BLOCK_CONTENTS_BYTES_FOR_PATH_DETECTION: usize = 100_000;
+
+/// 将 `text` 拆成开头切片和可选结尾切片，两者总长度不超过 `max_bytes`，
+/// 并且只在 UTF-8 字符边界切分。`text` 已在预算内时，结尾切片为 `None`。
+#[cfg(feature = "local_fs")]
+fn head_and_tail_within_budget(text: &str, max_bytes: usize) -> (&str, Option<&str>) {
+    if text.len() <= max_bytes {
+        return (text, None);
+    }
+
+    let mut head_end = max_bytes / 2;
+    while !text.is_char_boundary(head_end) {
+        head_end -= 1;
+    }
+
+    let mut tail_start = text.len() - max_bytes / 2;
+    while !text.is_char_boundary(tail_start) {
+        tail_start += 1;
+    }
+
+    (&text[..head_end], Some(&text[tail_start..]))
+}
+
 #[cfg(feature = "local_fs")]
 fn detect_relevant_file_paths_for_block(
     block_contents: &str,
     current_working_directory: &str,
     shell: Option<&ShellLaunchData>,
 ) -> Vec<PathBuf> {
-    // TODO (suraj): use line num hint to limit the line range to read.
-    detect_file_paths(current_working_directory, block_contents, shell)
+    let (head, tail) =
+        head_and_tail_within_budget(block_contents, MAX_BLOCK_CONTENTS_BYTES_FOR_PATH_DETECTION);
+    let mut links = detect_file_paths(current_working_directory, head, shell)
         .into_values()
+        .collect_vec();
+    if let Some(tail) = tail {
+        links.extend(detect_file_paths(current_working_directory, tail, shell).into_values());
+    }
+
+    links
+        .into_iter()
         .filter_map(|link| match link {
             DetectedLinkType::FilePath { absolute_path, .. } => Some(absolute_path),
             DetectedLinkType::Url(_) => None,
@@ -895,3 +933,7 @@ async fn read_files(
         }
     }
 }
+
+#[cfg(all(test, feature = "local_fs"))]
+#[path = "maa_tests.rs"]
+mod tests;

@@ -219,6 +219,65 @@ fn test_path_passes_filters_windows() {
     });
 }
 
+#[cfg(all(unix, feature = "local_fs"))]
+#[test]
+fn should_watch_prunes_directory_symlinks_and_their_descendants() {
+    use std::fs;
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let root = dunce::canonicalize(temp_dir.path()).unwrap();
+    fs::create_dir_all(root.join("target/tree")).unwrap();
+    std::os::unix::fs::symlink(root.join("target"), root.join("result")).unwrap();
+
+    assert!(!super::should_watch_repo_directory(
+        &root.join("result"),
+        &root
+    ));
+    assert!(!super::should_watch_repo_directory(
+        &root.join("result/tree"),
+        &root
+    ));
+}
+
+#[cfg(all(unix, feature = "local_fs"))]
+#[test]
+fn should_watch_ignores_symlinks_above_repo_root() {
+    use std::fs;
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let real_parent = temp_dir.path().join("real-parent");
+    let symlinked_parent = temp_dir.path().join("linked-parent");
+    fs::create_dir_all(real_parent.join("repo/src")).unwrap();
+    std::os::unix::fs::symlink(&real_parent, &symlinked_parent).unwrap();
+
+    let repo_root = symlinked_parent.join("repo");
+    assert!(super::should_watch_repo_directory(
+        &repo_root.join("src"),
+        &repo_root
+    ));
+}
+
+#[cfg(all(unix, feature = "local_fs"))]
+#[test]
+fn should_watch_allows_symlinked_repo_root() {
+    use std::fs;
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let real_root = temp_dir.path().join("real-repo");
+    let symlinked_root = temp_dir.path().join("linked-repo");
+    fs::create_dir_all(real_root.join("src")).unwrap();
+    std::os::unix::fs::symlink(&real_root, &symlinked_root).unwrap();
+
+    assert!(super::should_watch_repo_directory(
+        &symlinked_root,
+        &symlinked_root
+    ));
+    assert!(super::should_watch_repo_directory(
+        &symlinked_root.join("src"),
+        &symlinked_root
+    ));
+}
+
 #[test]
 fn test_git_path_filtering_allowlist() {
     use super::{is_commit_related_git_file, is_index_lock_file, should_ignore_git_path};
