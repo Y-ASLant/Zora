@@ -1502,9 +1502,9 @@ fn render_vertical_tabs_panel(
         .on_resize(|ctx, _| {
             ctx.notify();
         })
-        .on_end_resizing(|_, app| {
+        .on_end_resizing(|ctx, app| {
             if *TabSettings::as_ref(app).persist_vertical_tabs_panel_width {
-                app.dispatch_global_action("workspace:save_app", ());
+                ctx.dispatch_action("workspace:save_app", ());
             }
         })
         .with_bounds_callback(Box::new(|window_size| {
