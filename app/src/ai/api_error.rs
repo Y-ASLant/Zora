@@ -24,6 +24,13 @@ pub enum DeserializationError {
 }
 
 #[derive(thiserror::Error, Debug)]
+#[error("BYOP {phase} timed out after {timeout_seconds} seconds")]
+pub struct ByopStreamTimeoutError {
+    pub phase: &'static str,
+    pub timeout_seconds: u64,
+}
+
+#[derive(thiserror::Error, Debug)]
 pub enum AIApiError {
     #[error("Request failed due to lack of AI quota.")]
     QuotaLimit,
@@ -163,7 +170,10 @@ impl AIApiError {
             | AIApiError::Deserialization(_)
             | AIApiError::NoContextFound
             | AIApiError::Stream { .. } => true,
-            AIApiError::Other(error) => error.downcast_ref::<BlockedByopReadinessError>().is_none(),
+            AIApiError::Other(error) => {
+                error.downcast_ref::<BlockedByopReadinessError>().is_none()
+                    && error.downcast_ref::<ByopStreamTimeoutError>().is_none()
+            }
         }
     }
 }
@@ -181,6 +191,23 @@ mod tests {
         );
 
         assert!(!error.is_retryable());
+    }
+
+    #[test]
+    fn byop_stream_timeout_is_not_retryable() {
+        let error = AIApiError::Other(
+            ByopStreamTimeoutError {
+                phase: "response",
+                timeout_seconds: 120,
+            }
+            .into(),
+        );
+
+        assert!(!error.is_retryable());
+        assert_eq!(
+            error.to_string(),
+            "BYOP response timed out after 120 seconds"
+        );
     }
 }
 

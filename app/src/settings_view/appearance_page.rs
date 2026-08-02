@@ -34,7 +34,8 @@ use crate::settings::{
     MarkdownHeadingH3Scale, MarkdownHeadingH4Scale, MarkdownHeadingH5Scale, MarkdownHeadingH6Scale,
     MonospaceFallbackFontName, MonospaceFontName, PaneSettings, ShouldDimInactivePanes,
     ThemeSettings, UiFontName, UseSystemTheme, DEFAULT_MONOSPACE_FONT_NAME,
-    MARKDOWN_HEADING_SCALE_MAX, MARKDOWN_HEADING_SCALE_MIN, UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN,
+    DEFAULT_UI_FONT_FAMILY_NAME, MARKDOWN_HEADING_SCALE_MAX, MARKDOWN_HEADING_SCALE_MIN,
+    UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN,
 };
 use crate::settings::{CursorDisplayType, GPUSettings, InputSettings, InputSettingsChangedEvent};
 use crate::terminal::block_list_viewport::InputMode;
@@ -137,6 +138,10 @@ fn default_font_label(is_ai_font: bool) -> String {
     } else {
         format!("{} (default)", MonospaceFontName::default_value())
     }
+}
+
+fn default_ui_font_label() -> String {
+    format!("{DEFAULT_UI_FONT_FAMILY_NAME} (default)")
 }
 
 fn fallback_font_dropdown_should_include_font(
@@ -1742,12 +1747,15 @@ impl AppearanceSettingsPageView {
     {
         let font_name = UiFontName::default_value();
         let mut initial_dropdown_item = DropdownItem::new(
-            format!("{} (default)", font_name),
+            default_ui_font_label(),
             AppearancePageAction::SetUIFontFamily(font_name.clone()),
         );
 
         if cfg!(not(any(target_os = "linux", target_os = "freebsd"))) {
-            if let Some(family_id) = ctx.font_cache().family_id_for_name(&font_name) {
+            if let Some(family_id) = ctx
+                .font_cache()
+                .family_id_for_name(DEFAULT_UI_FONT_FAMILY_NAME)
+            {
                 initial_dropdown_item = initial_dropdown_item.with_font_override(family_id);
             }
         }
@@ -2262,6 +2270,7 @@ impl AppearanceSettingsPageView {
         let fallback_font_family = Appearance::as_ref(ctx).terminal_fallback_font_family();
         let ai_font_family = Appearance::as_ref(ctx).ai_font_family();
         let ui_font_family = Appearance::as_ref(ctx).ui_font_family();
+        let ui_font_name_setting = FontSettings::as_ref(ctx).ui_font_name.value().clone();
 
         self.font_family_dropdown.update(ctx, |dropdown, ctx| {
             // Get the family name of the current monospace font.
@@ -2489,13 +2498,10 @@ impl AppearanceSettingsPageView {
             items.insert(0, Self::default_ui_font_item(ctx));
             dropdown.set_items(items, ctx);
 
-            if !font_name.is_empty() {
-                let label = if font_name == UiFontName::default_value() {
-                    &format!("{} (default)", UiFontName::default_value())
-                } else {
-                    &font_name
-                };
-                dropdown.set_selected_by_name(label, ctx);
+            if ui_font_name_setting.is_empty() {
+                dropdown.set_selected_by_name(&default_ui_font_label(), ctx);
+            } else if !font_name.is_empty() {
+                dropdown.set_selected_by_name(&font_name, ctx);
             }
         });
 

@@ -23,8 +23,8 @@ use macos_app_icon::*;
 use crate::{
     settings::{
         active_theme_kind, font::heading_font_size_multipliers_from_settings, FontSettings,
-        FontSettingsChangedEvent, MonospaceFontSize, Settings, ThemeSettings, UI_FONT_SIZE_MIN,
-        UI_FONT_SIZE_MAX,
+        FontSettingsChangedEvent, MonospaceFontSize, Settings, ThemeSettings,
+        DEFAULT_UI_FONT_FAMILY_NAME, UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN,
     },
     themes::theme::{ThemeKind, WarpTheme},
     ASSETS,
@@ -370,7 +370,7 @@ fn load_default_monospace_font_family(ctx: &mut AppContext) -> anyhow::Result<Fa
 fn load_default_ui_font_family(ctx: &mut AppContext) -> anyhow::Result<FamilyId> {
     warpui::fonts::Cache::handle(ctx).update(ctx, |font_cache, _| {
         font_cache.load_family_from_bytes(
-            "IBM Plex Sans",
+            DEFAULT_UI_FONT_FAMILY_NAME,
             vec![
                 ASSETS
                     .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-Italic.ttf")?

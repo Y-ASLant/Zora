@@ -40,7 +40,9 @@
 //! controller 自动接管。
 
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::StreamExt;
 use instant::Instant;
@@ -59,7 +61,7 @@ use http_client::current_proxy_config;
 
 use crate::ai::agent::api::{RequestParams, ResponseStream};
 use crate::ai::agent::{AIAgentActionResult, AIAgentInput, RunningCommand, UserQueryMode};
-use crate::ai::api_error::AIApiError;
+use crate::ai::api_error::{AIApiError, ByopStreamTimeoutError};
 use crate::ai::byop_compaction;
 use crate::ai::byop_readiness::{
     classify_projection, AcceptedRepair, BlockedByopReadinessError, LiveToolCall,
@@ -71,6 +73,7 @@ use crate::ai::byop_readiness::{
 };
 use crate::settings::AgentProviderApiType;
 use ai::agent::convert::ConvertToAPITypeError;
+use warpui::r#async::Timer;
 
 use super::openai_compatible::OpenAiCompatibleError;
 use super::tools;
@@ -87,6 +90,71 @@ use super::attachment_caps;
 use super::prompt_renderer;
 use super::user_context;
 use crate::ai::agent::AIAgentContext;
+
+const BYOP_CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
+const BYOP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+const BYOP_STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(300);
+const BYOP_HTTP_READ_TIMEOUT: Duration = Duration::from_secs(360);
+
+type ByopCancellationReceiver = futures::future::Fuse<futures::channel::oneshot::Receiver<()>>;
+
+enum ByopWaitOutcome<T> {
+    Ready(T),
+    Cancelled,
+    TimedOut,
+}
+
+#[cfg(test)]
+mod byop_stream_wait_tests {
+    use super::*;
+
+    #[test]
+    fn pending_provider_future_times_out() {
+        let (_, cancellation_rx) = futures::channel::oneshot::channel();
+        let mut cancellation_rx = futures::FutureExt::fuse(cancellation_rx);
+        let outcome = warpui::r#async::block_on(wait_for_byop_future(
+            futures::future::pending::<()>(),
+            &mut cancellation_rx,
+            Duration::from_millis(20),
+        ));
+
+        assert!(matches!(outcome, ByopWaitOutcome::TimedOut));
+    }
+
+    #[test]
+    fn cancellation_interrupts_pending_provider_future() {
+        let (cancellation_tx, cancellation_rx) = futures::channel::oneshot::channel();
+        let _ = cancellation_tx.send(());
+        let mut cancellation_rx = futures::FutureExt::fuse(cancellation_rx);
+        let outcome = warpui::r#async::block_on(wait_for_byop_future(
+            futures::future::pending::<()>(),
+            &mut cancellation_rx,
+            Duration::from_secs(1),
+        ));
+
+        assert!(matches!(outcome, ByopWaitOutcome::Cancelled));
+    }
+}
+
+async fn wait_for_byop_future<F>(
+    future: F,
+    mut cancellation_rx: &mut ByopCancellationReceiver,
+    timeout: Duration,
+) -> ByopWaitOutcome<F::Output>
+where
+    F: Future,
+{
+    let future = futures::FutureExt::fuse(future);
+    futures::pin_mut!(future);
+    let timeout = futures::FutureExt::fuse(Timer::after(timeout));
+    futures::pin_mut!(timeout);
+
+    futures::select! {
+        output = future => ByopWaitOutcome::Ready(output),
+        _ = cancellation_rx => ByopWaitOutcome::Cancelled,
+        _ = timeout => ByopWaitOutcome::TimedOut,
+    }
+}
 
 /// 从 input 中抽出最近一条 `UserQuery.context`(等价 warp `convert_to.rs::convert_input` 取的那条)。
 fn latest_input_context(input: &[AIAgentInput]) -> &[AIAgentContext] {
@@ -2985,6 +3053,10 @@ pub(super) fn build_client(
         headers.insert(reqwest::header::USER_AGENT, value);
     }
     let mut web_config = WebConfig {
+        timeout: Some(BYOP_REQUEST_TIMEOUT),
+        connect_timeout: Some(BYOP_CONNECT_TIMEOUT),
+        // 应用层 idle timer 会先返回带上下文的错误; reqwest 再提供更长的底层兜底。
+        read_timeout: Some(BYOP_HTTP_READ_TIMEOUT),
         gzip: false,
         default_headers: Some(headers),
         ..WebConfig::default()
@@ -3341,7 +3413,7 @@ pub async fn generate_byop_output(
         lrc_command_id,
         lrc_should_spawn_subagent,
         context_window,
-        cancellation_rx: _cancellation_rx,
+        cancellation_rx,
         attachment_caps,
     } = input;
 
@@ -3494,6 +3566,7 @@ pub async fn generate_byop_output(
         }
     }
 
+    let mut cancellation_rx = futures::FutureExt::fuse(cancellation_rx);
     let stream = async_stream::stream! {
         // 1) StreamInit — 始终先发,UI 能立刻显示 "thinking..."
         yield Ok(api::ResponseEvent {
@@ -3686,20 +3759,43 @@ pub async fn generate_byop_output(
         }
 
         log::info!("[byop] opening stream: model={model_id}");
-        let mut sdk_stream = match client
-            .exec_chat_stream(&model_id, chat_req, Some(&chat_opts))
-            .await
-        {
-            Ok(resp) => {
-                log::info!("[byop] stream opened OK (HTTP request accepted)");
+        let stream_open_started_at = Instant::now();
+        let open_outcome = wait_for_byop_future(
+            client.exec_chat_stream(&model_id, chat_req, Some(&chat_opts)),
+            &mut cancellation_rx,
+            BYOP_CONNECT_TIMEOUT,
+        )
+        .await;
+        let mut sdk_stream = match open_outcome {
+            ByopWaitOutcome::Ready(Ok(resp)) => {
+                log::info!(
+                    "[byop] stream wrapper created after {}ms; waiting for first event",
+                    stream_open_started_at.elapsed().as_millis()
+                );
                 resp.stream
             }
-            Err(e) => {
+            ByopWaitOutcome::Ready(Err(e)) => {
                 let mapped = map_genai_error(e);
                 log::error!("[byop] open stream failed: {mapped:#}");
                 yield Err(Arc::new(AIApiError::Other(anyhow::anyhow!(
                     "BYOP open stream failed: {mapped}"
                 ))));
+                return;
+            }
+            ByopWaitOutcome::Cancelled => {
+                log::info!("[byop] stream opening cancelled");
+                return;
+            }
+            ByopWaitOutcome::TimedOut => {
+                let timeout_seconds = BYOP_CONNECT_TIMEOUT.as_secs();
+                let error = ByopStreamTimeoutError {
+                    phase: "opening the provider connection",
+                    timeout_seconds,
+                };
+                log::error!(
+                    "[byop] stream opening timed out after {timeout_seconds}s"
+                );
+                yield Err(Arc::new(AIApiError::Other(error.into())));
                 return;
             }
         };
@@ -3757,8 +3853,46 @@ pub async fn generate_byop_output(
         // 依然保持 0。
         let mut captured_cache_read_tokens: i32 = 0;
         let mut captured_cache_create_tokens: i32 = 0;
+        let stream_started_at = Instant::now();
+        let mut first_event_logged = false;
 
-        while let Some(item) = sdk_stream.next().await {
+        loop {
+            let item = match wait_for_byop_future(
+                sdk_stream.next(),
+                &mut cancellation_rx,
+                BYOP_STREAM_IDLE_TIMEOUT,
+            )
+            .await
+            {
+                ByopWaitOutcome::Ready(Some(item)) => {
+                    if !first_event_logged {
+                        first_event_logged = true;
+                        log::info!(
+                            "[byop] first stream event after {}ms",
+                            stream_started_at.elapsed().as_millis()
+                        );
+                    }
+                    item
+                }
+                ByopWaitOutcome::Ready(None) => break,
+                ByopWaitOutcome::Cancelled => {
+                    log::info!("[byop] stream cancelled");
+                    return;
+                }
+                ByopWaitOutcome::TimedOut => {
+                    let timeout_seconds = BYOP_STREAM_IDLE_TIMEOUT.as_secs();
+                    let error = ByopStreamTimeoutError {
+                        phase: "waiting for provider response data",
+                        timeout_seconds,
+                    };
+                    log::error!(
+                        "[byop] stream idle timeout after {timeout_seconds}s (elapsed={}ms)",
+                        stream_started_at.elapsed().as_millis()
+                    );
+                    yield Err(Arc::new(AIApiError::Other(error.into())));
+                    return;
+                }
+            };
             let event = match item {
                 Ok(ev) => ev,
                 Err(e) => {
@@ -4109,7 +4243,9 @@ pub async fn generate_byop_output(
         log::info!(
             "[byop] stream stats: start={start_count} chunks={chunk_count} ({chunk_bytes}B) \
              reasoning={reasoning_count} ({reasoning_bytes}B) native_tool_chunks={tool_chunk_count} \
-             ends={end_count} other={other_count} captured_tools={total_tools}"
+             ends={end_count} other={other_count} captured_tools={total_tools} \
+             elapsed_ms={}",
+            stream_started_at.elapsed().as_millis()
         );
         // P0-6 prompt cache 命中率日志(只在 provider 返回 cache 字段时打)。
         // ratio = cache_read / (prompt_tokens.max(1)) 表示本轮 input 中有多少比例直接

@@ -24,6 +24,7 @@ pub const DEFAULT_MONOSPACE_FONT_SIZE: f32 = 13.0;
 pub const DEFAULT_MONOSPACE_FONT_WEIGHT: Weight = Weight::Normal;
 
 pub const DEFAULT_UI_FONT_NAME: &str = "";
+pub const DEFAULT_UI_FONT_FAMILY_NAME: &str = "IBM Plex Sans";
 
 define_settings_group!(FontSettings,
     settings: [
