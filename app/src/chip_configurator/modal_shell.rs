@@ -25,6 +25,7 @@ const BORDER_WIDTH: f32 = 1.;
 const MODAL_UNIFORM_PADDING: f32 = 24.;
 const CORNER_RADIUS_PIXELS: f32 = 8.;
 const PRIMARY_BUTTON_HEIGHT: f32 = 40.;
+const PRIMARY_BUTTON_HORIZONTAL_PADDING: f32 = 16.;
 const SECTION_UNIFORM_PADDING: f32 = 16.;
 const MARGIN_BETWEEN_MODAL_SECTIONS: f32 = 16.;
 const RESTORE_DEFAULT_LABEL: &str = "Restore default";
@@ -261,8 +262,8 @@ fn render_primary_button<A: Action + Clone + Copy + 'static>(
     let padding = Coords {
         top: 10.,
         bottom: 10.,
-        right: 140.,
-        left: 140.,
+        right: PRIMARY_BUTTON_HORIZONTAL_PADDING,
+        left: PRIMARY_BUTTON_HORIZONTAL_PADDING,
     };
 
     let mut button = appearance
@@ -310,16 +311,27 @@ fn render_buttons<A: Action + Clone + Copy + 'static>(
 
     Flex::row()
         .with_main_axis_size(MainAxisSize::Max)
-        .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
         .with_child(
-            ConstrainedBox::new(cancel_button)
-                .with_height(PRIMARY_BUTTON_HEIGHT)
-                .finish(),
+            Expanded::new(
+                1.0,
+                ConstrainedBox::new(cancel_button)
+                    .with_height(PRIMARY_BUTTON_HEIGHT)
+                    .finish(),
+            )
+            .finish(),
         )
         .with_child(
-            ConstrainedBox::new(Container::new(save_button).with_margin_left(5.).finish())
-                .with_height(PRIMARY_BUTTON_HEIGHT)
+            Expanded::new(
+                1.0,
+                Container::new(
+                    ConstrainedBox::new(save_button)
+                        .with_height(PRIMARY_BUTTON_HEIGHT)
+                        .finish(),
+                )
+                .with_margin_left(8.)
                 .finish(),
+            )
+            .finish(),
         )
         .finish()
 }
