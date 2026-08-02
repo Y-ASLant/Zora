@@ -616,6 +616,8 @@ settings-section-editor-and-code-review = Editor and Code Review
 settings-section-cloud-environments = Environments
 settings-section-oz-cloud-api-keys = Agent API Keys
 settings-title = Settings
+settings-search-no-match = No settings match your search.
+settings-search-no-match-hint = You may want to try using different keywords or checking for any possible typos.
 
 # Context menu items (split / close pane)
 settings-pane-split-right = Split pane right
@@ -3377,6 +3379,11 @@ theme-creator-selecting-image = Selecting image...
 theme-creator-select-new-image = Select a new image
 theme-creator-create-theme = Create theme
 theme-creator-process-image-failed = Failed to process selected image. Please try again with a different image.
+theme-chooser-title = Themes
+theme-chooser-scope-all-windows = All windows
+theme-chooser-scope-this-window = This window
+theme-chooser-accessibility-label = Theme chooser. Unfortunately, the theme chooser window isn't compatible with screen readers yet.
+theme-chooser-accessibility-help = Press Escape to close.
 theme-chooser-current-description = Change your current theme.
 theme-chooser-light-description = Pick a theme for when your system is in light mode.
 theme-chooser-dark-description = Pick a theme for when your system is in dark mode.

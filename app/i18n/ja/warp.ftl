@@ -537,6 +537,8 @@ settings-section-editor-and-code-review = エディタとコードレビュー
 settings-section-cloud-environments = 環境
 settings-section-oz-cloud-api-keys = エージェント API キー
 settings-title = 設定
+settings-search-no-match = 検索条件に一致する設定はありません。
+settings-search-no-match-hint = 別のキーワードを試すか、入力に誤りがないか確認してください。
 
 # Context menu items (split / close pane)
 settings-pane-split-right = ペインを右に分割
@@ -3181,6 +3183,11 @@ theme-creator-selecting-image = 画像を選択中…
 theme-creator-select-new-image = 新しい画像を選択
 theme-creator-create-theme = テーマを作成
 theme-creator-process-image-failed = 選択した画像の処理に失敗しました。別の画像でもう一度お試しください。
+theme-chooser-title = テーマ
+theme-chooser-scope-all-windows = すべてのウィンドウ
+theme-chooser-scope-this-window = このウィンドウ
+theme-chooser-accessibility-label = テーマ選択。テーマ選択ウィンドウは現在スクリーンリーダーに対応していません。
+theme-chooser-accessibility-help = Esc キーで閉じます。
 theme-chooser-current-description = 現在のテーマを変更します。
 theme-chooser-light-description = システムがライトモードのときのテーマを選びます。
 theme-chooser-dark-description = システムがダークモードのときのテーマを選びます。

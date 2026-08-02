@@ -608,6 +608,8 @@ settings-section-editor-and-code-review = 编辑器与代码评审
 settings-section-cloud-environments = 环境
 settings-section-oz-cloud-api-keys = Agent API 密钥
 settings-title = 设置
+settings-search-no-match = 没有符合搜索条件的设置。
+settings-search-no-match-hint = 你可以尝试使用其他关键词，或检查是否有拼写错误。
 
 # 上下文菜单项（分屏 / 关闭窗格）
 settings-pane-split-right = 向右拆分窗格
@@ -3294,6 +3296,11 @@ theme-creator-selecting-image = 正在选择图片...
 theme-creator-select-new-image = 选择新图片
 theme-creator-create-theme = 创建主题
 theme-creator-process-image-failed = 无法处理所选图片。请换一张图片后重试。
+theme-chooser-title = 主题
+theme-chooser-scope-all-windows = 所有窗口
+theme-chooser-scope-this-window = 当前窗口
+theme-chooser-accessibility-label = 主题选择器。主题选择器窗口暂不兼容屏幕阅读器。
+theme-chooser-accessibility-help = 按 Esc 关闭。
 theme-chooser-current-description = 更改当前主题。
 theme-chooser-light-description = 选择系统处于浅色模式时使用的主题。
 theme-chooser-dark-description = 选择系统处于深色模式时使用的主题。
