@@ -8,6 +8,8 @@
 #[cfg(feature = "local_fs")]
 use std::path::Path;
 
+#[cfg(feature = "local_fs")]
+use futures::future::BoxFuture;
 use warp_core::HostId;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::{AppContext, ModelContext, ModelHandle, SingletonEntity};
@@ -269,6 +271,21 @@ impl RepoMetadataModel {
         let dir_path = dir_path.clone();
         self.local.update(ctx, |local, ctx| {
             local.load_directory(&repo_root, &dir_path, ctx)
+        })
+    }
+
+    /// 后台加载项目树目录，并在构建完成、失败或取消时解析。
+    #[cfg(feature = "local_fs")]
+    pub fn load_directory_with_completion(
+        &self,
+        repo_root: &StandardizedPath,
+        dir_path: &StandardizedPath,
+        ctx: &mut ModelContext<Self>,
+    ) -> Result<BoxFuture<'static, Result<(), RepoMetadataError>>, RepoMetadataError> {
+        let repo_root = repo_root.clone();
+        let dir_path = dir_path.clone();
+        self.local.update(ctx, |local, ctx| {
+            local.load_directory_with_completion(&repo_root, &dir_path, ctx)
         })
     }
 

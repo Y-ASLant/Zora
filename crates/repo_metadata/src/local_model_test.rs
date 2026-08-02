@@ -3,19 +3,19 @@
 #[cfg(test)]
 #[allow(clippy::module_inception)]
 mod tests {
-    use crate::entry::{DirectoryEntry, Entry, FileMetadata};
+    use crate::entry::{DirectoryEntry, Entry, FileMetadata, IgnoredPathStrategy};
     use crate::file_tree_store::{FileTreeEntry, FileTreeEntryState, FileTreeState};
     use crate::local_model::{
-        GetContentsArgs, IndexedRepoState, LocalRepoMetadataModel, RepoUpdate,
-        RepositoryMetadataEvent,
+        BuildTaskKey, BuildTaskKind, FileTreeMutation, GetContentsArgs, IndexedRepoState,
+        LocalRepoMetadataModel, RepoUpdate, RepositoryMetadataEvent, WatcherTreeUpdate,
     };
     use crate::repositories::DetectedRepositories;
     use crate::watcher::DirectoryWatcher;
-    use futures::channel::oneshot;
     use futures::executor::block_on;
+    use futures::{channel::oneshot, future};
     use ignore::gitignore::Gitignore;
     use std::cell::RefCell;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::PathBuf;
     use std::rc::Rc;
     use std::time::Duration;
@@ -23,12 +23,16 @@ mod tests {
     use warp_util::standardized_path::StandardizedPath;
     use warpui::r#async::FutureExt as _;
     use warpui::App;
+    use watcher::BulkFilesystemWatcherEvent;
 
     impl LocalRepoMetadataModel {
         fn new_for_test() -> Self {
             Self {
                 repositories: HashMap::new(),
                 lazy_loaded_paths: Default::default(),
+                build_tasks: Default::default(),
+                #[cfg(feature = "local_fs")]
+                watcher_update_tasks: Default::default(),
                 #[cfg(feature = "local_fs")]
                 watcher: Default::default(),
                 emit_incremental_updates: false,
@@ -164,9 +168,11 @@ mod tests {
                     assert!(model.is_lazy_loaded_path(
                         &StandardizedPath::from_local_canonicalized(&shared_dir).unwrap()
                     ));
-                    assert!(model.has_repository(
-                        &StandardizedPath::from_local_canonicalized(&shared_dir).unwrap()
-                    ));
+                    assert!(model
+                        .repository_state(
+                            &StandardizedPath::from_local_canonicalized(&shared_dir).unwrap()
+                        )
+                        .is_some());
                 });
 
                 let shared_dir_std =
@@ -178,7 +184,7 @@ mod tests {
 
                 model_handle.read(&app, |model, _ctx| {
                     assert!(model.is_lazy_loaded_path(&shared_dir_std));
-                    assert!(model.has_repository(&shared_dir_std));
+                    assert!(model.repository_state(&shared_dir_std).is_some());
                 });
 
                 model_handle.update(&mut app, |model, ctx| {
@@ -192,6 +198,227 @@ mod tests {
                     assert!(!model.has_repository(
                         &StandardizedPath::from_local_canonicalized(&shared_dir).unwrap()
                     ));
+                });
+            });
+        });
+    }
+
+    #[test]
+    fn test_removing_repository_cancels_only_its_project_tree_tasks() {
+        App::test((), |mut app| async move {
+            let model_handle = app.add_model(|_| LocalRepoMetadataModel::new_for_test());
+            let repo_path = StandardizedPath::try_new("/project-tree-owner").unwrap();
+            let nested_repo_path = StandardizedPath::try_new("/project-tree-owner/nested").unwrap();
+
+            model_handle.update(&mut app, |model, ctx| {
+                model
+                    .repositories
+                    .insert(repo_path.clone(), IndexedRepoState::Pending);
+                let repo_task_key = BuildTaskKey::new(repo_path.clone(), repo_path.clone());
+                let repo_task = ctx.spawn(future::pending::<()>(), |_, (), _| {});
+                model.track_build_task(repo_task_key.clone(), BuildTaskKind::Index, repo_task);
+
+                let nested_task_key =
+                    BuildTaskKey::new(nested_repo_path.clone(), nested_repo_path.clone());
+                let nested_task = ctx.spawn(future::pending::<()>(), |_, (), _| {});
+                model.track_build_task(nested_task_key.clone(), BuildTaskKind::Index, nested_task);
+
+                model.remove_repository(&repo_path, ctx).unwrap();
+
+                assert!(!model.build_tasks.contains_key(&repo_task_key));
+                assert!(model.build_tasks.contains_key(&nested_task_key));
+            });
+        });
+    }
+
+    #[test]
+    fn test_stale_project_tree_task_cannot_finish_replacement() {
+        App::test((), |mut app| async move {
+            let model_handle = app.add_model(|_| LocalRepoMetadataModel::new_for_test());
+            let repo_path = StandardizedPath::try_new("/project-tree-generation").unwrap();
+
+            model_handle.update(&mut app, |model, ctx| {
+                let task_key = BuildTaskKey::new(repo_path.clone(), repo_path.clone());
+                let first_task = ctx.spawn(future::pending::<()>(), |_, (), _| {});
+                let first_future_id = first_task.future_id();
+                model.track_build_task(task_key.clone(), BuildTaskKind::Index, first_task);
+
+                let replacement_task = ctx.spawn(future::pending::<()>(), |_, (), _| {});
+                let replacement_future_id = replacement_task.future_id();
+                model.track_build_task(task_key.clone(), BuildTaskKind::Index, replacement_task);
+
+                assert!(model
+                    .finish_build_task(&task_key, Some(first_future_id))
+                    .is_none());
+                assert_eq!(
+                    model.build_tasks[&task_key].handle.future_id(),
+                    replacement_future_id
+                );
+            });
+        });
+    }
+
+    #[cfg(feature = "local_fs")]
+    #[test]
+    fn test_stale_watcher_update_task_cannot_finish_replacement() {
+        App::test((), |mut app| async move {
+            let model_handle = app.add_model(|_| LocalRepoMetadataModel::new_for_test());
+            let repo_path = StandardizedPath::try_new("/watcher-generation").unwrap();
+
+            model_handle.update(&mut app, |model, ctx| {
+                let first_task = ctx.spawn(future::pending::<()>(), |_, (), _| {});
+                let first_future_id = first_task.future_id();
+                model.track_watcher_update_task(
+                    repo_path.clone(),
+                    RepoUpdate::default(),
+                    first_task,
+                );
+
+                let merged_update = model.replace_watcher_update_task(
+                    &repo_path,
+                    RepoUpdate {
+                        added: HashSet::from([PathBuf::from("/watcher-generation/new.rs")]),
+                        ..Default::default()
+                    },
+                );
+                let replacement_task = ctx.spawn(future::pending::<()>(), |_, (), _| {});
+                let replacement_future_id = replacement_task.future_id();
+                model.track_watcher_update_task(repo_path.clone(), merged_update, replacement_task);
+
+                assert!(model
+                    .finish_watcher_update_task(&repo_path, Some(first_future_id))
+                    .is_none());
+                assert_eq!(
+                    model.watcher_update_tasks[&repo_path].handle.future_id(),
+                    replacement_future_id
+                );
+            });
+        });
+    }
+
+    #[cfg(feature = "local_fs")]
+    #[test]
+    fn test_watcher_routes_missing_added_path_without_canonicalizing() {
+        VirtualFS::test("watcher_missing_path_routing", |dirs, mut vfs| {
+            vfs.mkdir("repo");
+            let repo_path = dirs.tests().join("repo");
+            let missing_path = repo_path.join("raced-away.rs");
+            let repo_path_std = StandardizedPath::try_from_local(&repo_path).unwrap();
+
+            App::test((), |mut app| async move {
+                let model_handle = app.add_model(|_| LocalRepoMetadataModel::new_for_test());
+                let received_paths = Rc::new(RefCell::new(Vec::new()));
+                let received_paths_for_event = received_paths.clone();
+                app.update(|ctx| {
+                    ctx.subscribe_to_model(&model_handle, move |_, event, _ctx| {
+                        if let RepositoryMetadataEvent::FileTreeUpdated { paths } = event {
+                            received_paths_for_event.borrow_mut().push(paths.clone());
+                        }
+                    });
+                });
+
+                model_handle.update(&mut app, |model, ctx| {
+                    let root_entry = Entry::Directory(DirectoryEntry {
+                        path: repo_path_std.clone(),
+                        children: Vec::new(),
+                        ignored: false,
+                        loaded: true,
+                    });
+                    model.repositories.insert(
+                        repo_path_std.clone(),
+                        IndexedRepoState::Indexed(FileTreeState::new(root_entry, Vec::new(), None)),
+                    );
+                    model.handle_watcher_event(
+                        &BulkFilesystemWatcherEvent {
+                            added: HashSet::from([missing_path]),
+                            ..Default::default()
+                        },
+                        ctx,
+                    );
+                });
+
+                assert_eq!(received_paths.borrow().as_slice(), &[vec![repo_path_std]]);
+            });
+        });
+    }
+
+    #[cfg(feature = "local_fs")]
+    #[test]
+    fn test_directory_load_coalesces_requests_and_updates_tree() {
+        VirtualFS::test("project_tree_directory_load", |dirs, mut vfs| {
+            vfs.mkdir("tree/src/nested").with_files(vec![
+                Stub::FileWithContent("tree/src/.gitignore", "*.generated\n"),
+                Stub::FileWithContent("tree/src/nested/main.rs", "fn main() {}\n"),
+            ]);
+            let tree_root = dirs.tests().join("tree");
+            let src_dir = tree_root.join("src");
+
+            App::test((), |mut app| async move {
+                let model_handle = app.add_model(|_| LocalRepoMetadataModel::new_for_test());
+                let tree_root_std = StandardizedPath::from_local_canonicalized(&tree_root).unwrap();
+                let src_dir_std = StandardizedPath::from_local_canonicalized(&src_dir).unwrap();
+                let (tx, rx) = oneshot::channel();
+                let tree_root_for_event = tree_root.clone();
+                let initial_index_completed = Rc::new(RefCell::new(Some(tx)));
+                let initial_index_completed_for_event = initial_index_completed.clone();
+                app.update(|ctx| {
+                    ctx.subscribe_to_model(&model_handle, move |_, event, _ctx| {
+                        if matches!(
+                            event,
+                            RepositoryMetadataEvent::RepositoryUpdated { path }
+                                if path.to_local_path().as_ref() == Some(&tree_root_for_event)
+                        ) {
+                            if let Some(tx) = initial_index_completed_for_event.borrow_mut().take()
+                            {
+                                let _ = tx.send(());
+                            }
+                        }
+                    });
+                });
+
+                model_handle.update(&mut app, |model, ctx| {
+                    model.index_lazy_loaded_path(&tree_root_std, ctx).unwrap();
+                });
+                rx.with_timeout(Duration::from_secs(5))
+                    .await
+                    .expect("timed out waiting for initial project-tree index")
+                    .expect("initial project-tree index completion sender dropped");
+
+                let (first_load, second_load) = model_handle.update(&mut app, |model, ctx| {
+                    (
+                        model
+                            .load_directory_with_completion(&tree_root_std, &src_dir_std, ctx)
+                            .unwrap(),
+                        model
+                            .load_directory_with_completion(&tree_root_std, &src_dir_std, ctx)
+                            .unwrap(),
+                    )
+                });
+                first_load
+                    .with_timeout(Duration::from_secs(5))
+                    .await
+                    .expect("timed out waiting for first directory load")
+                    .expect("first directory load failed");
+                second_load
+                    .with_timeout(Duration::from_secs(5))
+                    .await
+                    .expect("timed out waiting for coalesced directory load")
+                    .expect("coalesced directory load failed");
+
+                model_handle.read(&app, |model, _ctx| {
+                    let state = model.get_repository(&tree_root_std).unwrap();
+                    assert!(matches!(
+                        state.entry.get(&src_dir_std),
+                        Some(FileTreeEntryState::Directory(directory)) if directory.loaded
+                    ));
+                    assert!(state.entry.contains(
+                        &StandardizedPath::from_local_canonicalized(&src_dir.join("nested"))
+                            .unwrap()
+                    ));
+                    assert!(state
+                        .gitignores
+                        .iter()
+                        .any(|gitignore| gitignore.path() == src_dir.as_path()));
                 });
             });
         });
@@ -230,11 +457,32 @@ mod tests {
 
                 let repo_root_for_index =
                     StandardizedPath::from_local_canonicalized(&repo_root).unwrap();
+                let (tx, rx) = oneshot::channel();
+                let repo_root_for_lazy_event = repo_root.clone();
+                let lazy_index_completed = Rc::new(RefCell::new(Some(tx)));
+                let lazy_index_completed_for_event = lazy_index_completed.clone();
+                app.update(|ctx| {
+                    ctx.subscribe_to_model(&model_handle, move |_, event, _ctx| {
+                        if matches!(
+                            event,
+                            RepositoryMetadataEvent::RepositoryUpdated { path }
+                                if path.to_local_path().as_ref() == Some(&repo_root_for_lazy_event)
+                        ) {
+                            if let Some(tx) = lazy_index_completed_for_event.borrow_mut().take() {
+                                let _ = tx.send(());
+                            }
+                        }
+                    });
+                });
                 model_handle.update(&mut app, |model, ctx| {
                     model
                         .index_lazy_loaded_path(&repo_root_for_index, ctx)
                         .unwrap();
                 });
+                rx.with_timeout(Duration::from_secs(5))
+                    .await
+                    .expect("timed out waiting for lazy path index")
+                    .expect("lazy path index completion sender dropped");
 
                 model_handle.read(&app, |model, _ctx| {
                     assert!(model.is_lazy_loaded_path(
@@ -568,15 +816,14 @@ mod tests {
 
             // Create update with both ignored and allowed files
             let update = RepoUpdate {
-                added: vec![log_file.clone(), readme_file.clone(), target_dir.clone()],
-                deleted: vec![],
+                added: HashSet::from([log_file.clone(), readme_file.clone(), target_dir.clone()]),
+                deleted: HashSet::new(),
                 moved: HashMap::new(),
             };
 
             // Compute mutations on the "background thread" then apply on the "main thread".
-            let mutations = block_on(LocalRepoMetadataModel::compute_file_tree_mutations(
-                &update,
-                &gitignores,
+            let (mutations, _) = block_on(LocalRepoMetadataModel::compute_file_tree_mutations(
+                update, &repo_path, gitignores,
             ));
             LocalRepoMetadataModel::apply_file_tree_mutations(&mut root, mutations, false, false);
 
@@ -607,6 +854,142 @@ mod tests {
                 .get(&StandardizedPath::try_from_local(&target_dir).unwrap())
                 .unwrap()
                 .loaded());
+        });
+    }
+
+    #[cfg(feature = "local_fs")]
+    #[test]
+    fn test_gitignore_event_rebuilds_rule_snapshot_in_background() {
+        VirtualFS::test("gitignore_watcher_refresh", |dirs, mut fs| {
+            fs.mkdir("repo/generated").with_files(vec![
+                Stub::FileWithContent("repo/.gitignore", "/generated/\n"),
+                Stub::FileWithContent("repo/generated/output.rs", "generated"),
+            ]);
+            let repo_path = dirs.tests().join("repo");
+            let update = RepoUpdate {
+                added: HashSet::from([repo_path.join(".gitignore")]),
+                ..Default::default()
+            };
+
+            let result = block_on(LocalRepoMetadataModel::compute_watcher_tree_update(
+                update,
+                repo_path.clone(),
+                Vec::new(),
+                false,
+            ))
+            .expect("gitignore refresh should rebuild the repository tree");
+
+            let WatcherTreeUpdate::FullRescan {
+                root_entry,
+                gitignores,
+            } = result
+            else {
+                panic!("gitignore event must request a full rescan");
+            };
+            assert!(!gitignores.is_empty());
+
+            let root = FileTreeEntry::from(root_entry);
+            let generated_dir =
+                StandardizedPath::try_from_local(&repo_path.join("generated")).unwrap();
+            assert!(root
+                .get(&generated_dir)
+                .expect("generated directory should be retained as a lazy ignored entry")
+                .ignored());
+        });
+    }
+
+    #[cfg(feature = "local_fs")]
+    #[test]
+    fn test_lazy_loaded_path_keeps_gitignore_snapshot_for_watcher_updates() {
+        VirtualFS::test("lazy_loaded_gitignore_snapshot", |dirs, mut fs| {
+            fs.mkdir("repo").with_files(vec![
+                Stub::FileWithContent("repo/.gitignore", "*.log\n"),
+                Stub::FileWithContent("repo/new.log", "ignored"),
+            ]);
+            let repo_path = dirs.tests().join("repo");
+            let (root_entry, _, gitignores) =
+                block_on(LocalRepoMetadataModel::build_tree_from_local_path(
+                    repo_path.clone(),
+                    1,
+                    IgnoredPathStrategy::Include,
+                ))
+                .expect("lazy path should build");
+            let state = FileTreeState::new_lazy_loaded(root_entry, gitignores);
+
+            let (mutations, _) = block_on(LocalRepoMetadataModel::compute_file_tree_mutations(
+                RepoUpdate {
+                    added: HashSet::from([repo_path.join("new.log")]),
+                    ..Default::default()
+                },
+                &repo_path,
+                state.gitignores,
+            ));
+
+            assert!(matches!(
+                mutations.as_slice(),
+                [FileTreeMutation::AddFile {
+                    is_ignored: true,
+                    ..
+                }]
+            ));
+        });
+    }
+
+    #[cfg(feature = "local_fs")]
+    #[test]
+    fn test_incremental_update_discovers_nested_gitignore_rule() {
+        VirtualFS::test("incremental_nested_gitignore", |dirs, mut fs| {
+            fs.mkdir("repo/nested").with_files(vec![
+                Stub::FileWithContent("repo/nested/.gitignore", "*.log\n"),
+                Stub::FileWithContent("repo/nested/output.log", "ignored"),
+            ]);
+            let repo_path = dirs.tests().join("repo");
+            let nested_path = repo_path.join("nested");
+            let gitignores = crate::entry::gitignores_for_directory(&repo_path);
+            assert!(gitignores
+                .iter()
+                .all(|gitignore| gitignore.path() != nested_path.as_path()));
+
+            let (mutations, refreshed_gitignores) =
+                block_on(LocalRepoMetadataModel::compute_file_tree_mutations(
+                    RepoUpdate {
+                        added: HashSet::from([nested_path.join("output.log")]),
+                        ..Default::default()
+                    },
+                    &repo_path,
+                    gitignores,
+                ));
+
+            assert!(refreshed_gitignores
+                .iter()
+                .any(|gitignore| gitignore.path() == nested_path.as_path()));
+            assert!(matches!(
+                mutations.as_slice(),
+                [FileTreeMutation::AddFile {
+                    is_ignored: true,
+                    ..
+                }]
+            ));
+        });
+    }
+
+    #[cfg(feature = "local_fs")]
+    #[test]
+    fn test_directory_removal_invalidates_nested_gitignore_snapshot() {
+        VirtualFS::test("removed_nested_gitignore", |dirs, mut fs| {
+            fs.mkdir("repo/generated")
+                .with_files(vec![Stub::FileWithContent(
+                    "repo/generated/.gitignore",
+                    "*.tmp\n",
+                )]);
+            let generated_path = dirs.tests().join("repo/generated");
+            let gitignores = vec![Gitignore::new(generated_path.join(".gitignore")).0];
+            let update = RepoUpdate {
+                deleted: HashSet::from([generated_path]),
+                ..Default::default()
+            };
+
+            assert!(update.requires_full_rescan(&gitignores));
         });
     }
 
@@ -1284,9 +1667,12 @@ Thumbs.db
                     "home dir must be tracked as a lazy-loaded path"
                 );
                 assert!(
-                    model.has_repository(&home_std),
+                    model.repository_state(&home_std).is_some(),
                     "home dir entry must be present in the repository map"
                 );
+            });
+            model_handle.update(&mut app, |model, ctx| {
+                model.remove_lazy_loaded_path(&home_std, ctx);
             });
         });
     }

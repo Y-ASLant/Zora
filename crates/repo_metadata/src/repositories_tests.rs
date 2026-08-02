@@ -1,5 +1,7 @@
 use std::fs;
 
+#[cfg(feature = "local_fs")]
+use crate::repositories::{canonicalize_detected_git_repo, GitRepoInfo};
 use crate::repositories::{stub_git_repository, RepoDetectionSource};
 use crate::{repositories::DetectedRepositories, watcher::DirectoryWatcher};
 use virtual_fs::{Stub, VirtualFS};
@@ -23,9 +25,14 @@ fn test_detect_possible_git_repo_non_existent_directory() {
                 ));
             });
 
-            // Since the path doesn't exist, canonicalization fails and so there's no spawned future.
+            // 路径路由不再在 UI 线程 canonicalize；后台探测会安全地返回空结果。
+            repo_handle
+                .update(&mut app, |watcher, ctx| {
+                    let future_id = watcher.spawned_futures()[0];
+                    ctx.await_spawned_future(future_id)
+                })
+                .await;
             repo_handle.read(&app, |repos, _| {
-                assert!(repos.spawned_futures().is_empty());
                 assert!(repos.repository_roots.is_empty());
             });
         });
@@ -154,6 +161,45 @@ fn test_detect_possible_git_repo_nested_repo_created_after_parent_registration()
                 );
             });
         });
+    });
+}
+
+#[cfg(feature = "local_fs")]
+#[test]
+fn test_detected_repository_alias_routes_without_ui_canonicalization() {
+    VirtualFS::test("detected_repo_alias", |dirs, mut vfs| {
+        stub_git_repository(&mut vfs, "real_repo");
+        vfs.mkdir("real_repo/src");
+
+        let real_repo = dirs.tests().join("real_repo");
+        let symlink_repo = dirs.tests().join("linked_repo");
+        #[cfg(unix)]
+        let symlink_created = std::os::unix::fs::symlink(&real_repo, &symlink_repo).is_ok();
+        #[cfg(windows)]
+        let symlink_created = std::os::windows::fs::symlink_dir(&real_repo, &symlink_repo).is_ok();
+
+        if symlink_created {
+            let detected = canonicalize_detected_git_repo(GitRepoInfo {
+                working_tree_path: Some(symlink_repo.clone()),
+                git_dir_path: symlink_repo.join(".git"),
+            })
+            .expect("后台路径解析应成功");
+            let expected_root = StandardizedPath::from_local_canonicalized(&real_repo).unwrap();
+            assert_eq!(detected.canonical_root, expected_root);
+
+            let alias = detected.observed_root.clone();
+            let canonical_root = detected.canonical_root.clone();
+            let mut repositories = DetectedRepositories::default();
+            repositories.repository_roots.insert(canonical_root.clone());
+            repositories
+                .repository_root_aliases
+                .insert(alias, canonical_root.clone());
+
+            assert_eq!(
+                repositories.get_root_for_path(&symlink_repo.join("src/main.rs")),
+                canonical_root.to_local_path(),
+            );
+        }
     });
 }
 

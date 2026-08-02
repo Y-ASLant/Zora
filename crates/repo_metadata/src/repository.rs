@@ -1,12 +1,16 @@
 use std::collections::HashMap;
+#[cfg(feature = "local_fs")]
+use std::collections::HashSet;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 #[cfg(feature = "local_fs")]
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
+#[cfg(feature = "local_fs")]
+use futures::channel::oneshot;
 use futures::future::ready;
 #[cfg(feature = "local_fs")]
 use ignore::gitignore::Gitignore;
@@ -74,6 +78,17 @@ pub struct Repository {
     /// Cached gitignore patterns for this repository.
     #[cfg(feature = "local_fs")]
     gitignores: Vec<Gitignore>,
+    /// 已完成 Git ignore 探测的目录。即使目录没有 `.gitignore` 也会记录，避免
+    /// 高频 watcher 事件重复访问磁盘。
+    #[cfg(feature = "local_fs")]
+    gitignore_checked_directories: HashSet<PathBuf>,
+    /// Git ignore 快照版本。后台分类结果只能写回其开始时看到的版本，避免较早
+    /// 的事件覆盖树扫描或较新的规则更新。
+    #[cfg(feature = "local_fs")]
+    gitignore_generation: u64,
+    /// 使延迟完成的 watcher 初始化失效，避免最后一个订阅者已离开后仍注册监听。
+    #[cfg(feature = "local_fs")]
+    watch_generation: u64,
 
     task_queue: ModelHandle<TaskQueue>,
 }
@@ -86,10 +101,9 @@ impl Repository {
         task_queue: ModelHandle<TaskQueue>,
     ) -> Self {
         #[cfg(feature = "local_fs")]
-        let gitignores = {
-            let local_path = root_dir.to_local_path_lossy();
-            gitignores_for_directory(&local_path)
-        };
+        let gitignores = Vec::new();
+        #[cfg(feature = "local_fs")]
+        let gitignore_checked_directories = HashSet::new();
 
         let common_git_directory = external_git_directory.as_ref().and_then(|ext| {
             ext.to_local_path()
@@ -107,6 +121,12 @@ impl Repository {
             next_subscriber_id: 0,
             #[cfg(feature = "local_fs")]
             gitignores,
+            #[cfg(feature = "local_fs")]
+            gitignore_checked_directories,
+            #[cfg(feature = "local_fs")]
+            gitignore_generation: 0,
+            #[cfg(feature = "local_fs")]
+            watch_generation: 0,
             task_queue,
         }
     }
@@ -186,7 +206,8 @@ impl Repository {
         #[cfg(feature = "local_fs")]
         let registration_future: BoxFuture<'static, Result<(), RepoMetadataError>> =
             if should_start_watching {
-                // Prepare list of directories to watch
+                // 这里只构造路径，不读取文件系统。Git ignore 规则在后台加载后
+                // 才注册 watcher，避免在 UI 线程读取 `.gitignore`。
                 let mut directories_to_watch = vec![self.root_dir.clone()];
 
                 // Watch the per-worktree gitdir for worktree-specific events
@@ -201,20 +222,72 @@ impl Repository {
                 if let Some(common_git_dir) = &self.common_git_directory {
                     if let Some(common_local) = common_git_dir.to_local_path() {
                         let refs_dir = common_local.join("refs").join("heads");
-                        if let Ok(refs_std) = StandardizedPath::from_local_canonicalized(&refs_dir)
-                        {
+                        if let Ok(refs_std) = StandardizedPath::try_from_local(&refs_dir) {
                             directories_to_watch.push(refs_std);
                         }
                     }
                 }
 
-                Box::pin(DirectoryWatcher::handle(ctx).update(ctx, |watcher, ctx| {
-                    watcher.start_watching_directories(
-                        directories_to_watch,
-                        self.gitignores.clone(),
-                        ctx,
-                    )
-                }))
+                let root_dir = self.root_dir.clone();
+                self.watch_generation = self.watch_generation.wrapping_add(1);
+                let watch_generation = self.watch_generation;
+                let (registration_tx, registration_rx) = oneshot::channel();
+                let initialization_handle = ctx.spawn(
+                    async move {
+                        let gitignores = root_dir
+                            .to_local_path()
+                            .map(|path| gitignores_for_directory(&path))
+                            .unwrap_or_default();
+                        (gitignores, directories_to_watch)
+                    },
+                    move |repository, (gitignores, directories_to_watch), ctx| {
+                        if repository.watch_generation != watch_generation
+                            || repository.subscribers.is_empty()
+                        {
+                            let _ = registration_tx.send(Err(RepoMetadataError::WatcherError(
+                                anyhow::anyhow!("Repository watcher initialization was superseded"),
+                            )));
+                            return;
+                        }
+                        repository.set_gitignores(gitignores);
+                        let registration =
+                            DirectoryWatcher::handle(ctx).update(ctx, |watcher, ctx| {
+                                watcher.start_watching_directories(directories_to_watch, ctx)
+                            });
+                        ctx.spawn(registration, move |repository, result, ctx| {
+                            if repository.watch_generation != watch_generation
+                                || repository.subscribers.is_empty()
+                            {
+                                let _ = registration_tx.send(Err(RepoMetadataError::WatcherError(
+                                    anyhow::anyhow!(
+                                        "Repository watcher registration was superseded"
+                                    ),
+                                )));
+                                return;
+                            }
+                            // 只有后台 watcher 完成注册尝试后才做首次扫描，避免扫描与
+                            // 监听之间的窗口遗漏修改。注册失败时仍保留首次扫描，以维持
+                            // 原有的初始数据可用性；调用方会同时收到注册错误。
+                            let subscriber_ids =
+                                repository.subscribers.keys().copied().collect::<Vec<_>>();
+                            for subscriber_id in subscriber_ids {
+                                let repository_handle = ctx.handle();
+                                repository.task_queue.update(ctx, |queue, ctx| {
+                                    queue.enqueue_scan(repository_handle, subscriber_id, ctx);
+                                });
+                            }
+                            let _ = registration_tx.send(result);
+                        });
+                    },
+                );
+                std::mem::drop(initialization_handle);
+                Box::pin(async move {
+                    registration_rx.await.unwrap_or_else(|_| {
+                        Err(RepoMetadataError::WatcherError(anyhow::anyhow!(
+                            "Repository watcher initialization was cancelled"
+                        )))
+                    })
+                })
             } else {
                 Box::pin(ready(Ok(())))
             };
@@ -223,10 +296,21 @@ impl Repository {
         let registration_future: BoxFuture<'static, Result<(), RepoMetadataError>> =
             Box::pin(async move { Ok(()) });
 
-        let self_handle = ctx.handle();
-        self.task_queue.update(ctx, |queue, ctx| {
-            queue.enqueue_scan(self_handle, subscriber_id, ctx);
-        });
+        #[cfg(feature = "local_fs")]
+        if !should_start_watching {
+            let self_handle = ctx.handle();
+            self.task_queue.update(ctx, |queue, ctx| {
+                queue.enqueue_scan(self_handle, subscriber_id, ctx);
+            });
+        }
+
+        #[cfg(not(feature = "local_fs"))]
+        {
+            let self_handle = ctx.handle();
+            self.task_queue.update(ctx, |queue, ctx| {
+                queue.enqueue_scan(self_handle, subscriber_id, ctx);
+            });
+        }
 
         StartWatching {
             subscriber_id,
@@ -255,6 +339,7 @@ impl Repository {
 
             #[cfg(feature = "local_fs")]
             {
+                self.watch_generation = self.watch_generation.wrapping_add(1);
                 DirectoryWatcher::handle(ctx).update(ctx, |watcher, ctx| {
                     // Stop watching the working tree directory
                     std::mem::drop(watcher.stop_watching_directory(&self.root_dir, ctx));
@@ -265,9 +350,7 @@ impl Repository {
                     if let Some(common_git_dir) = &self.common_git_directory {
                         if let Some(common_local) = common_git_dir.to_local_path() {
                             let refs_dir = common_local.join("refs").join("heads");
-                            if let Ok(refs_std) =
-                                StandardizedPath::from_local_canonicalized(&refs_dir)
-                            {
+                            if let Ok(refs_std) = StandardizedPath::try_from_local(&refs_dir) {
                                 std::mem::drop(watcher.stop_watching_directory(&refs_std, ctx));
                             }
                         }
@@ -325,6 +408,50 @@ impl Repository {
 
         // Check if path matches gitignore patterns
         matches_gitignores(path, is_dir, &self.gitignores, true)
+    }
+
+    /// 用后台树扫描所得的完整规则快照更新通用仓库 watcher。
+    #[cfg(feature = "local_fs")]
+    pub(crate) fn set_gitignores(&mut self, gitignores: Vec<Gitignore>) {
+        self.gitignores = gitignores;
+        self.gitignore_checked_directories = self
+            .gitignores
+            .iter()
+            .map(|gitignore| gitignore.path().to_path_buf())
+            .filter(|path| !path.as_os_str().is_empty())
+            .collect();
+        if let Some(root_dir) = self.root_dir.to_local_path() {
+            self.gitignore_checked_directories.insert(root_dir);
+        }
+        self.gitignore_generation = self.gitignore_generation.wrapping_add(1);
+    }
+
+    /// 返回后台 watcher 分类所需的完整 Git ignore 快照。
+    #[cfg(feature = "local_fs")]
+    pub(crate) fn gitignore_snapshot(&self) -> (Vec<Gitignore>, HashSet<PathBuf>, u64) {
+        (
+            self.gitignores.clone(),
+            self.gitignore_checked_directories.clone(),
+            self.gitignore_generation,
+        )
+    }
+
+    /// 仅在快照仍是分类任务开始时的版本时写回结果。
+    #[cfg(feature = "local_fs")]
+    pub(crate) fn set_gitignore_snapshot_if_current(
+        &mut self,
+        expected_generation: u64,
+        gitignores: Vec<Gitignore>,
+        checked_directories: HashSet<PathBuf>,
+    ) -> bool {
+        if self.gitignore_generation != expected_generation {
+            return false;
+        }
+
+        self.gitignores = gitignores;
+        self.gitignore_checked_directories = checked_directories;
+        self.gitignore_generation = self.gitignore_generation.wrapping_add(1);
+        true
     }
 }
 

@@ -1,5 +1,9 @@
 use std::path::Path;
-use std::{collections::HashSet, future::Future, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    future::Future,
+    path::PathBuf,
+};
 
 #[cfg(test)]
 use virtual_fs::{Stub, VirtualFS};
@@ -35,6 +39,10 @@ pub enum DetectedRepositoriesEvent {
 #[derive(Default)]
 pub struct DetectedRepositories {
     repository_roots: HashSet<StandardizedPath>,
+    /// 已探测路径到真实仓库根目录的纯内存映射。它保留 junction / symlink
+    /// 路径的路由能力，同时避免每次查询时在 UI 线程 canonicalize。
+    #[cfg(feature = "local_fs")]
+    repository_root_aliases: HashMap<StandardizedPath, StandardizedPath>,
     #[cfg(test)]
     /// List of spawned background tasks, for testing.
     spawned_futures: Vec<FutureId>,
@@ -54,12 +62,15 @@ impl DetectedRepositories {
         {
             use futures::channel::oneshot;
 
-            let Ok(path) = StandardizedPath::from_local_canonicalized(Path::new(active_directory))
-            else {
+            let Ok(path) = StandardizedPath::try_from_local(Path::new(active_directory)) else {
                 return Either::Right(ready(None));
             };
 
-            if let Some(repository) = self.repository_roots.get(&path) {
+            let known_repository_root = self
+                .repository_roots
+                .get(&path)
+                .or_else(|| self.repository_root_aliases.get(&path));
+            if let Some(repository) = known_repository_root {
                 if let Some(local_path) = repository.to_local_path() {
                     if let Some(repository) =
                         DirectoryWatcher::as_ref(ctx).get_watched_directory_for_path(&local_path)
@@ -78,49 +89,40 @@ impl DetectedRepositories {
             let spawned_handle = ctx.spawn(
                 async move {
                     if let Some(local_path) = local_path_for_search {
-                        find_git_repo(&local_path).await
+                        find_git_repo(&local_path)
+                            .await
+                            .and_then(canonicalize_detected_git_repo)
                     } else {
                         None
                     }
                 },
                 move |me, res, ctx| {
                     if let Some(info) = res {
-                        if let Some(repo_root_path) = info
-                            .working_tree_path
-                            .as_ref()
-                            .and_then(|path| StandardizedPath::from_local_canonicalized(path).ok())
+                        let repo_root_path = info.canonical_root;
+                        me.repository_roots.insert(repo_root_path.clone());
+                        me.repository_root_aliases
+                            .insert(info.observed_root, repo_root_path.clone());
+
+                        let external_git_dir = info.external_git_directory;
+
+                        if let Some(repository) =
+                            DirectoryWatcher::handle(ctx).update(ctx, |watcher, ctx| {
+                                watcher
+                                    .add_directory_with_git_dir(
+                                        repo_root_path,
+                                        external_git_dir,
+                                        ctx,
+                                    )
+                                    .ok()
+                            })
                         {
-                            me.repository_roots.insert(repo_root_path.clone());
-
-                            let external_git_dir = StandardizedPath::from_local_canonicalized(
-                                info.git_dir_path.as_path(),
-                            )
-                            .ok()
-                            // Only treat as external if it's outside the working tree.
-                            .filter(|p| !p.starts_with(&repo_root_path));
-
-                            if let Some(repository) =
-                                DirectoryWatcher::handle(ctx).update(ctx, |watcher, ctx| {
-                                    watcher
-                                        .add_directory_with_git_dir(
-                                            repo_root_path,
-                                            external_git_dir,
-                                            ctx,
-                                        )
-                                        .ok()
-                                })
-                            {
-                                let repo_path = repository.as_ref(ctx).root_dir().to_local_path();
-                                ctx.emit(DetectedRepositoriesEvent::DetectedGitRepo {
-                                    repository,
-                                    source,
-                                });
-                                let _ = tx.send(repo_path);
-                            } else {
-                                let _ = tx.send(None);
-                            }
+                            let repo_path = repository.as_ref(ctx).root_dir().to_local_path();
+                            ctx.emit(DetectedRepositoriesEvent::DetectedGitRepo {
+                                repository,
+                                source,
+                            });
+                            let _ = tx.send(repo_path);
                         } else {
-                            // No working tree path; do not treat git_dir_path as a repository path.
                             let _ = tx.send(None);
                         }
                     } else {
@@ -163,7 +165,7 @@ impl DetectedRepositories {
     /// Given a path, return its corresponding repo root. Note that this does not run the check
     /// against the actual file system. Instead it checks against our cached path to root mapping.
     pub fn get_root_for_path(&self, path: &Path) -> Option<PathBuf> {
-        let std_path = StandardizedPath::from_local_canonicalized(path).ok()?;
+        let std_path = StandardizedPath::try_from_local(path).ok()?;
         let repo = self.find_repository_root(&std_path)?;
         repo.to_local_path()
     }
@@ -173,6 +175,10 @@ impl DetectedRepositories {
         let mut current = Some(path.clone());
         while let Some(ancestor) = current {
             if let Some(repo) = self.repository_roots.get(&ancestor) {
+                return Some(repo.clone());
+            }
+            #[cfg(feature = "local_fs")]
+            if let Some(repo) = self.repository_root_aliases.get(&ancestor) {
                 return Some(repo.clone());
             }
             current = ancestor.parent();
@@ -205,6 +211,34 @@ struct GitRepoInfo {
     /// Path to the git directory (contains objects, refs, and index).
     /// We can watch the HEAD file for branch changes, but currently don't do so.
     git_dir_path: PathBuf,
+}
+
+/// 后台 Git 探测完成后的可路由路径。
+///
+/// `canonical_root` 是实际用于构建树和注册 watcher 的路径；`observed_root`
+/// 保留用户输入中的 symlink / junction 路径，供 UI 的纯内存查询使用。
+#[cfg(feature = "local_fs")]
+struct DetectedGitRepoPaths {
+    canonical_root: StandardizedPath,
+    observed_root: StandardizedPath,
+    external_git_directory: Option<StandardizedPath>,
+}
+
+#[cfg(feature = "local_fs")]
+fn canonicalize_detected_git_repo(info: GitRepoInfo) -> Option<DetectedGitRepoPaths> {
+    let observed_root = StandardizedPath::try_from_local(info.working_tree_path.as_ref()?).ok()?;
+    let canonical_root =
+        StandardizedPath::from_local_canonicalized(info.working_tree_path.as_ref()?).ok()?;
+    let external_git_directory = StandardizedPath::from_local_canonicalized(&info.git_dir_path)
+        .ok()
+        // Only treat as external if it's outside the working tree.
+        .filter(|path| !path.starts_with(&canonical_root));
+
+    Some(DetectedGitRepoPaths {
+        canonical_root,
+        observed_root,
+        external_git_directory,
+    })
 }
 
 /// Finds the Git repository containing the given path, if any.

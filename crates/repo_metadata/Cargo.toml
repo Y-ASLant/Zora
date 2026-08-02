@@ -36,8 +36,9 @@ strum_macros.workspace = true
 strum.workspace = true
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-notify-debouncer-full.workspace = true
 async-fs.workspace = true
+async-channel.workspace = true
+notify-debouncer-full.workspace = true
 watcher.workspace = true
 
 [build-dependencies]

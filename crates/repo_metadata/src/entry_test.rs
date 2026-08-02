@@ -219,6 +219,79 @@ fn test_path_passes_filters_windows() {
     });
 }
 
+#[cfg(feature = "local_fs")]
+#[test]
+fn nested_gitignore_whitelist_overrides_parent_ignore() {
+    use std::fs;
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let root = dunce::canonicalize(temp_dir.path()).unwrap();
+    let nested = root.join("nested");
+    fs::create_dir_all(&nested).unwrap();
+    fs::write(root.join(".gitignore"), "*.log\n").unwrap();
+    fs::write(nested.join(".gitignore"), "!keep.log\n").unwrap();
+
+    let gitignores = vec![
+        Gitignore::new(root.join(".gitignore")).0,
+        Gitignore::new(nested.join(".gitignore")).0,
+    ];
+
+    assert!(super::matches_gitignores(
+        &nested.join("discard.log"),
+        false,
+        &gitignores,
+        true,
+    ));
+    assert!(!super::matches_gitignores(
+        &nested.join("keep.log"),
+        false,
+        &gitignores,
+        true,
+    ));
+}
+
+#[cfg(feature = "local_fs")]
+#[test]
+fn unrelated_whitelist_does_not_eagerly_scan_ignored_directories() {
+    use std::fs;
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let root = dunce::canonicalize(temp_dir.path()).unwrap();
+    let target = root.join("target");
+    fs::create_dir_all(target.join("deep/tree")).unwrap();
+    fs::write(
+        root.join(".gitignore"),
+        "target/\nnode_modules/\n!docs/keep.txt\n",
+    )
+    .unwrap();
+
+    let mut files = Vec::new();
+    let mut gitignores = Vec::new();
+    let entry = futures::executor::block_on(super::Entry::build_tree(
+        &root,
+        &mut files,
+        &mut gitignores,
+        None,
+        200,
+        0,
+        &super::IgnoredPathStrategy::IncludeLazy,
+    ))
+    .expect("repository tree should build");
+    let super::Entry::Directory(root_entry) = entry else {
+        panic!("repository root must be a directory");
+    };
+    let target_entry = root_entry
+        .children
+        .iter()
+        .find(|entry| entry.path().to_local_path_lossy() == target)
+        .expect("ignored target directory should remain represented");
+
+    assert!(matches!(
+        target_entry,
+        super::Entry::Directory(directory) if directory.ignored && !directory.loaded
+    ));
+}
+
 #[cfg(all(unix, feature = "local_fs"))]
 #[test]
 fn should_watch_prunes_directory_symlinks_and_their_descendants() {
@@ -241,7 +314,7 @@ fn should_watch_prunes_directory_symlinks_and_their_descendants() {
 
 #[cfg(feature = "local_fs")]
 #[test]
-fn should_watch_prunes_gitignored_directories() {
+fn should_watch_keeps_gitignored_directories_for_background_rule_analysis() {
     use std::fs;
 
     let temp_dir = tempfile::tempdir().unwrap();
@@ -252,18 +325,8 @@ fn should_watch_prunes_gitignored_directories() {
     fs::create_dir_all(&source_dir).unwrap();
     fs::write(repo_root.join(".gitignore"), "/target/\n").unwrap();
 
-    let gitignores = vec![Gitignore::new(repo_root.join(".gitignore")).0];
-
-    assert!(!super::should_watch_repo_directory(
-        &target_dir,
-        &repo_root,
-        &gitignores,
-    ));
-    assert!(super::should_watch_repo_directory(
-        &source_dir,
-        &repo_root,
-        &gitignores,
-    ));
+    assert!(super::should_watch_repo_directory(&target_dir, &repo_root));
+    assert!(super::should_watch_repo_directory(&source_dir, &repo_root));
 }
 
 #[cfg(all(unix, feature = "local_fs"))]

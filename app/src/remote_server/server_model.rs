@@ -616,7 +616,7 @@ impl ServerModel {
                 self.handle_navigated_to_directory(msg, &request_id, conn_id, ctx)
             }
             Some(client_message::Message::LoadRepoMetadataDirectory(msg)) => {
-                self.handle_load_repo_metadata_directory(msg, &request_id, ctx)
+                self.handle_load_repo_metadata_directory(msg, &request_id, conn_id, ctx)
             }
             Some(client_message::Message::WriteFile(msg)) => {
                 self.handle_write_file(msg, &request_id, conn_id, ctx)
@@ -1088,11 +1088,12 @@ impl ServerModel {
     }
 
     /// Handles `LoadRepoMetadataDirectory` by loading a subdirectory on the
-    /// server's local model and returning the children synchronously.
+    /// server's local model, then responding after the background build completes.
     fn handle_load_repo_metadata_directory(
         &mut self,
         msg: super::proto::LoadRepoMetadataDirectory,
         request_id: &RequestId,
+        conn_id: ConnectionId,
         ctx: &mut ModelContext<Self>,
     ) -> HandlerOutcome {
         log::info!(
@@ -1132,39 +1133,59 @@ impl ServerModel {
             }));
         }
 
-        // Load the directory on the server's local model.
-        let load_result = RepoMetadataModel::handle(ctx).update(ctx, |model, ctx| {
-            model.load_directory(&repo_path, &dir_path, ctx)
+        let completion = RepoMetadataModel::handle(ctx).update(ctx, |model, ctx| {
+            model.load_directory_with_completion(&repo_path, &dir_path, ctx)
         });
+        let completion = match completion {
+            Ok(completion) => completion,
+            Err(error) => {
+                log::warn!("LoadRepoMetadataDirectory failed: {error}");
+                return HandlerOutcome::Sync(server_message::Message::Error(ErrorResponse {
+                    code: ErrorCode::Internal.into(),
+                    message: format!("Failed to load directory: {error}"),
+                }));
+            }
+        };
 
-        if let Err(e) = load_result {
-            log::warn!("LoadRepoMetadataDirectory failed: {e}");
-            return HandlerOutcome::Sync(server_message::Message::Error(ErrorResponse {
-                code: ErrorCode::Internal.into(),
-                message: format!("Failed to load directory: {e}"),
-            }));
-        }
-
-        // Read back the loaded children and serialize them.
-        let id = RepositoryIdentifier::local(repo_path.clone());
-        let entries = RepoMetadataModel::handle(ctx)
-            .as_ref(ctx)
-            .get_repository(&id, ctx)
-            .map(|state| {
-                super::repo_metadata_proto::file_tree_children_to_proto_entries(
-                    &state.entry,
-                    &dir_path,
-                )
-            })
-            .unwrap_or_default();
-
-        HandlerOutcome::Sync(server_message::Message::LoadRepoMetadataDirectoryResponse(
-            super::proto::LoadRepoMetadataDirectoryResponse {
-                repo_path: msg.repo_path,
-                dir_path: msg.dir_path,
-                entries,
+        let request_id_for_completion = request_id.clone();
+        let response_repo_path = msg.repo_path;
+        let response_dir_path = msg.dir_path;
+        let handle = self.spawn_request_handler(
+            request_id.clone(),
+            completion,
+            move |model, result, ctx| {
+                let message = match result {
+                    Ok(()) => {
+                        let id = RepositoryIdentifier::local(repo_path.clone());
+                        let entries = RepoMetadataModel::handle(ctx)
+                            .as_ref(ctx)
+                            .get_repository(&id, ctx)
+                            .map(|state| {
+                                super::repo_metadata_proto::file_tree_children_to_proto_entries(
+                                    &state.entry,
+                                    &dir_path,
+                                )
+                            })
+                            .unwrap_or_default();
+                        server_message::Message::LoadRepoMetadataDirectoryResponse(
+                            super::proto::LoadRepoMetadataDirectoryResponse {
+                                repo_path: response_repo_path,
+                                dir_path: response_dir_path,
+                                entries,
+                            },
+                        )
+                    }
+                    Err(error) => server_message::Message::Error(ErrorResponse {
+                        code: ErrorCode::Internal.into(),
+                        message: format!("Failed to load directory: {error}"),
+                    }),
+                };
+                model.send_server_message(Some(conn_id), Some(&request_id_for_completion), message);
             },
-        ))
+            ctx,
+        );
+
+        HandlerOutcome::Async(Some(handle))
     }
 
     /// Handles `WriteFile` by registering the path and triggering an async
@@ -1525,8 +1546,8 @@ impl ServerModel {
                     let metadata = entry.metadata().ok();
                     let kind = entry_kind(file_type.as_ref(), metadata.as_ref());
                     let is_dir = kind == FileSystemEntryKind::Directory as i32;
-                    let size_bytes =
-                        metadata.as_ref().filter(|m| m.is_file()).map(|m| m.len());
+                let size_bytes =
+                    metadata.as_ref().filter(|m| m.is_file()).map(|m| m.len());
                     let modified_epoch_millis = metadata
                         .as_ref()
                         .and_then(|m| m.modified().ok())

@@ -55,7 +55,8 @@ pub async fn build_outline(
         MAX_DEPTH,
         0,
         &IgnoredPathStrategy::Exclude, // override_ignore_for_files
-    )?;
+    )
+    .await?;
 
     let (sender, receiver) = oneshot::channel();
 
