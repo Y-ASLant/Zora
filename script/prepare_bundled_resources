@@ -105,8 +105,6 @@ fi
 # When adding a new third-party component to the bundle, add its license file
 # to the repo alongside the component and add an entry here.
 ADDITIONAL_LICENSES=(
-    "Hack Font|MIT|app/assets/bundled/fonts/hack/LICENSE.md"
-    "Roboto Font|SIL Open Font License|app/assets/bundled/fonts/roboto/LICENSE.txt"
     "bash-preexec|MIT|app/assets/bundled/bootstrap/bash-preexec-LICENSE.md"
     "Claude API Skill|Apache-2.0|resources/bundled/skills/claude-api/LICENSE.txt"
     "Windows Terminal|MIT|app/assets/windows/LICENSE-WINDOWS-TERMINAL"

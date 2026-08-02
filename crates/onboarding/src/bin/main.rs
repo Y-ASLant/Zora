@@ -474,9 +474,6 @@ fn load_default_ui_font_family(ctx: &mut AppContext) -> anyhow::Result<FamilyId>
                     .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-BoldItalic.ttf")?
                     .to_vec(),
                 ASSETS
-                    .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-MediumItalic.ttf")?
-                    .to_vec(),
-                ASSETS
                     .get("bundled/fonts/ibm-plex-sans/IBMPlexSans-SemiBoldItalic.ttf")?
                     .to_vec(),
             ],

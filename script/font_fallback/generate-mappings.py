@@ -63,8 +63,8 @@ FONTS_NOT_TO_COALESCE = set([
     "Hack Nerd Font"
 ])
 
-HACK_FONT_FILEPATH = "../../app/assets/bundled/fonts/hack/Hack-Regular.ttf"
-ROBOTO_FONT_FILEPATH = "../../app/assets/bundled/fonts/roboto/Roboto-Regular.ttf"
+LILEX_FONT_FILEPATH = "../../app/assets/bundled/fonts/lilex/Lilex-Regular.ttf"
+IBM_PLEX_SANS_FONT_FILEPATH = "../../app/assets/bundled/fonts/ibm-plex-sans/IBMPlexSans-Regular.ttf"
 FONT_DOWNLOAD_DIR = "./downloaded_fonts"
 
 
@@ -88,7 +88,7 @@ def get_global_order(font_name):
 
 
 def get_default_fonts():
-    return [TTFont(HACK_FONT_FILEPATH), TTFont(ROBOTO_FONT_FILEPATH)]
+    return [TTFont(LILEX_FONT_FILEPATH), TTFont(IBM_PLEX_SANS_FONT_FILEPATH)]
 
 
 # Returns a `TTFont` object for each fallback font, sorted by their global order.
