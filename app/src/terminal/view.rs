@@ -21351,6 +21351,12 @@ impl TerminalView {
             alt_screen_element,
         );
 
+        // AltScreen 的默认 ANSI 背景是透明的，外层 padding 必须沿用当前 TUI 背景。
+        let alt_screen_background = model
+            .alt_screen()
+            .inferred_bg_color()
+            .unwrap_or_else(|| appearance.theme().background().into_solid());
+
         SavePosition::new(
             Container::new(
                 Align::new(
@@ -21367,6 +21373,7 @@ impl TerminalView {
                 .top_left()
                 .finish(),
             )
+            .with_background(alt_screen_background)
             .with_vertical_padding(self.size_info.padding_y_px().as_f32())
             .finish(),
             &self.content_element_position_id,
