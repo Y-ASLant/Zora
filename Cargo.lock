@@ -3527,13 +3527,9 @@ checksum = "d8b9f2e4c67f833b660cdb0a3523065869fb35570177239812ed4c905aeff87b"
 dependencies = [
  "bitflags 2.13.0",
  "crossterm_winapi",
- "derive_more 2.1.1",
  "document-features",
- "mio",
  "parking_lot",
  "rustix 1.1.4",
- "signal-hook",
- "signal-hook-mio",
  "winapi",
 ]
 
@@ -4400,14 +4396,6 @@ dependencies = [
  "sec1",
  "subtle",
  "zeroize",
-]
-
-[[package]]
-name = "email_address"
-version = "0.2.3"
-source = "git+https://github.com/warpdotdev/rust-email_address?branch=main#b3e5205b4efdc83832f230d8eb6894fd00a9ec32"
-dependencies = [
- "serde",
 ]
 
 [[package]]
@@ -6800,20 +6788,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "inquire"
-version = "0.9.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6654738b8024300cf062d04a1c13c10c8e2cea598ec1c47dc9b6641159429756"
-dependencies = [
- "bitflags 2.13.0",
- "crossterm",
- "dyn-clone",
- "fuzzy-matcher",
- "unicode-segmentation",
- "unicode-width 0.2.2",
-]
-
-[[package]]
 name = "instant"
 version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7324,7 +7298,7 @@ dependencies = [
  "ahash 0.8.12",
  "bytecount",
  "data-encoding",
- "email_address 0.2.9",
+ "email_address",
  "fancy-regex 0.17.0",
  "fraction",
  "getrandom 0.3.4",
@@ -7703,15 +7677,6 @@ name = "lru-slab"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
-
-[[package]]
-name = "lz4_flex"
-version = "0.11.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "373f5eceeeab7925e0c1098212f2fbc4d416adec9d35051a6ab251e824c1854a"
-dependencies = [
- "twox-hash",
-]
 
 [[package]]
 name = "lz4_flex"
@@ -13035,7 +13000,7 @@ dependencies = [
  "levenshtein_automata",
  "log",
  "lru",
- "lz4_flex 0.13.1",
+ "lz4_flex",
  "measure_time",
  "memmap2",
  "once_cell",
@@ -14013,12 +13978,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "twox-hash"
-version = "2.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ea3136b675547379c4bd395ca6b938e5ad3c3d20fad76e7fe85f9e0d011419c"
-
-[[package]]
 name = "type-map"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14713,7 +14672,6 @@ dependencies = [
  "directories",
  "dirs 6.0.0",
  "dunce",
- "email_address 0.2.3",
  "embed-resource",
  "embed_plist",
  "enclose",
@@ -14749,7 +14707,6 @@ dependencies = [
  "indexmap 2.14.0",
  "infer",
  "input_classifier",
- "inquire",
  "instant",
  "inventory",
  "ipc",
@@ -14769,7 +14726,6 @@ dependencies = [
  "line-ending",
  "log",
  "log-panics",
- "lz4_flex 0.11.6",
  "mach2 0.5.0",
  "markdown_parser",
  "memchr",
@@ -14804,7 +14760,6 @@ dependencies = [
  "plist",
  "pprof",
  "prost",
- "prost-build",
  "prost-types",
  "rand 0.8.6",
  "rangemap",
@@ -14858,7 +14813,6 @@ dependencies = [
  "tantivy",
  "tempfile",
  "thiserror 2.0.18",
- "thousands",
  "tikv-jemallocator",
  "tokio",
  "tokio-util",

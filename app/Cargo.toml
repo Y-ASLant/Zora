@@ -71,7 +71,6 @@ difflib = { git = "https://github.com/warpdotdev/difflib.git", rev = "114177e7d8
 directories.workspace = true
 dirs.workspace = true
 dunce.workspace = true
-email_address = { git = "https://github.com/warpdotdev/rust-email_address", branch = "main" }
 embed_plist = "1.2"
 enclose = "1.1.8"
 enum-iterator.workspace = true
@@ -115,7 +114,6 @@ line-ending.workspace = true
 log.workspace = true
 log-panics = { version = "2.1.0", features = ["with-backtrace"] }
 warp_logging.workspace = true
-lz4_flex = "0.11"
 markdown_parser.workspace = true
 memchr.workspace = true
 memo-map.workspace = true
@@ -177,7 +175,6 @@ sum_tree.workspace = true
 tabwriter = "1.4"
 tempfile.workspace = true
 thiserror.workspace = true
-thousands = "0.2.0"
 tikv-jemallocator = { version = "0.6", optional = true, features = [
     "override_allocator_on_supported_platforms",
 ] }
@@ -255,7 +252,6 @@ app-installation-detection.workspace = true
 async-io.workspace = true
 axum.workspace = true
 comfy-table = "7.1.4"
-inquire = "0.9.1"
 diesel = { workspace = true, features = ["sqlite", "chrono"] }
 diesel_migrations = { version = "2.2.0", features = ["sqlite"] }
 env_logger.workspace = true
@@ -394,7 +390,6 @@ tokio = { workspace = true, features = ["rt-multi-thread", "macros", "process", 
 anyhow = "1.0"
 cc = "1.0"
 cfg_aliases.workspace = true
-prost-build.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
 walkdir = "2.3.2"
