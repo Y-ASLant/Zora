@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::future::Future;
 use std::pin::Pin;
@@ -15,6 +16,7 @@ use virtual_fs::{Stub, VirtualFS};
 use warp_util::standardized_path::StandardizedPath;
 use warpui::r#async::Timer;
 use warpui::{App, ModelContext, ModelHandle};
+use watcher::BulkFilesystemWatcherEvent;
 
 #[test]
 fn test_add_repository_success() {
@@ -71,6 +73,50 @@ fn test_add_repository_non_existent() {
                 RepoMetadataError::RepoNotFound(_) => {} // Expected
                 _ => panic!("Expected RepoNotFound error"),
             }
+        });
+    });
+}
+
+#[test]
+fn watcher_routes_a_missing_path_without_canonicalizing_it() {
+    VirtualFS::test("watcher_routes_missing_path", |dirs, mut vfs| {
+        stub_git_repository(&mut vfs, "repo");
+        vfs.with_files(vec![Stub::FileWithContent("repo/.gitignore", "/target/\n")]);
+
+        let repo_path = dirs.tests().join("repo");
+        App::test((), |mut app| async move {
+            let watcher_handle = app.add_singleton_model(DirectoryWatcher::new_for_testing);
+            let repo_handle = watcher_handle
+                .update(&mut app, |watcher, ctx| {
+                    watcher.add_directory(
+                        StandardizedPath::from_local_canonicalized(&repo_path).unwrap(),
+                        ctx,
+                    )
+                })
+                .unwrap();
+
+            let (scan_tx, mut scan_rx) = mpsc::unbounded::<()>();
+            let (update_tx, mut update_rx) = mpsc::unbounded::<RepositoryUpdate>();
+            let active_tasks = Arc::new(AtomicUsize::new(0));
+            let subscriber = TestSubscriber::new(scan_tx, update_tx, active_tasks);
+            std::mem::drop(repo_handle.update(&mut app, |repo, ctx| {
+                repo.start_watching(Box::new(subscriber), ctx)
+            }));
+            scan_rx.next().await.unwrap();
+
+            let missing_path = repo_path.join("target/debug/raced-away.o");
+            let event = BulkFilesystemWatcherEvent {
+                modified: HashSet::from([missing_path.clone()]),
+                ..Default::default()
+            };
+            watcher_handle.update(&mut app, |watcher, ctx| {
+                watcher.handle_watcher_event(&event, ctx);
+            });
+
+            let update = update_rx.next().await.unwrap();
+            assert!(update
+                .modified
+                .contains(&crate::TargetFile::new(missing_path, true)));
         });
     });
 }

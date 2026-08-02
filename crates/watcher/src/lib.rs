@@ -111,6 +111,10 @@ pub struct BulkFilesystemWatcherEvent {
 
     /// Mapping from rename target to rename source.
     pub moved: HashMap<PathBuf, PathBuf>,
+
+    /// 后台 watcher 发送事件时确认是目录的路径。
+    /// 已删除路径不在其中，因为其元数据已不可用。
+    pub directories: HashSet<PathBuf>,
 }
 
 impl BulkFilesystemWatcherEvent {
@@ -124,6 +128,11 @@ impl BulkFilesystemWatcherEvent {
     /// Prefer `added_or_updated_iter` when you don't need ownership.
     pub fn added_or_updated_set(&self) -> HashSet<PathBuf> {
         self.added_or_updated_iter().cloned().collect()
+    }
+
+    /// 返回此路径在收集事件时是否为目录。
+    pub fn is_directory(&self, path: &Path) -> bool {
+        self.directories.contains(path)
     }
 
     fn is_empty(&self) -> bool {
@@ -369,6 +378,14 @@ fn deduplicate_and_merge_raw_notifier_events(
 
     update.added = created;
     update.modified = modified;
+    update.directories = update
+        .added
+        .iter()
+        .chain(&update.modified)
+        .chain(update.moved.keys())
+        .filter(|path| path.is_dir())
+        .cloned()
+        .collect();
 
     if update.is_empty() {
         return Err(anyhow::anyhow!("No update event produced"));

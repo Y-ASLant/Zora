@@ -8,6 +8,8 @@ use std::{
 
 #[cfg(feature = "local_fs")]
 use futures::{future::OptionFuture, FutureExt as _};
+#[cfg(feature = "local_fs")]
+use ignore::gitignore::Gitignore;
 use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity, WeakModelHandle};
 
 use warp_util::standardized_path::StandardizedPath;
@@ -145,7 +147,7 @@ impl DirectoryWatcher {
                 "[GIT_EVENT_ROUTING] tier=worktree-specific path={}",
                 git_path.display()
             );
-            let wt_std = StandardizedPath::from_local_canonicalized(wt_dir.as_path()).ok();
+            let wt_std = StandardizedPath::try_from_local(wt_dir.as_path()).ok();
             for repo_handle in self.directories.values() {
                 if let Some(ext) = repo_handle.as_ref(ctx).external_git_directory() {
                     if wt_std.as_ref() == Some(ext) && !affected.iter().any(|r| r == repo_handle) {
@@ -160,7 +162,7 @@ impl DirectoryWatcher {
                 "[GIT_EVENT_ROUTING] tier=shared-ref path={}",
                 git_path.display()
             );
-            let standardized = StandardizedPath::from_local_canonicalized(git_path).ok();
+            let standardized = StandardizedPath::try_from_local(git_path).ok();
             if let Some(ref std_path) = standardized {
                 if let Some(repo) = self.find_containing_directory(std_path) {
                     if !affected.iter().any(|r| r == &repo) {
@@ -185,7 +187,7 @@ impl DirectoryWatcher {
                 "[GIT_EVENT_ROUTING] tier=repo-specific path={}",
                 git_path.display()
             );
-            let standardized = StandardizedPath::from_local_canonicalized(git_path).ok();
+            let standardized = StandardizedPath::try_from_local(git_path).ok();
             if let Some(ref std_path) = standardized {
                 if let Some(repo) = self.find_containing_directory(std_path) {
                     affected.push(repo);
@@ -265,11 +267,12 @@ impl DirectoryWatcher {
     pub(crate) fn start_watching_directories(
         &mut self,
         directory_paths: Vec<StandardizedPath>,
+        gitignores: Vec<Gitignore>,
         ctx: &mut ModelContext<Self>,
     ) -> impl Future<Output = Result<(), RepoMetadataError>> {
         let futures: Vec<_> = directory_paths
             .into_iter()
-            .map(|path| self.start_watching_directory(&path, ctx))
+            .map(|path| self.start_watching_directory(&path, gitignores.clone(), ctx))
             .collect();
 
         async move {
@@ -287,22 +290,21 @@ impl DirectoryWatcher {
     pub(crate) fn start_watching_directory(
         &mut self,
         directory_path: &StandardizedPath,
+        gitignores: Vec<Gitignore>,
         ctx: &mut ModelContext<Self>,
     ) -> impl Future<Output = Result<(), RepoMetadataError>> {
         let local_path = directory_path.to_local_path();
         let registration_future = if let Some(ref watcher) = self.watcher {
             if let Some(local_path) = local_path.clone() {
                 watcher.update(ctx, |watcher, _ctx| {
-                    use crate::entry::should_watch_repo_directory;
-                    use notify_debouncer_full::notify::{RecursiveMode, WatchFilter};
-                    use std::sync::Arc;
+                    use crate::entry::repo_watch_filter;
+                    use notify_debouncer_full::notify::RecursiveMode;
 
-                    let repo_root = local_path.clone();
-                    let watch_filter = WatchFilter::with_filter(Arc::new(move |watch_path| {
-                        should_watch_repo_directory(watch_path, &repo_root)
-                    }));
-
-                    Some(watcher.register_path(&local_path, watch_filter, RecursiveMode::Recursive))
+                    Some(watcher.register_path(
+                        &local_path,
+                        repo_watch_filter(local_path.clone(), gitignores),
+                        RecursiveMode::Recursive,
+                    ))
                 })
             } else {
                 log::warn!("Cannot watch non-local path: {directory_path}");
@@ -377,21 +379,9 @@ impl DirectoryWatcher {
         });
     }
 
-    #[cfg(feature = "local_fs")]
-    fn find_existing_subpath(path: &PathBuf) -> Option<PathBuf> {
-        // Attempt to find a subdirectory that exists in the filesystem.
-        let mut current = path.to_owned();
-        while !current.as_path().exists() {
-            if !current.pop() {
-                return None;
-            }
-        }
-        Some(current)
-    }
-
     /// Handles filesystem watcher events.
     #[cfg(feature = "local_fs")]
-    fn handle_watcher_event(
+    pub(crate) fn handle_watcher_event(
         &mut self,
         event: &BulkFilesystemWatcherEvent,
         ctx: &mut ModelContext<Self>,
@@ -429,12 +419,13 @@ impl DirectoryWatcher {
                     continue;
                 }
 
-                // For non-git files, use standard path lookup
-                if let Ok(standardized) = StandardizedPath::from_local_canonicalized(path.as_path())
-                {
+                // Watcher 事件路径是绝对路径。这里仅做内存标准化，避免 UI 线程等待
+                // 慢文件、磁盘或终端安全软件的文件系统响应。
+                if let Ok(standardized) = StandardizedPath::try_from_local(path.as_path()) {
                     if let Some(repo_handle) = self.find_containing_directory(&standardized) {
-                        let is_ignored =
-                            repo_handle.read(ctx, |repo, _| repo.check_gitignore_status(path));
+                        let is_ignored = repo_handle.read(ctx, |repo, _| {
+                            repo.check_gitignore_status(path, event.is_directory(path))
+                        });
                         let target_file = TargetFile::new(path.to_path_buf(), is_ignored);
                         let repo_update = repo_updates.entry(repo_handle).or_default();
                         insert(repo_update, target_file);
@@ -469,22 +460,13 @@ impl DirectoryWatcher {
                         repo_update.index_lock_detected = true;
                     }
                 }
-            } else {
-                // Because this file will no longer exist, which will fail canonicalization.
-                // We will just try the directory path instead, which hopefully still exists.
-                if let Some(existing_subpath) = Self::find_existing_subpath(path) {
-                    if let Ok(standardized) =
-                        StandardizedPath::from_local_canonicalized(existing_subpath.as_path())
-                    {
-                        if let Some(repo_handle) = self.find_containing_directory(&standardized) {
-                            // Gitignore checking is pattern-based and doesn't require file existence
-                            let is_ignored =
-                                repo_handle.read(ctx, |repo, _| repo.check_gitignore_status(path));
-                            let target_file = TargetFile::new(path.to_path_buf(), is_ignored);
-                            let repo_update = repo_updates.entry(repo_handle).or_default();
-                            repo_update.deleted.insert(target_file);
-                        }
-                    }
+            } else if let Ok(standardized) = StandardizedPath::try_from_local(path.as_path()) {
+                if let Some(repo_handle) = self.find_containing_directory(&standardized) {
+                    let is_ignored =
+                        repo_handle.read(ctx, |repo, _| repo.check_gitignore_status(path, false));
+                    let target_file = TargetFile::new(path.to_path_buf(), is_ignored);
+                    let repo_update = repo_updates.entry(repo_handle).or_default();
+                    repo_update.deleted.insert(target_file);
                 }
             }
         }
@@ -512,14 +494,15 @@ impl DirectoryWatcher {
                         }
                     }
                 }
-            } else if let Ok(standardized) =
-                StandardizedPath::from_local_canonicalized(to_path.as_path())
-            {
+            } else if let Ok(standardized) = StandardizedPath::try_from_local(to_path.as_path()) {
                 if let Some(repo_handle) = self.find_containing_directory(&standardized) {
-                    let to_is_ignored =
-                        repo_handle.read(ctx, |repo, _| repo.check_gitignore_status(to_path));
-                    let from_is_ignored =
-                        repo_handle.read(ctx, |repo, _| repo.check_gitignore_status(from_path));
+                    let is_directory = event.is_directory(to_path);
+                    let to_is_ignored = repo_handle.read(ctx, |repo, _| {
+                        repo.check_gitignore_status(to_path, is_directory)
+                    });
+                    let from_is_ignored = repo_handle.read(ctx, |repo, _| {
+                        repo.check_gitignore_status(from_path, is_directory)
+                    });
                     let to_target = TargetFile::new(to_path.to_path_buf(), to_is_ignored);
                     let from_target = TargetFile::new(from_path.to_path_buf(), from_is_ignored);
                     let repo_update = repo_updates.entry(repo_handle).or_default();

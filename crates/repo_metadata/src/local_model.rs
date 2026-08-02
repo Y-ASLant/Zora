@@ -31,7 +31,7 @@ use crate::{
 use std::sync::Arc;
 cfg_if::cfg_if! {
     if #[cfg(feature = "local_fs")] {
-        use notify_debouncer_full::notify::{RecursiveMode, WatchFilter};
+        use notify_debouncer_full::notify::RecursiveMode;
         use crate::repositories::{DetectedRepositories, DetectedRepositoriesEvent};
         use watcher::{BulkFilesystemWatcher, BulkFilesystemWatcherEvent};
         use warpui::SingletonEntity as _;
@@ -391,15 +391,12 @@ impl LocalRepoMetadataModel {
             if let Some(ref watcher) = self.watcher {
                 if !is_unsafe_watch_root(&local_path) {
                     let watch_path = local_path.clone();
+                    let gitignores = gitignores_for_directory(&watch_path);
                     watcher.update(ctx, |watcher, _ctx| {
-                        use crate::entry::should_watch_repo_directory;
-                        let repo_root = watch_path.clone();
-                        let watch_filter = WatchFilter::with_filter(Arc::new(move |path| {
-                            should_watch_repo_directory(path, &repo_root)
-                        }));
+                        use crate::entry::repo_watch_filter;
                         std::mem::drop(watcher.register_path(
                             &watch_path,
-                            watch_filter,
+                            repo_watch_filter(watch_path.clone(), gitignores),
                             RecursiveMode::Recursive,
                         ));
                     });

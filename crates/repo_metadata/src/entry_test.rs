@@ -239,6 +239,33 @@ fn should_watch_prunes_directory_symlinks_and_their_descendants() {
     ));
 }
 
+#[cfg(feature = "local_fs")]
+#[test]
+fn should_watch_prunes_gitignored_directories() {
+    use std::fs;
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let repo_root = dunce::canonicalize(temp_dir.path()).unwrap();
+    let target_dir = repo_root.join("target");
+    let source_dir = repo_root.join("src");
+    fs::create_dir_all(&target_dir).unwrap();
+    fs::create_dir_all(&source_dir).unwrap();
+    fs::write(repo_root.join(".gitignore"), "/target/\n").unwrap();
+
+    let gitignores = vec![Gitignore::new(repo_root.join(".gitignore")).0];
+
+    assert!(!super::should_watch_repo_directory(
+        &target_dir,
+        &repo_root,
+        &gitignores,
+    ));
+    assert!(super::should_watch_repo_directory(
+        &source_dir,
+        &repo_root,
+        &gitignores,
+    ));
+}
+
 #[cfg(all(unix, feature = "local_fs"))]
 #[test]
 fn should_watch_ignores_symlinks_above_repo_root() {

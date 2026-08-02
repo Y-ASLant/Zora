@@ -209,7 +209,11 @@ impl Repository {
                 }
 
                 Box::pin(DirectoryWatcher::handle(ctx).update(ctx, |watcher, ctx| {
-                    watcher.start_watching_directories(directories_to_watch, ctx)
+                    watcher.start_watching_directories(
+                        directories_to_watch,
+                        self.gitignores.clone(),
+                        ctx,
+                    )
                 }))
             } else {
                 Box::pin(ready(Ok(())))
@@ -313,14 +317,13 @@ impl Repository {
 
     /// Checks if a path is gitignored within this repository.
     #[cfg(feature = "local_fs")]
-    pub fn check_gitignore_status(&self, path: &Path) -> bool {
+    pub fn check_gitignore_status(&self, path: &Path, is_dir: bool) -> bool {
         // Check if path is a .git internal file
         if should_ignore_git_path(path) {
             return true;
         }
 
         // Check if path matches gitignore patterns
-        let is_dir = path.is_dir();
         matches_gitignores(path, is_dir, &self.gitignores, true)
     }
 }

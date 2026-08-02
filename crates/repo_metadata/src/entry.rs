@@ -4,8 +4,13 @@ use ignore::gitignore::Gitignore;
 use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(feature = "local_fs")]
+use std::sync::Arc;
 use thiserror::Error;
 use warp_util::standardized_path::StandardizedPath;
+
+#[cfg(feature = "local_fs")]
+use notify_debouncer_full::notify::WatchFilter;
 
 /// Maximum file size allowed for treesitter parsing (3MB).
 const MAX_FILE_SIZE: usize = 3 * 1000 * 1000;
@@ -468,12 +473,16 @@ pub fn should_ignore_git_path(path: &Path) -> bool {
 /// `.git/` 内部路径遵循 watcher allowlist；目录 symlink 会被剪枝，避免
 /// 递归跟随到仓库外的大型目录树。被监听的根目录本身仍允许是 symlink。
 #[cfg(feature = "local_fs")]
-pub fn should_watch_repo_directory(path: &Path, repo_root: &Path) -> bool {
+pub fn should_watch_repo_directory(
+    path: &Path,
+    repo_root: &Path,
+    gitignores: &[Gitignore],
+) -> bool {
     if is_within_symlink(path, repo_root) {
         return false;
     }
 
-    !should_ignore_git_path(path)
+    !should_ignore_git_path(path) && !matches_gitignores(path, path.is_dir(), gitignores, true)
 }
 
 /// 判断 `path` 本身或它的祖先是否是 symlink。
@@ -488,6 +497,17 @@ fn is_within_symlink(path: &Path, repo_root: &Path) -> bool {
             std::fs::symlink_metadata(ancestor)
                 .is_ok_and(|metadata| metadata.file_type().is_symlink())
         })
+}
+
+/// 创建仓库递归监听器使用的过滤器。
+///
+/// 过滤器在文件监听后台线程执行，可以安全地查询目录类型；UI 线程只接收已
+/// 过滤和去抖后的事件。
+#[cfg(feature = "local_fs")]
+pub fn repo_watch_filter(repo_root: PathBuf, gitignores: Vec<Gitignore>) -> WatchFilter {
+    WatchFilter::with_filter(Arc::new(move |path| {
+        should_watch_repo_directory(path, &repo_root, &gitignores)
+    }))
 }
 
 pub fn path_passes_filters(path: &Path, gitignores: &[Gitignore]) -> bool {
