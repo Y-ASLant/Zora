@@ -5214,11 +5214,13 @@ impl TerminalView {
             self.cli_subagent_views.len()
         );
 
+        #[cfg(windows)]
         let should_forward_windows_ctrl_c = is_live;
         ctx.subscribe_to_view(&subagent_view, move |me, view, event, ctx| {
             me.handle_cli_subagent_view_event(
                 view.id(),
                 event,
+                #[cfg(windows)]
                 should_forward_windows_ctrl_c,
                 ctx,
             );
@@ -5251,7 +5253,7 @@ impl TerminalView {
         &mut self,
         cli_subagent_view_id: EntityId,
         event: &CLISubagentViewEvent,
-        should_forward_windows_ctrl_c: bool,
+        #[cfg(windows)] should_forward_windows_ctrl_c: bool,
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
