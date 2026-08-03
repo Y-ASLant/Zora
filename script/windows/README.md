@@ -12,7 +12,7 @@ The installer is a single executable that takes care of:
 
 
 `windows-installer.iss` is an **Inno Setup script**:
-a configuration file for building a Warp installer.
+a configuration file for building a Zap installer.
 The Inno Setup Compiler takes a script file and generates an installer executable.
 This is roughly equivalent to the bundling process on MacOS.
 
@@ -21,25 +21,50 @@ This is roughly equivalent to the bundling process on MacOS.
 
 See the Inno Setup documentation: [Inno Setup Help](https://jrsoftware.org/ishelp/).
 This script can be edited manually using any code editor.
-However, it requires the Inno Setup compiler to be turned into a `.exe` file.
+The Inno Setup compiler turns this script into an installer `.exe`.
 
 
-## How to compile this installer
+## Build a Zap installer
 
-First, ensure you've set up your environment.
+For a normal Windows release build, run this from the repository root:
+
+```powershell
+make build
+```
+
+This invokes `bundle.ps1`, builds the correct OSS executable, prepares bundled resources and then runs Inno Setup. To set the release version explicitly:
+
+```powershell
+make build RELEASE_TAG=v2026.08.03.1
+```
+
+The OSS installer is normally written to `script/windows/Output/ZapSetup.exe`.
+
+To reclaim Cargo build-cache space without deleting generated installers:
+
+```powershell
+make clean
+```
+
+`make clean` runs `cargo clean`; the next build recompiles dependencies.
+
+## Manual Inno Setup troubleshooting
+
+Only use this path when diagnosing the installer itself. First ensure the environment is ready:
+
 * Download and install the [Inno Setup Compiler](https://jrsoftware.org/isdl.php).
-* Run `cargo build` to ensure the installer uses the latest version of Warp.
+* Run `make build` once so the executable and bundled resources are current.
 
 ### Option 1: Use the CLI
 1. Add the Inno Setup Command-line Compiler executable to your shell path.
 By default, it is located at `C:\Program Files (x86)\Inno Setup 6\ISCC.exe`.
 2. Compile the installer:
 ```shell
-iscc .\script\windows\windows-installer.iss`.
+iscc .\script\windows\windows-installer.iss
 ```
 3. Run the generated executable:
 ```shell
-.\script\windows\Output\Warp-Windows-Setup.exe`.
+.\script\windows\Output\ZapSetup.exe
 ```
 
 The script begins with a series of preprocessor definitions.
