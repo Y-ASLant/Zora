@@ -9,7 +9,6 @@ pub mod delete_conversation_confirmation_dialog;
 mod global_actions;
 pub mod header_toolbar_editor;
 pub mod header_toolbar_item;
-pub mod hoa_onboarding;
 mod home;
 mod lightbox_view;
 mod native_modal;
@@ -111,10 +110,8 @@ pub fn init(app: &mut AppContext) {
     rewind_confirmation_dialog::init(app);
     delete_conversation_confirmation_dialog::init(app);
     crate::tab_configs::remove_confirmation_dialog::init(app);
-    hoa_onboarding::init(app);
     tab_configs::session_config_modal::init(app);
     view::zap_launch_modal::init(app);
-    view::codex_modal::init(app);
     view::global_search::view::GlobalSearchView::init(app);
     view::right_panel::RightPanelView::init(app);
     header_toolbar_editor::init(app);
@@ -204,12 +201,6 @@ pub fn init(app: &mut AppContext) {
                     "workspace:open_session_config_modal",
                     crate::t!("keybinding-desc-workspace-open-session-config-modal"),
                     WorkspaceAction::ShowSessionConfigModal,
-                )
-                .with_context_predicate(id!("Workspace")),
-                EditableBinding::new(
-                    "workspace:show_hoa_onboarding_flow",
-                    crate::t!("keybinding-desc-workspace-start-hoa-onboarding-flow"),
-                    WorkspaceAction::ShowHoaOnboardingFlow,
                 )
                 .with_context_predicate(id!("Workspace")),
             ]);

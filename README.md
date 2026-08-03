@@ -30,6 +30,28 @@ or are coming from upstream **Warp**, see
 [docs/migrate-from-warp.md](docs/migrate-from-warp.md) to bring your settings
 across.
 
+## Build from source
+
+From the repository root, use the platform-aware build wrapper:
+
+```shell
+make build
+```
+
+Set an explicit release version when preparing a release:
+
+```shell
+make build RELEASE_TAG=v2026.08.03.1
+```
+
+To reclaim Cargo build-cache space, run:
+
+```shell
+make clean
+```
+
+`make clean` runs `cargo clean`. It can free substantial disk space and forces the next build to recompile dependencies; it does not delete generated installers. Windows-specific installer prerequisites and manual troubleshooting instructions are in [script/windows/README.md](script/windows/README.md).
+
 ## Roadmap
 
 See [docs/roadmap.md](docs/roadmap.md).

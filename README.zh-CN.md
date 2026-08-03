@@ -29,6 +29,28 @@ Zap 是一个开放、本地优先的终端,带一等公民的 AI 与 Agent 体�
 或者你是从上游 **Warp** 切过来的,参见
 [docs/migrate-from-warp.zh-CN.md](docs/migrate-from-warp.zh-CN.md) 把设置带过来。
 
+## 从源码构建
+
+在仓库根目录执行跨平台构建入口：
+
+```shell
+make build
+```
+
+准备发布时可显式指定版本号：
+
+```shell
+make build RELEASE_TAG=v2026.08.03.1
+```
+
+如需释放 Cargo 构建缓存占用的磁盘空间，执行：
+
+```shell
+make clean
+```
+
+`make clean` 实际执行 `cargo clean`。它可能释放大量磁盘空间，但下一次构建会重新编译依赖；不会删除已生成的安装包。Windows 安装包的依赖和手动排障方式见 [script/windows/README.md](script/windows/README.md)。
+
 ## 后续计划
 
 见 [docs/roadmap.zh-CN.md](docs/roadmap.zh-CN.md)。

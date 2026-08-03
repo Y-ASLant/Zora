@@ -30,6 +30,28 @@ Zap はオープンでローカルファーストなターミナルで、AI と 
 [docs/migrate-from-warp.ja.md](docs/migrate-from-warp.ja.md) を参照して設定を
 引き継いでください。
 
+## ソースからのビルド
+
+リポジトリのルートで、プラットフォーム対応のビルド入口を実行します。
+
+```shell
+make build
+```
+
+リリース準備時はバージョンを明示できます。
+
+```shell
+make build RELEASE_TAG=v2026.08.03.1
+```
+
+Cargo のビルドキャッシュで使用したディスク領域を解放するには、次を実行します。
+
+```shell
+make clean
+```
+
+`make clean` は `cargo clean` を実行します。大量のディスク領域を解放できる一方、次回のビルドでは依存関係を再コンパイルします。生成済みインストーラーは削除しません。Windows インストーラーの前提条件と手動トラブルシューティングは [script/windows/README.md](script/windows/README.md) を参照してください。
+
 ## ロードマップ
 
 [docs/roadmap.ja.md](docs/roadmap.ja.md) を参照してください。

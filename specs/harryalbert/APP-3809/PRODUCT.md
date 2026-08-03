@@ -2,6 +2,8 @@
 
 Linear: APP-3809
 
+> **Status (2026-08-03): removed from Zap.** The HOA onboarding implementation, feature flag and assets were removed because this flow had no normal shipped entry point. This file is retained as a historical product record and does not describe current behavior.
+
 ## Summary
 
 A guided onboarding flow that introduces existing Warp users to House of Agents (HOA) features: vertical tabs, agent inbox, and default tab config creation. The flow is shown once, behind a feature flag (`HOAOnboardingFlow`), and is only shown to users who did not go through the new-user onboarding (i.e. existing users who update to the HOA release).

@@ -561,7 +561,6 @@ default = [
     "cli_agent_rich_input",
     "vertical_tabs",
     "tab_configs",
-    "hoa_onboarding_flow",
     "hoa_remote_control",
     "codex_notifications",
     "trim_trailing_blank_lines",
@@ -824,7 +823,6 @@ transfer_control_tool = []
 solo_user_byok = []
 configurable_toolbar = []
 warpify_footer = []
-hoa_onboarding_flow = []
 git_operations_in_code_review = []
 hoa_remote_control = []
 codex_notifications = []

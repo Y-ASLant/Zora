@@ -154,7 +154,7 @@ pub fn build_byop_models_by_feature(app: &AppContext) -> ModelsByFeature {
 
     let default_id = choices[0].id.clone();
     let make = || {
-        AvailableLLMs::new(default_id.clone(), choices.clone(), None)
+        AvailableLLMs::new(default_id.clone(), choices.clone())
             .expect("choices is non-empty by construction")
     };
 
