@@ -1,9 +1,13 @@
-.PHONY: build version
+.PHONY: build clean version
 
 CHANNEL ?= oss
 RELEASE_TAG ?=
 PACKAGES ?= appimage
 ARCH ?=
+
+clean:
+	@echo Cleaning Cargo build artifacts...
+	@cargo clean
 
 ifeq ($(strip $(RELEASE_TAG)),)
 ifeq ($(OS),Windows_NT)
