@@ -1324,7 +1324,7 @@ impl CodeReviewView {
                 .map(|rect| rect.width())
             {
                 if let Ok(mut state) = self.ui_state_handles.sidebar_resizable_state.lock() {
-                    state.set_size(pane_width * FILE_SIDEBAR_PANE_WIDTH_PERCENTAGE);
+                    state.set_requested_size(pane_width * FILE_SIDEBAR_PANE_WIDTH_PERCENTAGE);
                 }
             }
         }

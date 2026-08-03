@@ -219,7 +219,7 @@ impl Input {
                     let new_width = width_handle_for_end
                         .lock()
                         .expect("width handle lock poisoned")
-                        .size();
+                        .requested_size();
                     ctx.dispatch_typed_action(InputAction::UpdateCompletionsMenuWidth(new_width));
                 })
                 .finish()
@@ -252,7 +252,7 @@ impl Input {
                     let new_height = height_handle_for_end
                         .lock()
                         .expect("height handle lock poisoned")
-                        .size();
+                        .requested_size();
                     ctx.dispatch_typed_action(InputAction::UpdateCompletionsMenuHeight(new_height));
                 })
                 .finish()

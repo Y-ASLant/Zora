@@ -1452,7 +1452,7 @@ impl View for CLISubagentView {
         let resizable_height = self
             .resizable_height
             .lock()
-            .map(|state| state.size())
+            .map(|state| state.effective_size())
             .unwrap_or(MAX_HEIGHT);
 
         let mut conversation_items = Flex::column()

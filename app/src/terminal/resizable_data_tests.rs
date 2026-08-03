@@ -32,7 +32,7 @@ fn restored_vertical_tabs_panel_width_uses_saved_value() {
             .vertical_tabs_panel_width
             .lock()
             .expect("vertical tabs panel width handle should not be poisoned")
-            .size(),
+            .requested_size(),
         376.
     );
 }
@@ -46,7 +46,7 @@ fn restored_vertical_tabs_panel_width_falls_back_to_remembered_value() {
             .vertical_tabs_panel_width
             .lock()
             .expect("vertical tabs panel width handle should not be poisoned")
-            .size(),
+            .requested_size(),
         376.
     );
 }
@@ -61,7 +61,7 @@ fn restored_vertical_tabs_panel_width_is_not_used_when_persistence_is_disabled()
             .vertical_tabs_panel_width
             .lock()
             .expect("vertical tabs panel width handle should not be poisoned")
-            .size(),
+            .requested_size(),
         DEFAULT_VERTICAL_TABS_PANEL_WIDTH
     );
 }
@@ -75,7 +75,7 @@ fn new_vertical_tabs_panel_width_uses_remembered_value() {
             .vertical_tabs_panel_width
             .lock()
             .expect("vertical tabs panel width handle should not be poisoned")
-            .size(),
+            .requested_size(),
         376.
     );
 }
@@ -89,7 +89,7 @@ fn new_vertical_tabs_panel_width_uses_default_when_persistence_is_disabled() {
             .vertical_tabs_panel_width
             .lock()
             .expect("vertical tabs panel width handle should not be poisoned")
-            .size(),
+            .requested_size(),
         DEFAULT_VERTICAL_TABS_PANEL_WIDTH
     );
 }

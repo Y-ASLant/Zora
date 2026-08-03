@@ -80,7 +80,7 @@ impl ResizableState {
     }
 
     /// 返回当前布局实际采用的尺寸。
-    pub fn size(&self) -> f32 {
+    pub fn effective_size(&self) -> f32 {
         self.effective_size
     }
 
@@ -191,7 +191,8 @@ impl ResizableState {
         self.mode = ResizableMode::Stationary;
     }
 
-    pub fn set_size(&mut self, new_size: f32) {
+    /// 更新用户或调用方请求的尺寸。
+    pub fn set_requested_size(&mut self, new_size: f32) {
         self.requested_size = new_size;
         self.effective_size = self.clamp_to_bounds(new_size);
     }
@@ -364,7 +365,7 @@ impl Element for Resizable {
             self.state().set_bounds(new_bounds);
         }
 
-        let size = self.state().size();
+        let size = self.state().effective_size();
 
         // We set the child constraints to never be greater than the current width/height constraint.
         let child_constraint = match self.direction {

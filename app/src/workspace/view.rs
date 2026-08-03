@@ -3563,7 +3563,7 @@ impl Workspace {
         let resizable = ResizableData::handle(ctx);
         if let Some(modal_sizes) = resizable.as_ref(ctx).get_all_handles(self.window_id) {
             if let Ok(mut handle) = modal_sizes.left_panel_width.lock() {
-                handle.set_size(left_panel_snapshot.width as f32);
+                handle.set_requested_size(left_panel_snapshot.width as f32);
             }
         }
 
@@ -3601,7 +3601,7 @@ impl Workspace {
         let resizable = ResizableData::handle(ctx);
         if let Some(modal_sizes) = resizable.as_ref(ctx).get_all_handles(self.window_id) {
             if let Ok(mut handle) = modal_sizes.right_panel_width.lock() {
-                handle.set_size(right_panel_snapshot.width as f32);
+                handle.set_requested_size(right_panel_snapshot.width as f32);
             }
         }
 
@@ -7812,7 +7812,7 @@ impl Workspace {
                             .read(ctx, |pane_group, _| pane_group.has_horizontal_split());
                         let (left_width, _right_width) =
                             compute_default_panel_widths(ctx, window_id, has_horizontal_split);
-                        state.set_size(left_width);
+                        state.set_requested_size(left_width);
                     }
                     // If current_width is not the default, it means we have a width from a previous tab,
                     // so we don't need to do anything - the width is already preserved
@@ -7992,7 +7992,7 @@ impl Workspace {
                                 .read(ctx, |pane_group, _| pane_group.has_horizontal_split());
                             let (_left_width, right_width) =
                                 compute_default_panel_widths(ctx, window_id, has_horizontal_split);
-                            state.set_size(right_width);
+                            state.set_requested_size(right_width);
                         }
                         // If current_width is not the default, it means we have a width from a previous tab,
                         // so we don't need to do anything - the width is already preserved
@@ -9595,14 +9595,14 @@ impl Workspace {
                     ms.left_panel_width
                         .lock()
                         .expect("should be able to lock left panel handle")
-                        .size()
+                        .requested_size()
                 });
 
                 let right_panel_width = modal_sizes.map(|ms| {
                     ms.right_panel_width
                         .lock()
                         .expect("should be able to lock right panel handle")
-                        .size()
+                        .requested_size()
                 });
 
                 let pane_group = pane_group_view.as_ref(app);
