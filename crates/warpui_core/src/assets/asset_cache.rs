@@ -9,7 +9,7 @@ use std::any::{Any, TypeId};
 use std::pin::Pin;
 use std::{cell::RefCell, collections::HashMap, hash::Hash, rc::Rc, sync::Arc};
 
-use crate::image_cache::ImageCache;
+use crate::image_cache::{ImageCache, ImageType};
 use crate::{r#async::executor, Entity, ModelContext, SingletonEntity};
 
 use super::AssetProvider;
@@ -82,6 +82,8 @@ pub enum AssetSource {
     },
     /// Accessible in the user's local filesystem at the provided path.
     LocalFile { path: String },
+    /// 本地文件系统中的 PNG 或 JPEG，在后台线程读取并解码。
+    LocalRasterFile { path: String },
     /// Image loaded directly with bytes
     Raw { id: String },
 }
@@ -327,6 +329,19 @@ impl AssetCache {
                         }),
                     );
                 }
+                AssetSource::LocalRasterFile { path } => {
+                    if TypeId::of::<T>() != TypeId::of::<ImageType>() {
+                        assets.insert(
+                            key.clone(),
+                            AssetStateInternal::Error(Rc::new(anyhow!(
+                                "LocalRasterFile assets can only be loaded as ImageType"
+                            ))),
+                        );
+                    } else {
+                        assets.insert(key.clone(), AssetStateInternal::loading());
+                        self.load_raster_image_asynchronously(source.clone(), path);
+                    }
+                }
                 AssetSource::Raw { id } => {
                     assets.insert(
                         key.clone(),
@@ -480,6 +495,70 @@ impl AssetCache {
                     },
                     Err(err) => {
                         log::warn!("Asset fetch failed ({asset_source:?}): {err:#}");
+                        assets.insert(handle, AssetStateInternal::Error(Rc::new(err)));
+                    }
+                }
+            }))
+            .detach();
+    }
+
+    /// 在 UI 线程外读取并解码磁盘上的 PNG 或 JPEG。
+    fn load_raster_image_asynchronously(&self, asset_source: AssetSource, path: String) {
+        let (tx, rx) = futures::channel::oneshot::channel();
+
+        self.background_executor
+            .spawn(async move {
+                let result = async {
+                    let bytes = async_fs::read(path).await?;
+                    ImageType::decode_raster_image(&bytes)
+                }
+                .await;
+
+                if tx.send(result).is_err() {
+                    log::error!("Error sending decoded local raster asset to main thread");
+                }
+            })
+            .detach();
+
+        let assets = Rc::downgrade(&self.inner);
+        self.foreground_executor
+            .spawn_boxed(Box::pin(async move {
+                let result = match rx.await {
+                    Ok(result) => result,
+                    Err(_) => {
+                        let msg = "sender unexpectedly dropped before decoding local raster asset";
+                        log::error!("{msg}");
+                        Err(anyhow!(msg))
+                    }
+                };
+
+                let Some(assets) = assets.upgrade() else {
+                    return;
+                };
+
+                let mut assets = assets.borrow_mut();
+                let handle = AssetHandle {
+                    source: asset_source.clone(),
+                    asset_type: TypeId::of::<ImageType>(),
+                };
+
+                match result {
+                    Ok(image) => {
+                        let asset = ImageType::from_raster_image(image);
+                        let timestamp = instant::now() as u64;
+                        let size_in_bytes = asset.size_in_bytes();
+
+                        assets.insert(
+                            handle,
+                            AssetStateInternal::Loaded {
+                                data: Rc::new(asset) as Rc<dyn Any>,
+                                timestamp,
+                                size_in_bytes,
+                            },
+                        );
+                    }
+                    Err(err) => {
+                        log::warn!("Local raster asset load failed ({asset_source:?}): {err:#}");
                         assets.insert(handle, AssetStateInternal::Error(Rc::new(err)));
                     }
                 }

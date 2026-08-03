@@ -77,6 +77,21 @@ else
   echo "Warning: No bundled directory found at $RESOURCES_SRC/bundled" >&2
 fi
 
+# GUI 发行包把大 PNG/JPEG 资源置于可执行文件旁，而非嵌入其中。这里不依赖
+# release_bundle 参数，避免特性参数传递异常时生成缺少图片的安装包；独立 CLI 不会渲染这些资源。
+CARGO_FEATURES_COMPACT="${CARGO_FEATURES//[[:space:]]/}"
+if [[ ",$CARGO_FEATURES_COMPACT," != *,standalone,* ]]; then
+  ASYNC_ASSETS_SRC="$REPO_ROOT/app/assets/async"
+  if [ -d "$ASYNC_ASSETS_SRC" ]; then
+    echo "Copying async raster assets to $DEST_DIR/async"
+    rm -rf "$DEST_DIR/async"
+    cp -R "$ASYNC_ASSETS_SRC" "$DEST_DIR/async"
+  else
+    echo "Error: Async assets directory not found at $ASYNC_ASSETS_SRC" >&2
+    exit 1
+  fi
+fi
+
 if [ -n "$GIT_RELEASE_TAG" ]; then
   VERSION_METADATA_DIR="$DEST_DIR/bundled/metadata"
   VERSION_METADATA_PATH="$VERSION_METADATA_DIR/version.json"

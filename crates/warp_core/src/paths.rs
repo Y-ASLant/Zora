@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 
 use cfg_if::cfg_if;
 use directories::BaseDirs;
+use warpui::assets::asset_cache::AssetSource;
 
 use crate::{
     channel::{Channel, ChannelState},
@@ -330,6 +331,28 @@ pub fn bundled_resources_dir() -> Option<PathBuf> {
         } else {
             None
         }
+    }
+}
+
+/// 返回发行包 `resources` 目录下 PNG/JPEG 图片的资源来源。
+///
+/// 发行包将这些大图片置于可执行文件外；开发构建保留嵌入资源，使 `cargo run` 仍可独立运行。
+pub fn async_raster_asset(path: &'static str) -> AssetSource {
+    #[cfg(all(not(target_family = "wasm"), feature = "release_bundle"))]
+    {
+        if let Some(resources_dir) = bundled_resources_dir() {
+            AssetSource::LocalRasterFile {
+                path: resources_dir.join(path).to_string_lossy().into_owned(),
+            }
+        } else {
+            // 可执行文件目录不可用时（例如受限测试环境），保留原有的嵌入资源行为。
+            AssetSource::Bundled { path }
+        }
+    }
+
+    #[cfg(any(target_family = "wasm", not(feature = "release_bundle")))]
+    {
+        AssetSource::Bundled { path }
     }
 }
 

@@ -211,6 +211,29 @@ if (-Not $?) {
     exit 1
 }
 
+# 图片已从发行版 EXE 外置到 resources/async。这里校验数量和总字节数，避免资源准备
+# 过程被跳过或中断后仍生成一个可安装、但会丢失主题和 onboarding 图片的安装包。
+$CargoFeatureList = @($FEATURES -split ',' | ForEach-Object { $_.Trim() })
+if (-not ($CargoFeatureList -contains 'standalone')) {
+    $AsyncSource = Join-Path $WORKSPACE_ROOT_DIR 'app\assets\async'
+    $AsyncDestination = Join-Path $BUNDLED_RESOURCES_DIR 'async'
+    $SourceFiles = @(Get-ChildItem -Path $AsyncSource -Recurse -File)
+    $DestinationFiles = if (Test-Path $AsyncDestination -PathType Container) {
+        @(Get-ChildItem -Path $AsyncDestination -Recurse -File)
+    } else {
+        @()
+    }
+    $SourceBytes = ($SourceFiles | Measure-Object -Property Length -Sum).Sum
+    $DestinationBytes = ($DestinationFiles | Measure-Object -Property Length -Sum).Sum
+
+    if (($SourceFiles.Count -ne $DestinationFiles.Count) -or ($SourceBytes -ne $DestinationBytes)) {
+        Write-Error "Async raster assets are incomplete: expected $($SourceFiles.Count) files / $SourceBytes bytes, found $($DestinationFiles.Count) files / $DestinationBytes bytes"
+        exit 1
+    }
+
+    Write-Output "Verified $($DestinationFiles.Count) async raster assets in $AsyncDestination"
+}
+
 Write-Output 'Building Zap installer'
 # Inno Setup `AppId` 决定注册表 Uninstall 条目与升级跟踪键。OSS 下固定为 `zap-oss`,
 # 避免留在默认的 `warp-terminal-oss` 上。其他 channel 走 .iss 里的默认

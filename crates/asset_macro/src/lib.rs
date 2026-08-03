@@ -6,10 +6,9 @@
 //! - Remote: These are always fetched remotely based on the asset name and a hash of the contents.
 //!   These files are located in `app/assets/remote`. Access with
 //!   `remote_asset!(path of asset relative to app/assets/remote])`.
-//! - Bundled for native builds and remote for web builds: Keeping the size of the web build small
-//!   is critical for having fast load times, so many of the larger assets are split out. These
-//!   files live in `app/assets/async`. Access with
-//!   `bundled_or_fetched!(path of asset relative to app/assets/async])`.
+//! - 原生发行包从磁盘读取、Web 构建从远端读取：保持可执行文件和 Web 构建体积较小，对启动及
+//!   下载速度很重要，因此较大的光栅资源被拆分出来。这些文件位于 `app/assets/async`，通过
+//!   `bundled_or_fetched_asset!(path of asset relative to app/assets/async])`。
 //!
 //! These macros check for the existence of the asset at the appropriate location before returning
 //! an `AssetSource` with the appropriate bundle reference or URL.
@@ -119,13 +118,14 @@ pub fn bundled_or_fetched_asset(input: TokenStream) -> TokenStream {
     // https://github.com/rust-lang/cargo/issues/10714). To work around this, we return
     // conditionally compiled references to the appropriate macro.
     let input_lit = parse_macro_input!(input as LitStr);
+    let native_path = format!("{ASYNC_ASSETS_DIR}/{}", input_lit.value());
 
     // Attributes cannot be used on most expressions, so we make a short block so the attribute can
     // be applied in a statement context.
     quote! {
         {
             #[cfg(not(target_family = "wasm"))]
-            let val = ::asset_macro::bundled_asset!( #input_lit, #ASYNC_ASSETS_DIR );
+            let val = ::warp_core::paths::async_raster_asset(#native_path);
             #[cfg(target_family = "wasm")]
             let val = ::asset_macro::remote_asset!( #input_lit, #ASYNC_ASSETS_DIR );
 
