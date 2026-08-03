@@ -1166,7 +1166,7 @@ impl AppearanceSettingsPageView {
             dropdown.set_top_bar_max_width(FONT_WEIGHT_DROPDOWN_WIDTH);
             dropdown.set_menu_width(FONT_WEIGHT_DROPDOWN_WIDTH, ctx);
 
-            let selectable_weights = [Weight::Normal, Weight::Bold];
+            let selectable_weights: Vec<Weight> = all::<Weight>().collect();
             let items = selectable_weights
                 .iter()
                 .map(|weight| {

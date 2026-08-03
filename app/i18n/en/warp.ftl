@@ -3384,6 +3384,38 @@ terminal-banner-these-instructions = these instructions
 terminal-banner-update-latest-suffix = {" "}to update to the latest version.
 terminal-banner-pure-unsupported = Pure is not yet supported in Zap. You might consider one of the supported prompts as an alternative.{"  "}
 terminal-loading-session = Loading session...
+terminal-restored-session-conversation = Conversation restored
+terminal-restored-session-previous = Previous session
+terminal-restored-session-from = { $label } from { $timestamp }
+terminal-restored-session-timestamp =
+    { $weekday ->
+        [1] Sun
+        [2] Mon
+        [3] Tue
+        [4] Wed
+        [5] Thu
+        [6] Fri
+        [7] Sat
+       *[other]
+    } { $month ->
+        [1] Jan
+        [2] Feb
+        [3] Mar
+        [4] Apr
+        [5] May
+        [6] Jun
+        [7] Jul
+        [8] Aug
+        [9] Sep
+        [10] Oct
+        [11] Nov
+        [12] Dec
+       *[other]
+    } { $day } at { $hour }:{ $minute } { $period ->
+        [am] AM
+        [pm] PM
+       *[other] AM
+    }
 
 ai-footer-hide-rich-input = Hide Rich Input
 ai-footer-choose-environment = Choose an environment
