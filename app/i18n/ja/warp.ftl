@@ -3162,8 +3162,7 @@ terminal-loading-session = セッションを読み込み中…
 terminal-restored-session-conversation = 会話を復元しました
 terminal-restored-session-previous = 前回のセッション
 terminal-restored-session-from = { $label }（{ $timestamp }）
-terminal-restored-session-timestamp =
-    { $month }月{ $day }日（{ $weekday ->
+terminal-restored-session-timestamp = { $month }月{ $day }日（{ $weekday ->
         [1] 日曜日
         [2] 月曜日
         [3] 火曜日
@@ -3171,7 +3170,7 @@ terminal-restored-session-timestamp =
         [5] 木曜日
         [6] 金曜日
         [7] 土曜日
-       *[other]
+       *[other] 不明な曜日
     }）{ $hour24 }:{ $minute }
 
 ai-footer-hide-rich-input = リッチ入力を非表示

@@ -3387,8 +3387,7 @@ terminal-loading-session = Loading session...
 terminal-restored-session-conversation = Conversation restored
 terminal-restored-session-previous = Previous session
 terminal-restored-session-from = { $label } from { $timestamp }
-terminal-restored-session-timestamp =
-    { $weekday ->
+terminal-restored-session-timestamp = { $weekday ->
         [1] Sun
         [2] Mon
         [3] Tue
@@ -3396,7 +3395,7 @@ terminal-restored-session-timestamp =
         [5] Thu
         [6] Fri
         [7] Sat
-       *[other]
+       *[other] Unknown weekday
     } { $month ->
         [1] Jan
         [2] Feb
@@ -3410,8 +3409,11 @@ terminal-restored-session-timestamp =
         [10] Oct
         [11] Nov
         [12] Dec
-       *[other]
-    } { $day } at { $hour }:{ $minute } { $period ->
+       *[other] Unknown month
+    } { $day } at { $hour24 ->
+        [0] { $hour }
+       *[other] { $hour }
+    }:{ $minute } { $period ->
         [am] AM
         [pm] PM
        *[other] AM

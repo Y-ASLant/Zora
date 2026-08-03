@@ -3275,8 +3275,7 @@ terminal-loading-session = 正在加载会话...
 terminal-restored-session-conversation = 对话已恢复
 terminal-restored-session-previous = 上次会话
 terminal-restored-session-from = { $label }（{ $timestamp }）
-terminal-restored-session-timestamp =
-    { $month }月{ $day }日（{ $weekday ->
+terminal-restored-session-timestamp = { $month }月{ $day }日（{ $weekday ->
         [1] 星期日
         [2] 星期一
         [3] 星期二
@@ -3284,7 +3283,7 @@ terminal-restored-session-timestamp =
         [5] 星期四
         [6] 星期五
         [7] 星期六
-       *[other]
+       *[other] 未知星期
     }）{ $hour24 }:{ $minute }
 
 ai-footer-hide-rich-input = 隐藏富输入
