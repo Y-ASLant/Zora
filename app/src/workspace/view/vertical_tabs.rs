@@ -1497,13 +1497,20 @@ fn render_vertical_tabs_panel(
         .with_background(internal_colors::fg_overlay_1(theme))
         .finish();
 
-    Resizable::new(state.resizable_state.clone(), inner)
+    let resizable_state = state.resizable_state.clone();
+
+    Resizable::new(resizable_state.clone(), inner)
         .with_dragbar_side(drag_side)
         .on_resize(|ctx, _| {
             ctx.notify();
         })
-        .on_end_resizing(|ctx, app| {
+        .on_end_resizing(move |ctx, app| {
             if *TabSettings::as_ref(app).persist_vertical_tabs_panel_width {
+                let width = resizable_state
+                    .lock()
+                    .expect("vertical tabs panel width handle should not be poisoned")
+                    .requested_size();
+                ctx.dispatch_action("workspace:remember_vertical_tabs_panel_width", width);
                 ctx.dispatch_action("workspace:save_app", ());
             }
         })

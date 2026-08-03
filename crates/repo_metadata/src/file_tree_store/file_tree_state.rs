@@ -1,6 +1,8 @@
 use crate::file_tree_store::FileTreeEntry;
 use crate::file_tree_store::{FileTreeDirectoryEntryState, FileTreeEntryState};
-use crate::{BuildTreeError, DirectoryEntry, Entry};
+#[cfg(feature = "local_fs")]
+use crate::BuildTreeError;
+use crate::{DirectoryEntry, Entry};
 use ignore::gitignore::Gitignore;
 use std::collections::{HashMap, HashSet};
 use std::iter;
@@ -182,7 +184,8 @@ impl FileTreeMapStore {
         Some(child_path)
     }
 
-    pub fn load_at_path(
+    #[cfg(feature = "local_fs")]
+    pub async fn load_at_path(
         &mut self,
         path: &StandardizedPath,
         gitignores: &mut Vec<Gitignore>,
@@ -195,7 +198,7 @@ impl FileTreeMapStore {
             loaded: true,
         });
 
-        entry.load(gitignores)?;
+        entry.load(gitignores).await?;
         self.insert_entry_at_path(child_path, entry);
         Ok(())
     }

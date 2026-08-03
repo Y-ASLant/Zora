@@ -6,9 +6,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use super::{classify_watcher_event, DirectoryWatcher, RepositoryWatchRoute, TaskQueue};
 use crate::repositories::stub_git_repository;
 use crate::repository::RepositorySubscriber;
-use crate::watcher::{DirectoryWatcher, TaskQueue};
 use crate::{CanonicalizedPath, RepoMetadataError, Repository, RepositoryUpdate};
 use futures::channel::mpsc;
 use futures::StreamExt as _;
@@ -118,6 +118,93 @@ fn watcher_routes_a_missing_path_without_canonicalizing_it() {
                 .modified
                 .contains(&crate::TargetFile::new(missing_path, true)));
         });
+    });
+}
+
+#[test]
+fn watcher_classification_loads_nested_gitignore_off_the_ui_thread() {
+    VirtualFS::test("watcher_nested_gitignore", |dirs, mut vfs| {
+        stub_git_repository(&mut vfs, "repo");
+        vfs.mkdir("repo/nested");
+        vfs.with_files(vec![Stub::FileWithContent(
+            "repo/nested/.gitignore",
+            "*.generated\n",
+        )]);
+
+        let repo_path = dirs.tests().join("repo");
+        let root_dir = StandardizedPath::from_local_canonicalized(&repo_path).unwrap();
+        let changed_path = repo_path.join("nested/output.generated");
+        let event = BulkFilesystemWatcherEvent {
+            modified: HashSet::from([changed_path.clone()]),
+            ..Default::default()
+        };
+        let classified = classify_watcher_event(
+            event,
+            vec![RepositoryWatchRoute {
+                root_dir: root_dir.clone(),
+                external_git_directory: None,
+                common_git_directory: None,
+                gitignores: crate::gitignores_for_directory(&repo_path),
+                gitignore_checked_directories: HashSet::from([repo_path.clone()]),
+                gitignore_generation: 0,
+                gitignore_snapshot_changed: false,
+            }],
+        );
+
+        let update = classified.repo_updates.get(&root_dir).unwrap();
+        assert!(update
+            .modified
+            .contains(&crate::TargetFile::new(changed_path, true)));
+        assert_eq!(classified.gitignore_snapshots.len(), 1);
+    });
+}
+
+#[test]
+fn watcher_classification_uses_new_rules_when_the_same_batch_changes_gitignore() {
+    VirtualFS::test("watcher_gitignore_batch_order", |dirs, mut vfs| {
+        stub_git_repository(&mut vfs, "repo");
+        vfs.mkdir("repo/nested").with_files(vec![
+            Stub::FileWithContent("repo/nested/.gitignore", "*.old\n"),
+            Stub::FileWithContent("repo/nested/output.generated", "ignored"),
+        ]);
+
+        let repo_path = dirs.tests().join("repo");
+        let nested_dir = repo_path.join("nested");
+        let gitignore_path = nested_dir.join(".gitignore");
+        let changed_path = nested_dir.join("output.generated");
+        let root_dir = StandardizedPath::from_local_canonicalized(&repo_path).unwrap();
+        let mut gitignores = crate::gitignores_for_directory(&repo_path);
+        let mut checked_directories = HashSet::from([repo_path.clone()]);
+        crate::add_gitignores_for_path(
+            &repo_path,
+            &changed_path,
+            false,
+            &mut gitignores,
+            &mut checked_directories,
+        );
+
+        fs::write(&gitignore_path, "*.generated\n").unwrap();
+        let event = BulkFilesystemWatcherEvent {
+            modified: HashSet::from([gitignore_path, changed_path.clone()]),
+            ..Default::default()
+        };
+        let classified = classify_watcher_event(
+            event,
+            vec![RepositoryWatchRoute {
+                root_dir: root_dir.clone(),
+                external_git_directory: None,
+                common_git_directory: None,
+                gitignores,
+                gitignore_checked_directories: checked_directories,
+                gitignore_generation: 0,
+                gitignore_snapshot_changed: false,
+            }],
+        );
+
+        let update = classified.repo_updates.get(&root_dir).unwrap();
+        assert!(update
+            .modified
+            .contains(&crate::TargetFile::new(changed_path, true)));
     });
 }
 

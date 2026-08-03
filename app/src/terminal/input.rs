@@ -5133,14 +5133,14 @@ impl Input {
             InputSettingsChangedEvent::CompletionsMenuWidth { .. } => {
                 let new_value = *input_settings.as_ref(ctx).completions_menu_width.value();
                 if let Ok(mut guard) = self.completions_menu_resizable_width.lock() {
-                    guard.set_size(new_value);
+                    guard.set_requested_size(new_value);
                 }
                 ctx.notify();
             }
             InputSettingsChangedEvent::CompletionsMenuHeight { .. } => {
                 let new_value = *input_settings.as_ref(ctx).completions_menu_height.value();
                 if let Ok(mut guard) = self.completions_menu_resizable_height.lock() {
-                    guard.set_size(new_value);
+                    guard.set_requested_size(new_value);
                 }
                 ctx.notify();
             }

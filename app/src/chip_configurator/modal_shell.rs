@@ -25,10 +25,10 @@ const BORDER_WIDTH: f32 = 1.;
 const MODAL_UNIFORM_PADDING: f32 = 24.;
 const CORNER_RADIUS_PIXELS: f32 = 8.;
 const PRIMARY_BUTTON_HEIGHT: f32 = 40.;
+const PRIMARY_BUTTON_VERTICAL_PADDING: f32 = 5.;
 const PRIMARY_BUTTON_HORIZONTAL_PADDING: f32 = 16.;
 const SECTION_UNIFORM_PADDING: f32 = 16.;
 const MARGIN_BETWEEN_MODAL_SECTIONS: f32 = 16.;
-const RESTORE_DEFAULT_LABEL: &str = "Restore default";
 
 /// Mouse state handles for interactive controls in chip editor sections and modals.
 #[derive(Default)]
@@ -145,7 +145,7 @@ fn render_restore_default_button<A: Action + Clone + Copy + 'static>(
     let button = Hoverable::new(mouse_handle.clone(), |_state| {
         appearance
             .ui_builder()
-            .span(RESTORE_DEFAULT_LABEL.to_string())
+            .span(crate::t!("chip-editor-restore-default"))
             .with_style(UiComponentStyles {
                 font_size: Some(appearance.ui_font_subheading()),
                 ..Default::default()
@@ -204,7 +204,10 @@ pub fn render_chip_editor_sections<A: Action + Clone + Copy + 'static>(
     );
 
     let left_section = Flex::column()
-        .with_child(render_section_label("Left side", appearance))
+        .with_child(render_section_label(
+            &crate::t!("chip-editor-left-side"),
+            appearance,
+        ))
         .with_child(
             Container::new(chip_configurator.render_left_drop_zone(
                 config.activate_action,
@@ -217,7 +220,10 @@ pub fn render_chip_editor_sections<A: Action + Clone + Copy + 'static>(
         .finish();
 
     let right_section = Flex::column()
-        .with_child(render_section_label("Right side", appearance))
+        .with_child(render_section_label(
+            &crate::t!("chip-editor-right-side"),
+            appearance,
+        ))
         .with_child(
             Container::new(chip_configurator.render_right_drop_zone(
                 config.activate_action,
@@ -260,8 +266,10 @@ fn render_primary_button<A: Action + Clone + Copy + 'static>(
     appearance: &Appearance,
 ) -> Box<dyn Element> {
     let padding = Coords {
-        top: 10.,
-        bottom: 10.,
+        // 40px 高的按钮需要为一行 14px UI 字体保留足够的行高；10px 上下
+        // 内边距会把内容区压缩到 18px，并在高 DPI 或放大 UI 字体时裁掉标签。
+        top: PRIMARY_BUTTON_VERTICAL_PADDING,
+        bottom: PRIMARY_BUTTON_VERTICAL_PADDING,
         right: PRIMARY_BUTTON_HORIZONTAL_PADDING,
         left: PRIMARY_BUTTON_HORIZONTAL_PADDING,
     };
@@ -269,8 +277,9 @@ fn render_primary_button<A: Action + Clone + Copy + 'static>(
     let mut button = appearance
         .ui_builder()
         .button(variant, mouse_state_handle.clone())
-        .with_text_label(label)
+        .with_centered_text_label(label)
         .with_style(UiComponentStyles {
+            height: Some(PRIMARY_BUTTON_HEIGHT),
             padding: Some(padding),
             font_size: Some(appearance.ui_font_subheading()),
             ..Default::default()
@@ -311,25 +320,11 @@ fn render_buttons<A: Action + Clone + Copy + 'static>(
 
     Flex::row()
         .with_main_axis_size(MainAxisSize::Max)
+        .with_child(Expanded::new(1.0, cancel_button).finish())
         .with_child(
             Expanded::new(
                 1.0,
-                ConstrainedBox::new(cancel_button)
-                    .with_height(PRIMARY_BUTTON_HEIGHT)
-                    .finish(),
-            )
-            .finish(),
-        )
-        .with_child(
-            Expanded::new(
-                1.0,
-                Container::new(
-                    ConstrainedBox::new(save_button)
-                        .with_height(PRIMARY_BUTTON_HEIGHT)
-                        .finish(),
-                )
-                .with_margin_left(8.)
-                .finish(),
+                Container::new(save_button).with_margin_left(8.).finish(),
             )
             .finish(),
         )

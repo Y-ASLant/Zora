@@ -49,16 +49,10 @@ pub(super) async fn download_update_and_cleanup(
                     "openWarp: cached release tag {} 没有名为 {installer_file_name} 的资产,回退到 tag URL",
                     release.tag_name
                 );
-                format!(
-                    "https://github.com/zerx-lab/warp/releases/download/v{}/{installer_file_name}",
-                    version_info.version
-                )
+                github::release_download_url(&version_info.version, &installer_file_name)
             }
         } else {
-            format!(
-                "https://github.com/zerx-lab/warp/releases/download/v{}/{installer_file_name}",
-                version_info.version
-            )
+            github::release_download_url(&version_info.version, &installer_file_name)
         }
     } else {
         format!(

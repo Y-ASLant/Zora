@@ -94,8 +94,11 @@ SignTool=codesign
 SignedUninstaller=yes
 #endif
 ; Prevents inheriting RedirectionGuard enforcing from the update context, which blocks NTFS junction traversal in child processes (#271).
-; Requires Inno Setup >= 6.7.0 (windows-latest CI runner ships with 6.7.1).
+; The directive was added in Inno Setup 6.7. Older compilers do not implement
+; the guard, so omitting it there preserves their existing behavior.
+#if Ver >= EncodeVer(6, 7, 0)
 RedirectionGuard=no
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

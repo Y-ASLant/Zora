@@ -11,7 +11,7 @@ use warpui::{
     elements::MouseStateHandle,
     fonts::Weight,
     platform::Cursor,
-    ui_components::{button::ButtonVariant, components::UiComponentStyles, text::Span},
+    ui_components::{button::ButtonVariant, components::UiComponentStyles},
     Element, Entity, TypedActionView, View,
 };
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewContext};
@@ -137,10 +137,11 @@ impl View for NativeModal {
         let dont_show_again_checkbox = appearance
             .ui_builder()
             .checkbox(self.dont_show_again_mouse_state.clone(), Some(14.))
-            .with_label(Span::new(
-                crate::t!("common-dont-show-again-with-period"),
-                Default::default(),
-            ))
+            .with_label(
+                appearance
+                    .ui_builder()
+                    .span(crate::t!("common-dont-show-again-with-period")),
+            )
             .check(self.dont_show_again)
             .build()
             .with_cursor(Cursor::PointingHand)

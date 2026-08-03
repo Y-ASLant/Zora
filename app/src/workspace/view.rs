@@ -2427,8 +2427,8 @@ impl Workspace {
             settings_file_error,
         } = global_resource_handles.clone();
 
-        // Inserting a (window, ModalSizes) pair to the ResizableData singleton. A restored window
-        // reads the sizes from the window snapshot. A new window initializes with all default sizes.
+        // 向 ResizableData 单例插入窗口尺寸。恢复窗口优先读取窗口快照；没有快照时，
+        // 垂直标签使用本次运行中最近拖动的宽度，或上次正常退出保存的本机兜底值。
         let resizable_data = ResizableData::handle(ctx);
         let window_id = ctx.window_id();
         let has_horizontal_split = workspace_setting.has_horizontal_split();
@@ -2437,6 +2437,8 @@ impl Workspace {
             compute_default_panel_widths(ctx, window_id, has_horizontal_split);
         let persist_vertical_tabs_panel_width =
             *TabSettings::as_ref(ctx).persist_vertical_tabs_panel_width;
+        let remembered_vertical_tabs_panel_width =
+            *TabSettings::as_ref(ctx).remembered_vertical_tabs_panel_width;
         let new_resizable_modal_sizes = match workspace_setting.clone() {
             NewWorkspaceSource::Restored {
                 window_snapshot, ..
@@ -2445,8 +2447,14 @@ impl Workspace {
                 left_panel_size,
                 right_panel_size,
                 persist_vertical_tabs_panel_width,
+                remembered_vertical_tabs_panel_width,
             ),
-            _ => ModalSizes::default_with_panel_defaults(left_panel_size, right_panel_size),
+            _ => ModalSizes::default_with_panel_defaults(
+                left_panel_size,
+                right_panel_size,
+                persist_vertical_tabs_panel_width,
+                remembered_vertical_tabs_panel_width,
+            ),
         };
         resizable_data.update(ctx, |model, _| {
             model.insert(window_id, new_resizable_modal_sizes)
@@ -3206,6 +3214,9 @@ impl Workspace {
                 ctx.dispatch_global_action("workspace:save_app", ());
                 ctx.notify();
             }
+            TabSettingsChangedEvent::RememberedVerticalTabsPanelWidth { .. } => {
+                ctx.notify();
+            }
             TabSettingsChangedEvent::ShowCodeReviewButton { .. } => {
                 // Close the right panel if it's open and the setting was just disabled.
                 if !*TabSettings::as_ref(ctx).show_code_review_button {
@@ -3552,7 +3563,7 @@ impl Workspace {
         let resizable = ResizableData::handle(ctx);
         if let Some(modal_sizes) = resizable.as_ref(ctx).get_all_handles(self.window_id) {
             if let Ok(mut handle) = modal_sizes.left_panel_width.lock() {
-                handle.set_size(left_panel_snapshot.width as f32);
+                handle.set_requested_size(left_panel_snapshot.width as f32);
             }
         }
 
@@ -3590,7 +3601,7 @@ impl Workspace {
         let resizable = ResizableData::handle(ctx);
         if let Some(modal_sizes) = resizable.as_ref(ctx).get_all_handles(self.window_id) {
             if let Ok(mut handle) = modal_sizes.right_panel_width.lock() {
-                handle.set_size(right_panel_snapshot.width as f32);
+                handle.set_requested_size(right_panel_snapshot.width as f32);
             }
         }
 
@@ -7792,7 +7803,7 @@ impl Workspace {
             {
                 if let Ok(mut state) = handle.lock() {
                     // Get the current width from ResizableData - this reflects the most recent tab's width
-                    let current_width = state.size();
+                    let current_width = state.requested_size();
 
                     // Only recompute default if the current width is at the default value
                     // This preserves the width from the most recent tab
@@ -7801,7 +7812,7 @@ impl Workspace {
                             .read(ctx, |pane_group, _| pane_group.has_horizontal_split());
                         let (left_width, _right_width) =
                             compute_default_panel_widths(ctx, window_id, has_horizontal_split);
-                        state.set_size(left_width);
+                        state.set_requested_size(left_width);
                     }
                     // If current_width is not the default, it means we have a width from a previous tab,
                     // so we don't need to do anything - the width is already preserved
@@ -7971,7 +7982,7 @@ impl Workspace {
                 {
                     if let Ok(mut state) = handle.lock() {
                         // Get the current width from ResizableData - this reflects the most recent tab's width
-                        let current_width = state.size();
+                        let current_width = state.requested_size();
 
                         // Only recompute default if the current width is at the default value
                         // This preserves the width from the most recent tab
@@ -7981,7 +7992,7 @@ impl Workspace {
                                 .read(ctx, |pane_group, _| pane_group.has_horizontal_split());
                             let (_left_width, right_width) =
                                 compute_default_panel_widths(ctx, window_id, has_horizontal_split);
-                            state.set_size(right_width);
+                            state.set_requested_size(right_width);
                         }
                         // If current_width is not the default, it means we have a width from a previous tab,
                         // so we don't need to do anything - the width is already preserved
@@ -9584,14 +9595,14 @@ impl Workspace {
                     ms.left_panel_width
                         .lock()
                         .expect("should be able to lock left panel handle")
-                        .size()
+                        .requested_size()
                 });
 
                 let right_panel_width = modal_sizes.map(|ms| {
                     ms.right_panel_width
                         .lock()
                         .expect("should be able to lock right panel handle")
-                        .size()
+                        .requested_size()
                 });
 
                 let pane_group = pane_group_view.as_ref(app);
@@ -9639,41 +9650,41 @@ impl Workspace {
             ms.universal_search_width
                 .lock()
                 .expect("should be able to lock universal search resizable state handle")
-                .size()
+                .requested_size()
         });
 
         let warp_ai_width = modal_sizes.map(|ms| {
             ms.warp_ai_width
                 .lock()
                 .expect("should be able to lock warp_ai resizable state handle")
-                .size()
+                .requested_size()
         });
 
         let voltron_width = modal_sizes.map(|ms| {
             ms.voltron_width
                 .lock()
                 .expect("should be able to lock voltron resizable state handle")
-                .size()
+                .requested_size()
         });
 
         let warp_drive_index_width = modal_sizes.map(|ms| {
             ms.warp_drive_index_width
                 .lock()
                 .expect("should be able to lock zap drive resizable state handle")
-                .size()
+                .requested_size()
         });
 
         let left_panel_width = modal_sizes.map(|ms| {
             ms.left_panel_width
                 .lock()
-                .map(|guard| guard.size())
+                .map(|guard| guard.requested_size())
                 .unwrap_or(DEFAULT_LEFT_PANEL_WIDTH)
         });
 
         let right_panel_width = modal_sizes.map(|ms| {
             ms.right_panel_width
                 .lock()
-                .map(|guard| guard.size())
+                .map(|guard| guard.requested_size())
                 .unwrap_or(DEFAULT_RIGHT_PANEL_WIDTH)
         });
 
@@ -9683,7 +9694,7 @@ impl Workspace {
                     ms.vertical_tabs_panel_width
                         .lock()
                         .expect("should be able to lock vertical tabs panel resizable state handle")
-                        .size()
+                        .requested_size()
                 })
             } else {
                 None

@@ -1,6 +1,12 @@
 #![cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 
+#[cfg(feature = "local_fs")]
+use futures::{future::BoxFuture, FutureExt as _};
+#[cfg(feature = "local_fs")]
+use futures_lite::StreamExt;
 use ignore::gitignore::Gitignore;
+#[cfg(feature = "local_fs")]
+use std::collections::HashSet;
 use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -92,143 +98,149 @@ impl Entry {
     /// Builds a tree of entries from a given path, handling gitignored files and directories.
     /// After max_depth is reached, all children are lazy-loaded to prevent deeply nested trees.
     /// IgnoredPathStrategy determines what happens when ignored files are encountered.
-    pub fn build_tree(
+    #[cfg(feature = "local_fs")]
+    pub fn build_tree<'a>(
         path: impl Into<PathBuf>,
-        files: &mut Vec<FileMetadata>,
-        gitignores: &mut Vec<Gitignore>,
-        mut remaining_file_quota: Option<&mut usize>,
+        files: &'a mut Vec<FileMetadata>,
+        gitignores: &'a mut Vec<Gitignore>,
+        mut remaining_file_quota: Option<&'a mut usize>,
         max_depth: usize,
         current_depth: usize,
-        ignored_path_strategy: &IgnoredPathStrategy,
-    ) -> Result<Self, BuildTreeError> {
+        ignored_path_strategy: &'a IgnoredPathStrategy,
+    ) -> BoxFuture<'a, Result<Self, BuildTreeError>> {
         let curr_path: PathBuf = path.into();
-        let is_dir = curr_path.is_dir();
+        async move {
+            let is_dir = curr_path.is_dir();
 
-        // Only ignore symlinks to directories. Symlinks to files are preserved (e.g. WARP.md).
-        if curr_path.is_symlink() && is_dir {
-            return Err(BuildTreeError::Symlink);
-        }
+            // Only ignore symlinks to directories. Symlinks to files are preserved (e.g. WARP.md).
+            if curr_path.is_symlink() && is_dir {
+                return Err(BuildTreeError::Symlink);
+            }
 
-        let gitignore_path = curr_path.join(".gitignore");
-        if gitignore_path.exists() {
-            let (gitignore, _) = Gitignore::new(gitignore_path);
-            gitignores.push(gitignore);
-        }
+            add_gitignore_for_directory(&curr_path, gitignores);
 
-        let path_is_ignored = matches_gitignores(
-            &curr_path,
-            is_dir,
-            &*gitignores,
-            true, /* check_ancestors */
-        ) || is_git_internal_path(&curr_path);
+            let path_is_ignored = matches_gitignores(
+                &curr_path,
+                is_dir,
+                &*gitignores,
+                true, /* check_ancestors */
+            ) || is_git_internal_path(&curr_path);
 
-        // If we've reached the max depth, force lazy-loading even of non-ignored folders.
-        let mut lazy_load = current_depth >= max_depth;
+            // If we've reached the max depth, force lazy-loading even of non-ignored folders.
+            let mut lazy_load = current_depth >= max_depth;
 
-        if path_is_ignored {
-            match ignored_path_strategy {
-                IgnoredPathStrategy::Exclude => {
-                    return Err(BuildTreeError::Ignored);
-                }
-                IgnoredPathStrategy::IncludeOnly(patterns) => {
-                    if let Some(file_name) = curr_path.file_name().and_then(|n| n.to_str()) {
-                        if !patterns.iter().any(|pattern| file_name == pattern) {
-                            return Err(BuildTreeError::Ignored);
+            if path_is_ignored {
+                match ignored_path_strategy {
+                    IgnoredPathStrategy::Exclude => {
+                        return Err(BuildTreeError::Ignored);
+                    }
+                    IgnoredPathStrategy::IncludeOnly(patterns) => {
+                        if let Some(file_name) = curr_path.file_name().and_then(|n| n.to_str()) {
+                            if !patterns.iter().any(|pattern| file_name == pattern) {
+                                return Err(BuildTreeError::Ignored);
+                            }
                         }
                     }
+                    IgnoredPathStrategy::IncludeLazy => {
+                        // Git 不会在已被父规则排除的目录中继续读取子 `.gitignore`。
+                        // 能重新包含的子项必须先重新包含父目录，因此当前目录被忽略
+                        // 时可以安全地延迟加载，避免一个无关的 `!` 规则让 target /
+                        // node_modules 等大型树在启动时全量扫描。
+                        lazy_load = true;
+                    }
+                    IgnoredPathStrategy::Include => {}
                 }
-                IgnoredPathStrategy::IncludeLazy => {
-                    lazy_load = true;
-                }
-                IgnoredPathStrategy::Include => {}
             }
-        }
 
-        if is_dir {
-            if lazy_load {
-                return Ok(Self::Directory(DirectoryEntry {
-                    children: vec![],
+            if is_dir {
+                if lazy_load {
+                    return Ok(Self::Directory(DirectoryEntry {
+                        children: vec![],
+                        path: StandardizedPath::from_local_absolute_unchecked(&curr_path),
+                        ignored: path_is_ignored,
+                        loaded: false,
+                    }));
+                }
+
+                // If the path is a directory, process all the children under it.
+                let mut entries = async_fs::read_dir(&curr_path).await?;
+                let mut children = Vec::new();
+
+                while let Some(entry) = entries.next().await {
+                    if remaining_file_quota
+                        .as_ref()
+                        .is_some_and(|x| **x < children.len())
+                    {
+                        return Err(BuildTreeError::ExceededMaxFileLimit);
+                    }
+
+                    if let Some(entry) = match entry {
+                        Ok(entry) => {
+                            let entry_path = entry.path();
+
+                            // Skip symlinks to folders before canonicalization to prevent duplicates.
+                            // If it's a symlink to a file, we keep the path as is since canonicalization would
+                            // point its path to the actual file.
+                            let canonical_path = if entry_path.is_symlink() {
+                                if entry_path.is_dir() {
+                                    None
+                                } else {
+                                    Some(entry_path)
+                                }
+                            } else {
+                                dunce::canonicalize(entry_path).ok()
+                            };
+
+                            if let Some(canonical_path) = canonical_path {
+                                match Entry::build_tree(
+                                    canonical_path,
+                                    files,
+                                    gitignores,
+                                    remaining_file_quota.as_deref_mut(),
+                                    max_depth,
+                                    current_depth + 1,
+                                    ignored_path_strategy,
+                                )
+                                .await
+                                {
+                                    Ok(entry) => Some(entry),
+                                    Err(BuildTreeError::ExceededMaxFileLimit) => {
+                                        return Err(BuildTreeError::ExceededMaxFileLimit)
+                                    }
+                                    Err(_) => None,
+                                }
+                            } else {
+                                None
+                            }
+                        }
+                        Err(_) => None,
+                    } {
+                        children.push(entry);
+                    }
+                }
+
+                Ok(Self::Directory(DirectoryEntry {
+                    children,
                     path: StandardizedPath::from_local_absolute_unchecked(&curr_path),
                     ignored: path_is_ignored,
-                    loaded: false,
-                }));
-            }
-
-            // If the path is a directory, process all the children under it.
-            let entries = std::fs::read_dir(&curr_path)?;
-            let mut children = Vec::new();
-
-            for entry in entries {
-                if remaining_file_quota
-                    .as_ref()
-                    .is_some_and(|x| **x < children.len())
-                {
-                    return Err(BuildTreeError::ExceededMaxFileLimit);
-                }
-
-                if let Some(entry) = match entry {
-                    Ok(entry) => {
-                        let entry_path = entry.path();
-
-                        // Skip symlinks to folders before canonicalization to prevent duplicates.
-                        // If it's a symlink to a file, we keep the path as is since canonicalization would
-                        // point its path to the actual file.
-                        let canonical_path = if entry_path.is_symlink() {
-                            if entry_path.is_dir() {
-                                None
-                            } else {
-                                Some(entry_path)
-                            }
-                        } else {
-                            dunce::canonicalize(entry_path).ok()
-                        };
-
-                        if let Some(canonical_path) = canonical_path {
-                            match Entry::build_tree(
-                                canonical_path,
-                                files,
-                                gitignores,
-                                remaining_file_quota.as_deref_mut(),
-                                max_depth,
-                                current_depth + 1,
-                                ignored_path_strategy,
-                            ) {
-                                Ok(entry) => Some(entry),
-                                Err(BuildTreeError::ExceededMaxFileLimit) => {
-                                    return Err(BuildTreeError::ExceededMaxFileLimit)
-                                }
-                                Err(_) => None,
-                            }
-                        } else {
-                            None
-                        }
+                    loaded: true,
+                }))
+            } else if curr_path.is_file() {
+                if let Some(remaining_file_quota) = remaining_file_quota {
+                    if *remaining_file_quota == 0 {
+                        return Err(BuildTreeError::ExceededMaxFileLimit);
                     }
-                    Err(_) => None,
-                } {
-                    children.push(entry);
-                }
-            }
 
-            Ok(Self::Directory(DirectoryEntry {
-                children,
-                path: StandardizedPath::from_local_absolute_unchecked(&curr_path),
-                ignored: path_is_ignored,
-                loaded: true,
-            }))
-        } else if curr_path.is_file() {
-            if let Some(remaining_file_quota) = remaining_file_quota {
-                if *remaining_file_quota == 0 {
-                    return Err(BuildTreeError::ExceededMaxFileLimit);
+                    *remaining_file_quota -= 1
                 }
-
-                *remaining_file_quota -= 1
+                let metadata = FileMetadata::new(curr_path, path_is_ignored);
+                files.push(metadata.clone());
+                Ok(Self::File(metadata))
+            } else {
+                Err(BuildTreeError::Symlink)
             }
-            let metadata = FileMetadata::new(curr_path, path_is_ignored);
-            files.push(metadata.clone());
-            Ok(Self::File(metadata))
-        } else {
-            Err(BuildTreeError::Symlink)
         }
+        .boxed()
     }
 
     /// Finds an entry based on path
@@ -259,33 +271,41 @@ impl Entry {
     }
 
     /// Loads an unloaded directory
-    pub fn load(&mut self, gitignores: &mut Vec<Gitignore>) -> Result<(), BuildTreeError> {
-        // TODO: Consider a similar `unload` method if we run into performance issues.
-        let Self::Directory(directory) = self else {
-            return Ok(());
-        };
+    #[cfg(feature = "local_fs")]
+    pub fn load<'a>(
+        &'a mut self,
+        gitignores: &'a mut Vec<Gitignore>,
+    ) -> BoxFuture<'a, Result<(), BuildTreeError>> {
+        async move {
+            // TODO: Consider a similar `unload` method if we run into performance issues.
+            let Self::Directory(directory) = self else {
+                return Ok(());
+            };
 
-        let mut remaining_file_quota = LAZY_LOAD_FILE_LIMIT;
-        let mut files = Vec::new();
+            let mut remaining_file_quota = LAZY_LOAD_FILE_LIMIT;
+            let mut files = Vec::new();
 
-        let result = Entry::build_tree(
-            directory.path.to_local_path_lossy(),
-            &mut files,
-            gitignores,
-            Some(&mut remaining_file_quota),
-            1, /* max_depth */
-            0, /* current_depth */
-            &IgnoredPathStrategy::Include,
-        );
+            let result = Entry::build_tree(
+                directory.path.to_local_path_lossy(),
+                &mut files,
+                gitignores,
+                Some(&mut remaining_file_quota),
+                1, /* max_depth */
+                0, /* current_depth */
+                &IgnoredPathStrategy::Include,
+            )
+            .await;
 
-        result.map(|entry| match entry {
-            Entry::Directory(entry) => {
-                *directory = entry;
-            }
-            Entry::File(_) => {
-                log::error!("Called load on a directory but a file entry was returned");
-            }
-        })
+            result.map(|entry| match entry {
+                Entry::Directory(entry) => {
+                    *directory = entry;
+                }
+                Entry::File(_) => {
+                    log::error!("Called load on a directory but a file entry was returned");
+                }
+            })
+        }
+        .boxed()
     }
 
     /// Removes the entry corresponding to the given target path, if any.
@@ -344,25 +364,29 @@ pub fn matches_gitignores(
     gitignores: &[Gitignore],
     check_ancestors: bool,
 ) -> bool {
-    gitignores.iter().any(|gitignore| {
+    let mut ignored = false;
+    for gitignore in gitignores {
         if let Ok(relative_path) = path.strip_prefix(gitignore.path()) {
             // `matched_path_or_any_parents` panics if the path has a root.
             // If not on windows, we allow paths with a root if the gitignore path is empty (since this denotes a global gitignore).
             if relative_path.has_root() && (cfg!(windows) || gitignore.path() != Path::new("")) {
-                return false;
+                continue;
             }
 
-            if check_ancestors {
-                gitignore
-                    .matched_path_or_any_parents(relative_path, is_dir)
-                    .is_ignore()
+            let matched = if check_ancestors {
+                gitignore.matched_path_or_any_parents(relative_path, is_dir)
             } else {
-                gitignore.matched(relative_path, is_dir).is_ignore()
+                gitignore.matched(relative_path, is_dir)
+            };
+            if !matched.is_none() {
+                // Git 的优先级是越靠近文件的规则越高。调用方按
+                // global → 根目录 → 嵌套目录的顺序保存 matcher，因此后面的
+                // 非空匹配可以覆盖前面的 Ignore 或 Whitelist。
+                ignored = matched.is_ignore();
             }
-        } else {
-            false
         }
-    })
+    }
+    ignored
 }
 
 /// Returns the path components after `.git` in a git-internal path,
@@ -473,16 +497,15 @@ pub fn should_ignore_git_path(path: &Path) -> bool {
 /// `.git/` 内部路径遵循 watcher allowlist；目录 symlink 会被剪枝，避免
 /// 递归跟随到仓库外的大型目录树。被监听的根目录本身仍允许是 symlink。
 #[cfg(feature = "local_fs")]
-pub fn should_watch_repo_directory(
-    path: &Path,
-    repo_root: &Path,
-    gitignores: &[Gitignore],
-) -> bool {
+pub fn should_watch_repo_directory(path: &Path, repo_root: &Path) -> bool {
     if is_within_symlink(path, repo_root) {
         return false;
     }
 
-    !should_ignore_git_path(path) && !matches_gitignores(path, path.is_dir(), gitignores, true)
+    // .git 与目录 symlink 会造成不可恢复的高噪声/越界递归；其余路径都交给
+    // 后台树扫描按完整 Git ignore 规则判定。不能在入口按当前快照剪枝，
+    // 否则 `.gitignore` 的否定规则或后续修改会让重新包含的子项永远收不到事件。
+    !should_ignore_git_path(path)
 }
 
 /// 判断 `path` 本身或它的祖先是否是 symlink。
@@ -504,12 +527,13 @@ fn is_within_symlink(path: &Path, repo_root: &Path) -> bool {
 /// 过滤器在文件监听后台线程执行，可以安全地查询目录类型；UI 线程只接收已
 /// 过滤和去抖后的事件。
 #[cfg(feature = "local_fs")]
-pub fn repo_watch_filter(repo_root: PathBuf, gitignores: Vec<Gitignore>) -> WatchFilter {
+pub fn repo_watch_filter(repo_root: PathBuf) -> WatchFilter {
     WatchFilter::with_filter(Arc::new(move |path| {
-        should_watch_repo_directory(path, &repo_root, &gitignores)
+        should_watch_repo_directory(path, &repo_root)
     }))
 }
 
+#[cfg(feature = "local_fs")]
 pub fn path_passes_filters(path: &Path, gitignores: &[Gitignore]) -> bool {
     let to_check_path = if path.exists() {
         match dunce::canonicalize(path) {
@@ -530,22 +554,101 @@ pub fn path_passes_filters(path: &Path, gitignores: &[Gitignore]) -> bool {
 
 /// Determines whether a file should be parsed by a treesitter query. For now the main criteria is it shouldn't
 /// exceed the given file size limit.
+#[cfg(feature = "local_fs")]
 pub fn is_file_parsable(path: &Path) -> Result<bool, io::Error> {
     std::fs::metadata(path).map(|metadata| (metadata.len() as usize) < MAX_FILE_SIZE)
 }
 
+#[cfg(feature = "local_fs")]
 pub fn gitignores_for_directory(directory_path: &Path) -> Vec<Gitignore> {
     let mut gitignores = Vec::new();
-    let gitignore_path = directory_path.join(".gitignore");
-    if gitignore_path.exists() {
-        let (gitignore, _) = Gitignore::new(&gitignore_path);
-        gitignores.push(gitignore);
-    }
     let (global_gitignore, _) = Gitignore::global();
     if !global_gitignore.is_empty() {
         gitignores.push(global_gitignore);
     }
+    add_gitignore_for_directory(directory_path, &mut gitignores);
     gitignores
+}
+
+/// 将仓库根目录到事件路径父目录的 `.gitignore` 规则补进快照。
+///
+/// 该函数只在后台扫描中调用。惰性目录可能尚未被树构建访问过，但其祖先规则
+/// 依然必须参与新增、删除和重命名事件的 Git ignore 判定。`checked_directories`
+/// 同时缓存不存在 `.gitignore` 的目录，避免高频文件事件反复探测同一路径。
+#[cfg(feature = "local_fs")]
+pub fn add_gitignores_for_path(
+    repo_root: &Path,
+    path: &Path,
+    is_dir: bool,
+    gitignores: &mut Vec<Gitignore>,
+    checked_directories: &mut HashSet<PathBuf>,
+) {
+    let directory = if is_dir {
+        path
+    } else {
+        path.parent().unwrap_or(repo_root)
+    };
+    let Ok(relative_directory) = directory.strip_prefix(repo_root) else {
+        return;
+    };
+
+    let mut current_directory = repo_root.to_path_buf();
+    add_gitignore_for_directory_if_needed(&current_directory, gitignores, checked_directories);
+    for component in relative_directory.components() {
+        if let Component::Normal(component) = component {
+            current_directory.push(component);
+            add_gitignore_for_directory_if_needed(
+                &current_directory,
+                gitignores,
+                checked_directories,
+            );
+        }
+    }
+}
+
+/// 丢弃某个目录及其后代的规则探测缓存。
+///
+/// 目录被删除或移动后，原 `.gitignore` matcher 不能继续用于未来重新创建的路径。
+/// 调用方随后会按需重新加载该路径的规则。
+#[cfg(feature = "local_fs")]
+pub fn invalidate_gitignores_under_path(
+    path: &Path,
+    gitignores: &mut Vec<Gitignore>,
+    checked_directories: &mut HashSet<PathBuf>,
+) {
+    gitignores.retain(|gitignore| {
+        let gitignore_path = gitignore.path();
+        gitignore_path.as_os_str().is_empty() || !gitignore_path.starts_with(path)
+    });
+    checked_directories.retain(|directory| !directory.starts_with(path));
+}
+
+#[cfg(feature = "local_fs")]
+fn add_gitignore_for_directory_if_needed(
+    directory_path: &Path,
+    gitignores: &mut Vec<Gitignore>,
+    checked_directories: &mut HashSet<PathBuf>,
+) {
+    if checked_directories.insert(directory_path.to_path_buf()) {
+        add_gitignore_for_directory(directory_path, gitignores);
+    }
+}
+
+/// 将目录自己的 `.gitignore` 加入快照，避免对同一目录重复构建 matcher。
+#[cfg(feature = "local_fs")]
+fn add_gitignore_for_directory(directory_path: &Path, gitignores: &mut Vec<Gitignore>) {
+    if gitignores
+        .iter()
+        .any(|gitignore| gitignore.path() == directory_path)
+    {
+        return;
+    }
+
+    let gitignore_path = directory_path.join(".gitignore");
+    if gitignore_path.exists() {
+        let (gitignore, _) = Gitignore::new(gitignore_path);
+        gitignores.push(gitignore);
+    }
 }
 
 #[derive(Debug, Clone)]

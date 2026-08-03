@@ -1,7 +1,9 @@
 mod file_tree_state;
 
 use crate::file_tree_store::file_tree_state::FileTreeMapStore;
-use crate::{BuildTreeError, Entry, FileId, FileMetadata, Repository};
+#[cfg(feature = "local_fs")]
+use crate::BuildTreeError;
+use crate::{Entry, FileId, FileMetadata, Repository};
 use ignore::gitignore::Gitignore;
 use std::sync::Arc;
 use warp_util::standardized_path::StandardizedPath;
@@ -41,12 +43,13 @@ impl FileTreeEntry {
         self.state_map.rename_path(path, new_path)
     }
 
-    pub fn load_at_path(
+    #[cfg(feature = "local_fs")]
+    pub async fn load_at_path(
         &mut self,
         path: &StandardizedPath,
         gitignores: &mut Vec<Gitignore>,
     ) -> Result<(), BuildTreeError> {
-        self.state_map.load_at_path(path, gitignores)
+        self.state_map.load_at_path(path, gitignores).await
     }
 
     pub fn insert_entry_at_path(&mut self, path: Arc<StandardizedPath>, entry: Entry) {
@@ -357,7 +360,6 @@ pub struct FileTreeState {
     pub gitignores: Vec<Gitignore>,
 
     /// Handle to the backing repository (None for lazily-loaded standalone paths).
-    #[expect(unused)]
     repository: Option<ModelHandle<Repository>>,
 }
 
@@ -376,10 +378,10 @@ impl FileTreeState {
     }
 
     /// Creates a new FileTreeState for a lazily-loaded standalone path.
-    pub fn new_lazy_loaded(entry: Entry) -> Self {
+    pub fn new_lazy_loaded(entry: Entry, gitignores: Vec<Gitignore>) -> Self {
         Self {
             entry: entry.into(),
-            gitignores: vec![],
+            gitignores,
             repository: None,
         }
     }
@@ -394,6 +396,11 @@ impl FileTreeState {
             gitignores: vec![],
             repository: None,
         }
+    }
+
+    /// 返回本地仓库句柄；远端与惰性路径没有对应句柄。
+    pub(crate) fn repository_handle(&self) -> Option<ModelHandle<Repository>> {
+        self.repository.clone()
     }
 }
 

@@ -48,6 +48,7 @@ impl ModalSizes {
         left_panel_size: f32,
         right_panel_size: f32,
         persist_vertical_tabs_panel_width: bool,
+        remembered_vertical_tabs_panel_width: f32,
     ) -> Self {
         let universal_search_width = window_snapshot
             .universal_search_width
@@ -69,7 +70,7 @@ impl ModalSizes {
         let vertical_tabs_panel_width = if persist_vertical_tabs_panel_width {
             window_snapshot
                 .vertical_tabs_panel_width
-                .unwrap_or(DEFAULT_VERTICAL_TABS_PANEL_WIDTH)
+                .unwrap_or(remembered_vertical_tabs_panel_width)
         } else {
             DEFAULT_VERTICAL_TABS_PANEL_WIDTH
         };
@@ -86,7 +87,18 @@ impl ModalSizes {
         }
     }
 
-    pub fn default_with_panel_defaults(left_default: f32, right_default: f32) -> Self {
+    pub fn default_with_panel_defaults(
+        left_default: f32,
+        right_default: f32,
+        persist_vertical_tabs_panel_width: bool,
+        remembered_vertical_tabs_panel_width: f32,
+    ) -> Self {
+        let vertical_tabs_panel_width = if persist_vertical_tabs_panel_width {
+            remembered_vertical_tabs_panel_width
+        } else {
+            DEFAULT_VERTICAL_TABS_PANEL_WIDTH
+        };
+
         ModalSizes {
             universal_search_width: resizable_state_handle(DEFAULT_UNIVERSAL_SEARCH_WIDTH),
             warp_ai_width: resizable_state_handle(DEFAULT_WARP_AI_WIDTH),
@@ -95,7 +107,7 @@ impl ModalSizes {
             settings_panel_width: resizable_state_handle(DEFAULT_SETTINGS_PANEL_WIDTH),
             left_panel_width: resizable_state_handle(left_default),
             right_panel_width: resizable_state_handle(right_default),
-            vertical_tabs_panel_width: resizable_state_handle(DEFAULT_VERTICAL_TABS_PANEL_WIDTH),
+            vertical_tabs_panel_width: resizable_state_handle(vertical_tabs_panel_width),
         }
     }
 

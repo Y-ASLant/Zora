@@ -15,7 +15,7 @@ define_settings_group!(BlockListSettings, settings: [
    },
    snackbar_enabled: SnackbarEnabled {
        type: bool,
-       default: true,
+       default: false,
        supported_platforms: SupportedPlatforms::ALL,
        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
        private: false,

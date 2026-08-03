@@ -56,6 +56,7 @@ pub use action::{
     VerticalTabsPaneContextMenuTarget, WorkspaceAction,
 };
 pub use active_session::ActiveSession;
+pub(crate) use global_actions::persist_app_snapshot_before_termination;
 pub use global_actions::{
     ForkAIConversationParams, ForkFromExchange, ForkedConversationDestination,
 };

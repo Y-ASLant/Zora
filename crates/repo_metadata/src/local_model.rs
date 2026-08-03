@@ -5,12 +5,21 @@
 //! all repositories tracked by Zap.
 
 use std::{
-    collections::HashMap,
+    cell::Cell,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
+    rc::Rc,
 };
 
+#[cfg(feature = "local_fs")]
+use std::sync::OnceLock;
+
+use futures::{channel::oneshot, future::BoxFuture, FutureExt as _};
 use warp_core::{safe_warn, send_telemetry_from_ctx};
-use warpui::ModelHandle;
+use warpui::{
+    r#async::{FutureId, SpawnedFutureHandle},
+    ModelHandle,
+};
 
 /// Represents either a file or directory in a repository.
 #[derive(Debug, Clone)]
@@ -21,9 +30,10 @@ pub enum RepoContent<'a> {
 
 use warp_util::standardized_path::StandardizedPath;
 
+#[cfg(feature = "local_fs")]
+use crate::{add_gitignores_for_path, gitignores_for_directory, matches_gitignores};
 use crate::{
     entry::{Entry, FileId, IgnoredPathStrategy},
-    gitignores_for_directory, matches_gitignores,
     repository::Repository,
     telemetry::RepoMetadataTelemetryEvent,
     RepoMetadataError,
@@ -51,6 +61,50 @@ use crate::file_tree_update::{
 };
 use ignore::gitignore::Gitignore;
 use warpui::ModelContext;
+
+#[cfg(feature = "local_fs")]
+const MAX_CONCURRENT_TREE_SCANS: usize = 2;
+
+/// 限制同时执行的目录扫描数，避免大量 watcher 事件在后台同时抢占磁盘、CPU
+/// 和防病毒扫描资源。令牌在 future 被取消时自动归还。
+#[cfg(feature = "local_fs")]
+struct TreeScanPermit {
+    available: async_channel::Sender<()>,
+}
+
+#[cfg(feature = "local_fs")]
+impl Drop for TreeScanPermit {
+    fn drop(&mut self) {
+        let _ = self.available.try_send(());
+    }
+}
+
+#[cfg(feature = "local_fs")]
+fn tree_scan_limiter() -> &'static (async_channel::Sender<()>, async_channel::Receiver<()>) {
+    static LIMITER: OnceLock<(async_channel::Sender<()>, async_channel::Receiver<()>)> =
+        OnceLock::new();
+    LIMITER.get_or_init(|| {
+        let (sender, receiver) = async_channel::bounded(MAX_CONCURRENT_TREE_SCANS);
+        for _ in 0..MAX_CONCURRENT_TREE_SCANS {
+            sender
+                .try_send(())
+                .expect("Tree scan limiter must accept its initial permits");
+        }
+        (sender, receiver)
+    })
+}
+
+#[cfg(feature = "local_fs")]
+async fn acquire_tree_scan_permit() -> TreeScanPermit {
+    let (available, permits) = tree_scan_limiter();
+    permits
+        .recv()
+        .await
+        .expect("Tree scan limiter sender must remain alive");
+    TreeScanPermit {
+        available: available.clone(),
+    }
+}
 
 /// Maximum depth to traverse when building file trees
 const MAX_TREE_DEPTH: usize = 200;
@@ -128,6 +182,12 @@ pub struct LocalRepoMetadataModel {
     repositories: HashMap<StandardizedPath, IndexedRepoState>,
     /// Refcounts for lazily-loaded standalone paths tracked in the model.
     lazy_loaded_paths: HashMap<StandardizedPath, usize>,
+    /// 后台目录构建任务。键同时包含所属仓库与目标目录，避免不同仓库同路径冲突。
+    build_tasks: HashMap<BuildTaskKey, BuildTask>,
+    /// 每个仓库最多一个后台文件监视器更新任务。新事件会合并并替换旧任务，
+    /// 防止旧扫描结果在新事件之后写回内存树。
+    #[cfg(feature = "local_fs")]
+    watcher_update_tasks: HashMap<StandardizedPath, WatcherUpdateTask>,
     /// File system watcher for monitoring changes.
     #[cfg(feature = "local_fs")]
     watcher: Option<ModelHandle<BulkFilesystemWatcher>>,
@@ -139,9 +199,96 @@ pub struct LocalRepoMetadataModel {
 
 #[derive(Debug, Clone, Default)]
 struct RepoUpdate {
-    added: Vec<PathBuf>,
-    deleted: Vec<PathBuf>,
+    added: HashSet<PathBuf>,
+    deleted: HashSet<PathBuf>,
     moved: HashMap<PathBuf, PathBuf>,
+}
+
+impl RepoUpdate {
+    /// 合并同一仓库尚未提交的 watcher 事件。
+    ///
+    /// 保留删除、创建和重命名的并集，再由后台读取最终文件系统状态判定最终
+    /// 树形；这样即便前一轮扫描被替换，也不会遗漏已收到的事件。
+    fn merge(&mut self, incoming: Self) {
+        self.added.extend(incoming.added);
+        self.deleted.extend(incoming.deleted);
+        self.moved.extend(incoming.moved);
+    }
+
+    /// 规则文件或持有规则的目录发生变化时，需要重建规则快照和整棵树。
+    fn requires_full_rescan(&self, gitignores: &[Gitignore]) -> bool {
+        let directly_changes_gitignore = self
+            .added
+            .iter()
+            .chain(&self.deleted)
+            .chain(self.moved.keys())
+            .chain(self.moved.values())
+            .any(|path| path.file_name().is_some_and(|name| name == ".gitignore"));
+        if directly_changes_gitignore {
+            return true;
+        }
+
+        // 某些平台会将包含 `.gitignore` 的目录折叠为一次删除/重命名事件。
+        // 若已缓存的规则目录位于被移除的子树内，保守地全量重建，避免继续
+        // 对不存在的规则文件做匹配。
+        self.deleted
+            .iter()
+            .chain(self.moved.values())
+            .any(|changed_path| {
+                gitignores.iter().any(|gitignore| {
+                    !gitignore.path().as_os_str().is_empty()
+                        && gitignore.path().starts_with(changed_path)
+                })
+            })
+    }
+}
+
+/// 一个仓库当前唯一有效的 watcher 扫描任务。
+#[cfg(feature = "local_fs")]
+struct WatcherUpdateTask {
+    /// 该任务覆盖的完整事件集合，用于新事件到来时无损合并。
+    update: RepoUpdate,
+    handle: SpawnedFutureHandle,
+}
+
+/// 后台扫描产生的结果。只有该结果会在 UI 线程写入内存树。
+#[cfg(feature = "local_fs")]
+enum WatcherTreeUpdate {
+    Incremental {
+        mutations: Vec<FileTreeMutation>,
+        gitignores: Vec<Gitignore>,
+    },
+    FullRescan {
+        root_entry: Entry,
+        gitignores: Vec<Gitignore>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct BuildTaskKey {
+    owner_repo_path: StandardizedPath,
+    target_path: StandardizedPath,
+}
+
+impl BuildTaskKey {
+    fn new(owner_repo_path: StandardizedPath, target_path: StandardizedPath) -> Self {
+        Self {
+            owner_repo_path,
+            target_path,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BuildTaskKind {
+    Index,
+    DirectoryLoad,
+}
+
+struct BuildTask {
+    kind: BuildTaskKind,
+    handle: SpawnedFutureHandle,
+    completion_waiters: Vec<oneshot::Sender<Result<(), String>>>,
 }
 
 /// Describes a single file-tree mutation computed on a background thread.
@@ -216,6 +363,9 @@ impl LocalRepoMetadataModel {
         let mut model = Self {
             repositories: HashMap::new(),
             lazy_loaded_paths: HashMap::new(),
+            build_tasks: HashMap::new(),
+            #[cfg(feature = "local_fs")]
+            watcher_update_tasks: HashMap::new(),
             #[cfg(feature = "local_fs")]
             watcher: None,
             emit_incremental_updates: false,
@@ -261,104 +411,335 @@ impl LocalRepoMetadataModel {
         event: &BulkFilesystemWatcherEvent,
         ctx: &mut ModelContext<Self>,
     ) {
-        // Create a map to collect changes per repository
+        // UI 线程只做路径标准化、仓库路由和事件合并；绝不查询磁盘。
         let mut repo_updates: HashMap<StandardizedPath, RepoUpdate> = HashMap::new();
 
-        // Process added or updated files
         for path in event.added_or_updated_iter() {
-            if let Some(repo_path) = self.find_repository_for_path(path) {
+            if let Some(repo_path) = self.find_repository_for_watcher_path(path) {
                 let repo_update = repo_updates.entry(repo_path).or_default();
-                repo_update.added.push(path.to_path_buf());
+                repo_update.added.insert(path.to_path_buf());
             }
         }
 
-        // Process deleted files
         for path in &event.deleted {
-            if let Some(repo_path) =
-                self.find_repository_for_path_string(path.to_string_lossy().as_ref())
-            {
+            if let Some(repo_path) = self.find_repository_for_watcher_path(path) {
                 let repo_update = repo_updates.entry(repo_path).or_default();
-                repo_update.deleted.push(path.to_path_buf());
-            } else {
-                log::warn!("Deleted file not found in any repo: {path:?} not found in any repo");
+                repo_update.deleted.insert(path.to_path_buf());
             }
         }
 
-        // Process moved files
         for (to_path, from_path) in &event.moved {
-            if let Some(repo_path) = self.find_repository_for_path(to_path) {
-                let repo_update = repo_updates.entry(repo_path).or_default();
-                repo_update
-                    .moved
-                    .insert(to_path.to_path_buf(), from_path.to_path_buf());
+            let to_repo_path = self.find_repository_for_watcher_path(to_path);
+            let from_repo_path = self.find_repository_for_watcher_path(from_path);
+            match (to_repo_path, from_repo_path) {
+                (Some(to_repo_path), Some(from_repo_path)) if to_repo_path == from_repo_path => {
+                    let repo_update = repo_updates.entry(to_repo_path).or_default();
+                    repo_update
+                        .moved
+                        .insert(to_path.to_path_buf(), from_path.to_path_buf());
+                }
+                (Some(to_repo_path), Some(from_repo_path)) => {
+                    repo_updates
+                        .entry(to_repo_path)
+                        .or_default()
+                        .added
+                        .insert(to_path.to_path_buf());
+                    repo_updates
+                        .entry(from_repo_path)
+                        .or_default()
+                        .deleted
+                        .insert(from_path.to_path_buf());
+                }
+                (Some(to_repo_path), None) => {
+                    repo_updates
+                        .entry(to_repo_path)
+                        .or_default()
+                        .added
+                        .insert(to_path.to_path_buf());
+                }
+                (None, Some(from_repo_path)) => {
+                    repo_updates
+                        .entry(from_repo_path)
+                        .or_default()
+                        .deleted
+                        .insert(from_path.to_path_buf());
+                }
+                (None, None) => {}
             }
         }
 
-        // Collect all paths that have been updated and emit an event.
         ctx.emit(RepositoryMetadataEvent::FileTreeUpdated {
             paths: repo_updates.keys().cloned().collect(),
         });
-        // Apply updates to each affected repository asynchronously.
-        // Phase 1 (background thread): compute lightweight mutations via filesystem I/O.
-        // Phase 2 (main thread callback): apply mutations directly to the tree — no clone needed.
         for (repo_path, repo_scoped_update) in repo_updates {
-            if let Some(IndexedRepoState::Indexed(state)) = self.repositories.get_mut(&repo_path) {
+            let repo_scoped_update =
+                self.replace_watcher_update_task(&repo_path, repo_scoped_update);
+            if let Some(IndexedRepoState::Indexed(state)) = self.repositories.get(&repo_path) {
                 let repo_path_clone = repo_path.clone();
+                let Some(local_repo_path) = repo_path.to_local_path() else {
+                    continue;
+                };
                 let gitignores_clone = state.gitignores.clone();
                 let lazy_load = self.lazy_loaded_paths.contains_key(&repo_path);
-                ctx.spawn(
+                let task_repo_path = repo_path.clone();
+                let task_update = repo_scoped_update.clone();
+                let task_future_id = Rc::new(Cell::new(None));
+                let task_future_id_for_completion = task_future_id.clone();
+                let update_handle = ctx.spawn(
                     async move {
-                        let mutations = Self::compute_file_tree_mutations(
-                            &repo_scoped_update,
-                            &gitignores_clone,
+                        let update = Self::compute_watcher_tree_update(
+                            task_update,
+                            local_repo_path,
+                            gitignores_clone,
+                            lazy_load,
                         )
                         .await;
-                        (mutations, repo_path_clone, lazy_load)
+                        (update, repo_path_clone, lazy_load)
                     },
-                    |model, (mutations, repo_path, lazy_load), ctx| {
+                    move |model, (update, repo_path, lazy_load), ctx| {
+                        if model
+                            .finish_watcher_update_task(
+                                &repo_path,
+                                task_future_id_for_completion.get(),
+                            )
+                            .is_none()
+                        {
+                            return;
+                        }
+                        let Ok(update) = update else {
+                            log::debug!(
+                                "Failed to refresh repository tree after watcher event: {repo_path}"
+                            );
+                            return;
+                        };
                         if let Some(IndexedRepoState::Indexed(state)) =
                             model.repositories.get_mut(&repo_path)
                         {
-                            let update = Self::apply_file_tree_mutations(
-                                &mut state.entry,
-                                mutations,
-                                lazy_load,
-                                model.emit_incremental_updates,
-                            );
-                            ctx.emit(RepositoryMetadataEvent::FileTreeEntryUpdated {
-                                path: repo_path,
-                            });
+                            match update {
+                                WatcherTreeUpdate::Incremental {
+                                    mutations,
+                                    gitignores,
+                                } => {
+                                    if let Some(repository) = state.repository_handle() {
+                                        repository.update(ctx, |repository, _ctx| {
+                                            repository.set_gitignores(gitignores.clone());
+                                        });
+                                    }
+                                    state.gitignores = gitignores;
+                                    let incremental_update = Self::apply_file_tree_mutations(
+                                        &mut state.entry,
+                                        mutations,
+                                        lazy_load,
+                                        model.emit_incremental_updates,
+                                    );
+                                    ctx.emit(RepositoryMetadataEvent::FileTreeEntryUpdated {
+                                        path: repo_path,
+                                    });
 
-                            if let Some(update) = update {
-                                ctx.emit(RepositoryMetadataEvent::IncrementalUpdateReady {
-                                    update,
-                                });
+                                    if let Some(incremental_update) = incremental_update {
+                                        ctx.emit(RepositoryMetadataEvent::IncrementalUpdateReady {
+                                            update: incremental_update,
+                                        });
+                                    }
+                                }
+                                WatcherTreeUpdate::FullRescan {
+                                    root_entry,
+                                    gitignores,
+                                } => {
+                                    if let Some(repository) = state.repository_handle() {
+                                        repository.update(ctx, |repository, _ctx| {
+                                            repository.set_gitignores(gitignores.clone());
+                                        });
+                                    }
+                                    state.entry = root_entry.into();
+                                    state.gitignores = gitignores;
+                                    // 远端会把 RepositoryUpdated 作为完整快照发送，避免
+                                    // 将整棵重建树拆成大量增量补丁。
+                                    ctx.emit(RepositoryMetadataEvent::RepositoryUpdated {
+                                        path: repo_path.clone(),
+                                    });
+                                    ctx.emit(RepositoryMetadataEvent::FileTreeEntryUpdated {
+                                        path: repo_path,
+                                    });
+                                }
                             }
                         }
                     },
                 );
+                task_future_id.set(Some(update_handle.future_id()));
+                self.track_watcher_update_task(task_repo_path, repo_scoped_update, update_handle);
             }
         }
     }
 
     #[cfg(feature = "local_fs")]
-    fn find_repository_for_path_string(&self, path_str: &str) -> Option<StandardizedPath> {
+    fn find_repository_for_standardized_path(
+        &self,
+        path: &StandardizedPath,
+    ) -> Option<StandardizedPath> {
         self.repositories
             .iter()
             .filter(|(repo_path, state)| {
-                let repo_path_str = repo_path.as_str();
-                path_str.starts_with(repo_path_str) && matches!(state, IndexedRepoState::Indexed(_))
+                path.starts_with(repo_path) && matches!(state, IndexedRepoState::Indexed(_))
             })
             .max_by_key(|(repo_path, _)| repo_path.as_str().len())
             .map(|(repo_path, _)| repo_path.clone())
     }
 
     #[cfg(feature = "local_fs")]
+    fn find_repository_for_watcher_path(&self, path: &Path) -> Option<StandardizedPath> {
+        let standardized_path = StandardizedPath::try_from_local(path).ok()?;
+        self.find_repository_for_standardized_path(&standardized_path)
+    }
+
+    /// 兼容现有按真实文件系统路径查询仓库的调用方。
+    ///
+    /// watcher 的 UI 回调不得调用此方法；它使用
+    /// [`find_repository_for_watcher_path`](Self::find_repository_for_watcher_path)
+    /// 进行纯内存路径路由。
+    #[cfg(feature = "local_fs")]
     pub fn find_repository_for_path(&self, path: &Path) -> Option<StandardizedPath> {
-        match StandardizedPath::from_local_canonicalized(path) {
-            Ok(std_path) => self.find_repository_for_path_string(std_path.as_str()),
-            Err(_) => None,
+        let standardized_path = StandardizedPath::from_local_canonicalized(path).ok()?;
+        self.find_repository_for_standardized_path(&standardized_path)
+    }
+
+    fn track_build_task(
+        &mut self,
+        key: BuildTaskKey,
+        kind: BuildTaskKind,
+        handle: SpawnedFutureHandle,
+    ) {
+        if let Some(existing_task) = self.build_tasks.insert(
+            key,
+            BuildTask {
+                kind,
+                handle,
+                completion_waiters: Vec::new(),
+            },
+        ) {
+            existing_task.handle.abort();
+            Self::notify_completion_waiters(
+                existing_task.completion_waiters,
+                Err("项目树构建任务已被替换".to_string()),
+            );
         }
+    }
+
+    fn finish_build_task(
+        &mut self,
+        key: &BuildTaskKey,
+        future_id: Option<FutureId>,
+    ) -> Option<BuildTask> {
+        match (future_id, self.build_tasks.get(key)) {
+            (Some(future_id), Some(task)) if task.handle.future_id() == future_id => {
+                self.build_tasks.remove(key)
+            }
+            _ => None,
+        }
+    }
+
+    fn subscribe_to_build_task(
+        &mut self,
+        key: &BuildTaskKey,
+    ) -> Option<oneshot::Receiver<Result<(), String>>> {
+        let task = self.build_tasks.get_mut(key)?;
+        if task.kind != BuildTaskKind::DirectoryLoad {
+            return None;
+        }
+        let (completion_tx, completion_rx) = oneshot::channel();
+        task.completion_waiters.push(completion_tx);
+        Some(completion_rx)
+    }
+
+    fn wait_for_build_task(
+        completion_rx: oneshot::Receiver<Result<(), String>>,
+    ) -> BoxFuture<'static, Result<(), RepoMetadataError>> {
+        async move {
+            completion_rx
+                .await
+                .unwrap_or_else(|_| Err("项目树构建任务已取消".to_string()))
+                .map_err(RepoMetadataError::InvalidPath)
+        }
+        .boxed()
+    }
+
+    fn notify_completion_waiters(
+        waiters: Vec<oneshot::Sender<Result<(), String>>>,
+        result: Result<(), String>,
+    ) {
+        for waiter in waiters {
+            let _ = waiter.send(result.clone());
+        }
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn replace_watcher_update_task(
+        &mut self,
+        repo_path: &StandardizedPath,
+        mut incoming_update: RepoUpdate,
+    ) -> RepoUpdate {
+        if let Some(existing_task) = self.watcher_update_tasks.remove(repo_path) {
+            existing_task.handle.abort();
+            incoming_update.merge(existing_task.update);
+        }
+        incoming_update
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn track_watcher_update_task(
+        &mut self,
+        repo_path: StandardizedPath,
+        update: RepoUpdate,
+        handle: SpawnedFutureHandle,
+    ) {
+        let existing_task = self
+            .watcher_update_tasks
+            .insert(repo_path, WatcherUpdateTask { update, handle });
+        if let Some(existing_task) = existing_task {
+            existing_task.handle.abort();
+        }
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn finish_watcher_update_task(
+        &mut self,
+        repo_path: &StandardizedPath,
+        future_id: Option<FutureId>,
+    ) -> Option<WatcherUpdateTask> {
+        let future_id = future_id?;
+        match self.watcher_update_tasks.get(repo_path) {
+            Some(task) if task.handle.future_id() == future_id => {
+                self.watcher_update_tasks.remove(repo_path)
+            }
+            _ => None,
+        }
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn abort_watcher_update_tasks_for_repo(&mut self, repo_path: &StandardizedPath) {
+        if let Some(task) = self.watcher_update_tasks.remove(repo_path) {
+            task.handle.abort();
+        }
+    }
+
+    fn abort_builds_for_repo(&mut self, repo_path: &StandardizedPath) {
+        let task_keys = self
+            .build_tasks
+            .keys()
+            .filter(|key| &key.owner_repo_path == repo_path)
+            .cloned()
+            .collect::<Vec<_>>();
+        for key in task_keys {
+            if let Some(task) = self.build_tasks.remove(&key) {
+                task.handle.abort();
+                Self::notify_completion_waiters(
+                    task.completion_waiters,
+                    Err("项目树构建任务已取消".to_string()),
+                );
+            }
+        }
+        #[cfg(feature = "local_fs")]
+        self.abort_watcher_update_tasks_for_repo(repo_path);
     }
 
     /// Adds or updates a repository's file tree state.
@@ -372,17 +753,6 @@ impl LocalRepoMetadataModel {
             .to_local_path()
             .ok_or_else(|| RepoMetadataError::PathEncodingMismatch(repo_path.clone()))?;
 
-        // Validate the repository path exists
-        if !local_path.exists() {
-            return Err(RepoMetadataError::RepoNotFound(repo_path.to_string()));
-        }
-
-        if !local_path.is_dir() {
-            return Err(RepoMetadataError::InvalidPath(
-                "Repository path must be a directory".to_string(),
-            ));
-        }
-
         // Register this path with the watcher if we have one. Skip the home
         // directory and its ancestors to avoid recursively watching unrelated
         // user data; those paths can still be listed in the file tree.
@@ -391,12 +761,11 @@ impl LocalRepoMetadataModel {
             if let Some(ref watcher) = self.watcher {
                 if !is_unsafe_watch_root(&local_path) {
                     let watch_path = local_path.clone();
-                    let gitignores = gitignores_for_directory(&watch_path);
                     watcher.update(ctx, |watcher, _ctx| {
                         use crate::entry::repo_watch_filter;
                         std::mem::drop(watcher.register_path(
                             &watch_path,
-                            repo_watch_filter(watch_path.clone(), gitignores),
+                            repo_watch_filter(watch_path.clone()),
                             RecursiveMode::Recursive,
                         ));
                     });
@@ -422,6 +791,7 @@ impl LocalRepoMetadataModel {
         repo_path: &StandardizedPath,
         ctx: &mut ModelContext<Self>,
     ) -> Result<(), RepoMetadataError> {
+        self.abort_builds_for_repo(repo_path);
         if self.repositories.remove(repo_path).is_some() {
             // Unregister from watcher, mirroring the guard in add_repository_internal:
             // home directory and ancestors are never registered, so skip them here too.
@@ -502,32 +872,66 @@ impl LocalRepoMetadataModel {
         let local_path = path
             .to_local_path()
             .ok_or_else(|| RepoMetadataError::PathEncodingMismatch(path.clone()))?;
-        if !local_path.exists() {
-            return Err(RepoMetadataError::RepoNotFound(path.to_string()));
-        }
-        if !local_path.is_dir() {
-            return Err(RepoMetadataError::InvalidPath(
-                "Path must be a directory".to_string(),
-            ));
-        }
 
-        // Build first-level-only tree.
-        let mut files = Vec::new();
-        let mut file_limit = MAX_FILES_PER_REPO;
-        let root_entry = Entry::build_tree(
-            &local_path,
-            &mut files,
-            &mut vec![],
-            Some(&mut file_limit),
-            1, // max_depth — only first level
-            0,
-            &IgnoredPathStrategy::Include,
-        )
-        .map_err(RepoMetadataError::BuildTree)?;
-
-        let state = FileTreeState::new_lazy_loaded(root_entry);
-        self.add_repository_internal(path.clone(), state, ctx)?;
         self.lazy_loaded_paths.insert(path.clone(), 1);
+        self.repositories
+            .insert(path.clone(), IndexedRepoState::Pending);
+
+        let task_key = BuildTaskKey::new(path.clone(), path.clone());
+        let task_key_for_completion = task_key.clone();
+        let task_future_id = Rc::new(Cell::new(None));
+        let task_future_id_for_completion = task_future_id.clone();
+        let path_for_build = path.clone();
+        let build_handle = ctx.spawn(
+            async move {
+                let result = Self::build_tree_from_local_path(
+                    local_path,
+                    1, // max_depth — only first level
+                    IgnoredPathStrategy::Include,
+                )
+                .await;
+                (result, path_for_build)
+            },
+            move |model, (build_result, path), ctx| {
+                if model
+                    .finish_build_task(
+                        &task_key_for_completion,
+                        task_future_id_for_completion.get(),
+                    )
+                    .is_none()
+                {
+                    return;
+                }
+                if !model.lazy_loaded_paths.contains_key(&path) {
+                    return;
+                }
+
+                match build_result {
+                    Ok((root_entry, _, gitignores)) => {
+                        let state = FileTreeState::new_lazy_loaded(root_entry, gitignores);
+                        if let Err(error) = model.add_repository_internal(path.clone(), state, ctx)
+                        {
+                            log::warn!("Failed to add lazy-loaded path {path}: {error:?}");
+                            model.lazy_loaded_paths.remove(&path);
+                            model
+                                .repositories
+                                .insert(path.clone(), IndexedRepoState::Failed(error));
+                            ctx.emit(RepositoryMetadataEvent::UpdatingRepositoryFailed { path });
+                        }
+                    }
+                    Err(error) => {
+                        log::warn!("Failed to lazy-load path {path}: {error:?}");
+                        model.lazy_loaded_paths.remove(&path);
+                        model
+                            .repositories
+                            .insert(path.clone(), IndexedRepoState::Failed(error));
+                        ctx.emit(RepositoryMetadataEvent::UpdatingRepositoryFailed { path });
+                    }
+                }
+            },
+        );
+        task_future_id.set(Some(build_handle.future_id()));
+        self.track_build_task(task_key, BuildTaskKind::Index, build_handle);
         Ok(())
     }
 
@@ -559,20 +963,133 @@ impl LocalRepoMetadataModel {
         dir_path: &StandardizedPath,
         ctx: &mut ModelContext<Self>,
     ) -> Result<(), RepoMetadataError> {
+        let completion = self.load_directory_with_completion(repo_root, dir_path, ctx)?;
+        std::mem::drop(completion);
+        Ok(())
+    }
+
+    /// 后台加载目录；相同目录的并发请求会复用同一个构建任务。
+    #[cfg(feature = "local_fs")]
+    pub fn load_directory_with_completion(
+        &mut self,
+        repo_root: &StandardizedPath,
+        dir_path: &StandardizedPath,
+        ctx: &mut ModelContext<Self>,
+    ) -> Result<BoxFuture<'static, Result<(), RepoMetadataError>>, RepoMetadataError> {
+        let task_key = BuildTaskKey::new(repo_root.clone(), dir_path.clone());
+        if let Some(completion_rx) = self.subscribe_to_build_task(&task_key) {
+            return Ok(Self::wait_for_build_task(completion_rx));
+        }
+
         let Some(IndexedRepoState::Indexed(state)) = self.repositories.get_mut(repo_root) else {
             return Err(RepoMetadataError::RepoNotFound(repo_root.to_string()));
         };
+        let Some(FileTreeEntryState::Directory(directory)) = state.entry.get(dir_path) else {
+            return Err(RepoMetadataError::InvalidPath(format!(
+                "Directory is not present in the project tree: {dir_path}"
+            )));
+        };
+        if directory.loaded {
+            return Ok(async { Ok(()) }.boxed());
+        }
 
+        let expected_directory_path = directory.path.clone();
         let mut gitignores = state.gitignores.clone();
-        state
-            .entry
-            .load_at_path(dir_path, &mut gitignores)
-            .map_err(RepoMetadataError::BuildTree)?;
+        let dir_path_for_build = dir_path.to_local_path_lossy();
+        let repo_root_for_completion = repo_root.clone();
+        let dir_path_for_completion = dir_path.clone();
+        let task_key_for_completion = task_key.clone();
+        let task_future_id = Rc::new(Cell::new(None));
+        let task_future_id_for_completion = task_future_id.clone();
+        let (completion_tx, completion_rx) = oneshot::channel();
+        let build_handle = ctx.spawn(
+            async move {
+                let _scan_permit = acquire_tree_scan_permit().await;
+                let mut files = Vec::new();
+                let mut file_limit = crate::entry::LAZY_LOAD_FILE_LIMIT;
+                let entry = Entry::build_tree(
+                    dir_path_for_build,
+                    &mut files,
+                    &mut gitignores,
+                    Some(&mut file_limit),
+                    1, // 只加载展开目录的下一层
+                    0,
+                    &IgnoredPathStrategy::Include,
+                )
+                .await?;
+                Ok::<_, crate::entry::BuildTreeError>((entry, gitignores))
+            },
+            move |model, build_result, ctx| {
+                let completion = if let Some(task) = model.finish_build_task(
+                    &task_key_for_completion,
+                    task_future_id_for_completion.get(),
+                ) {
+                    let completion = match build_result {
+                        Ok((entry, gitignores)) => match model.repositories.get_mut(&repo_root_for_completion) {
+                            Some(IndexedRepoState::Indexed(state)) => {
+                                if !matches!(
+                                    state.entry.get(&dir_path_for_completion),
+                                    Some(FileTreeEntryState::Directory(directory))
+                                        if !directory.loaded
+                                            && Arc::ptr_eq(&directory.path, &expected_directory_path)
+                                ) {
+                                    Err(RepoMetadataError::InvalidPath(format!(
+                                        "Directory changed while it was loading: {dir_path_for_completion}"
+                                    )))
+                                } else {
+                                    let repository = state.repository_handle();
+                                    state.entry.insert_entry_at_path(
+                                        Arc::new(dir_path_for_completion.clone()),
+                                        entry,
+                                    );
+                                    state.gitignores = gitignores.clone();
+                                    if let Some(repository) = repository {
+                                        repository.update(ctx, |repository, _| {
+                                            repository.set_gitignores(gitignores);
+                                        });
+                                    }
+                                    ctx.emit(RepositoryMetadataEvent::FileTreeEntryUpdated {
+                                        path: repo_root_for_completion.clone(),
+                                    });
+                                    Ok(())
+                                }
+                            }
+                            _ => Err(RepoMetadataError::RepoNotFound(
+                                repo_root_for_completion.to_string(),
+                            )),
+                        },
+                        Err(error) => {
+                            log::warn!(
+                                "Failed to load project-tree directory {dir_path_for_completion}: {error:?}"
+                            );
+                            Err(RepoMetadataError::BuildTree(error))
+                        }
+                    };
+                    let waiter_completion = completion
+                        .as_ref()
+                        .map(|_| ())
+                        .map_err(ToString::to_string);
+                    Self::notify_completion_waiters(task.completion_waiters, waiter_completion);
+                    completion
+                } else {
+                    Err(RepoMetadataError::InvalidPath(
+                        "Project-tree directory load was replaced or cancelled".to_string(),
+                    ))
+                };
+                let _ = completion_tx.send(completion);
+            },
+        );
+        task_future_id.set(Some(build_handle.future_id()));
+        self.track_build_task(task_key, BuildTaskKind::DirectoryLoad, build_handle);
 
-        ctx.emit(RepositoryMetadataEvent::FileTreeEntryUpdated {
-            path: repo_root.clone(),
-        });
-        Ok(())
+        Ok(async move {
+            completion_rx.await.unwrap_or_else(|_| {
+                Err(RepoMetadataError::InvalidPath(
+                    "Project-tree directory load was cancelled".to_string(),
+                ))
+            })
+        }
+        .boxed())
     }
 
     /// Checks whether the parent directory of `path` is loaded in the given entry.
@@ -583,16 +1100,106 @@ impl LocalRepoMetadataModel {
         entry.get(&parent).is_some_and(|state| state.loaded())
     }
 
+    /// 在后台验证根目录并构建树。所有实际文件系统访问都限制在此处。
+    #[cfg(feature = "local_fs")]
+    async fn build_tree_from_local_path(
+        local_path: PathBuf,
+        max_depth: usize,
+        ignored_path_strategy: IgnoredPathStrategy,
+    ) -> Result<(Entry, Vec<crate::entry::FileMetadata>, Vec<Gitignore>), RepoMetadataError> {
+        let _scan_permit = acquire_tree_scan_permit().await;
+        if !local_path.exists() {
+            return Err(RepoMetadataError::RepoNotFound(
+                local_path.to_string_lossy().into_owned(),
+            ));
+        }
+        if !local_path.is_dir() {
+            return Err(RepoMetadataError::InvalidPath(
+                "Repository path must be a directory".to_string(),
+            ));
+        }
+
+        let mut files = Vec::new();
+        let mut gitignores = gitignores_for_directory(&local_path);
+        let mut file_limit = MAX_FILES_PER_REPO;
+        let entry = Entry::build_tree(
+            local_path,
+            &mut files,
+            &mut gitignores,
+            Some(&mut file_limit),
+            max_depth,
+            0,
+            &ignored_path_strategy,
+        )
+        .await
+        .map_err(RepoMetadataError::BuildTree)?;
+
+        Ok((entry, files, gitignores))
+    }
+
+    /// 计算后台 watcher 更新。`.gitignore` 变更很少发生，但会影响整个仓库
+    /// 的规则，因此使用一次完整后台重建保证结果正确。
+    #[cfg(feature = "local_fs")]
+    async fn compute_watcher_tree_update(
+        update: RepoUpdate,
+        local_repo_path: PathBuf,
+        gitignores: Vec<Gitignore>,
+        lazy_load: bool,
+    ) -> Result<WatcherTreeUpdate, RepoMetadataError> {
+        if update.requires_full_rescan(&gitignores) {
+            let max_depth = if lazy_load { 1 } else { MAX_TREE_DEPTH };
+            let ignored_path_strategy = if lazy_load {
+                IgnoredPathStrategy::Include
+            } else {
+                IgnoredPathStrategy::IncludeLazy
+            };
+            let (root_entry, _, gitignores) =
+                Self::build_tree_from_local_path(local_repo_path, max_depth, ignored_path_strategy)
+                    .await?;
+            return Ok(WatcherTreeUpdate::FullRescan {
+                root_entry,
+                gitignores,
+            });
+        }
+
+        let (mutations, gitignores) =
+            Self::compute_file_tree_mutations(update, &local_repo_path, gitignores).await;
+        Ok(WatcherTreeUpdate::Incremental {
+            mutations,
+            gitignores,
+        })
+    }
+
     /// Phase 1: Computes file-tree mutations on a background thread.
     ///
     /// Performs all filesystem I/O (`exists()`, `is_dir()`, `build_tree()`,
     /// gitignore checks) and returns a lightweight list of mutations that can
     /// be applied to the tree on the main thread without cloning it.
+    #[cfg(feature = "local_fs")]
     async fn compute_file_tree_mutations(
-        update: &RepoUpdate,
-        gitignores: &[Gitignore],
-    ) -> Vec<FileTreeMutation> {
+        update: RepoUpdate,
+        repo_root: &Path,
+        mut gitignores: Vec<Gitignore>,
+    ) -> (Vec<FileTreeMutation>, Vec<Gitignore>) {
+        let _scan_permit = acquire_tree_scan_permit().await;
         let mut mutations = Vec::new();
+        let mut checked_gitignore_directories = HashSet::new();
+
+        for changed_path in update
+            .added
+            .iter()
+            .chain(&update.deleted)
+            .chain(update.moved.keys())
+            .chain(update.moved.values())
+        {
+            add_gitignores_for_path(
+                repo_root,
+                changed_path,
+                changed_path.is_dir(),
+                &mut gitignores,
+                &mut checked_gitignore_directories,
+            );
+        }
 
         // Removals for deleted and moved-from paths
         for path_to_remove in update.deleted.iter().chain(update.moved.values()) {
@@ -605,11 +1212,10 @@ impl LocalRepoMetadataModel {
                 continue;
             }
 
-            let is_ignored = Self::path_is_ignored(path_to_add, gitignores);
+            let is_ignored = Self::path_is_ignored(path_to_add, &gitignores);
 
             if path_to_add.is_dir() {
                 let mut files = Vec::new();
-                let mut gitignores = gitignores.to_owned();
                 let mut file_limit = MAX_FILES_PER_REPO;
                 match Entry::build_tree(
                     path_to_add,
@@ -619,7 +1225,9 @@ impl LocalRepoMetadataModel {
                     MAX_TREE_DEPTH,
                     0,
                     &IgnoredPathStrategy::IncludeLazy,
-                ) {
+                )
+                .await
+                {
                     Ok(subtree) => {
                         mutations.push(FileTreeMutation::AddDirectorySubtree {
                             dir_path: path_to_add.clone(),
@@ -649,7 +1257,7 @@ impl LocalRepoMetadataModel {
             }
         }
 
-        mutations
+        (mutations, gitignores)
     }
 
     /// Phase 2: Applies pre-computed mutations to the file tree on the main thread.
@@ -821,6 +1429,7 @@ impl LocalRepoMetadataModel {
     }
 
     /// Checks if a path matches any of the gitignore patterns
+    #[cfg(feature = "local_fs")]
     fn path_is_ignored(path: &Path, gitignores: &[Gitignore]) -> bool {
         // Check if any component of the path is .git
         if path
@@ -836,6 +1445,7 @@ impl LocalRepoMetadataModel {
     }
 
     /// Indexes a repository from the given repository handle.
+    #[cfg(feature = "local_fs")]
     pub fn index_directory(
         &mut self,
         repository: ModelHandle<Repository>,
@@ -845,17 +1455,6 @@ impl LocalRepoMetadataModel {
         let local_path = std_path
             .to_local_path()
             .ok_or_else(|| RepoMetadataError::PathEncodingMismatch(std_path.clone()))?;
-
-        // Validate the repository path exists and is a directory
-        if !local_path.exists() {
-            return Err(RepoMetadataError::RepoNotFound(std_path.to_string()));
-        }
-
-        if !local_path.is_dir() {
-            return Err(RepoMetadataError::InvalidPath(
-                "Repository path must be a directory".to_string(),
-            ));
-        }
 
         let repo_path_str = std_path.to_string();
 
@@ -872,6 +1471,12 @@ impl LocalRepoMetadataModel {
                 // Was a lazy-loaded path – allow upgrading to a real repo.
                 log::info!("Upgrading lazy-loaded path to git repo: {repo_path_str}");
                 self.lazy_loaded_paths.remove(&std_path);
+                self.abort_builds_for_repo(&std_path);
+            }
+            Some(IndexedRepoState::Pending) if self.lazy_loaded_paths.contains_key(&std_path) => {
+                log::info!("Replacing pending lazy-loaded path with git repo: {repo_path_str}");
+                self.lazy_loaded_paths.remove(&std_path);
+                self.abort_builds_for_repo(&std_path);
             }
             Some(IndexedRepoState::Pending) => {
                 log::debug!("Repository already being indexed: {repo_path_str}");
@@ -889,9 +1494,6 @@ impl LocalRepoMetadataModel {
             }
         }
 
-        // Collect gitignore files from the repository
-        let gitignores = gitignores_for_directory(&local_path);
-
         // Mark the repository as pending to prevent duplicate work
         self.repositories
             .insert(std_path.clone(), IndexedRepoState::Pending);
@@ -901,31 +1503,27 @@ impl LocalRepoMetadataModel {
 
         // Build the complete file tree for the repository asynchronously
         let repo_path_for_build = local_path;
-        let gitignores_for_build = gitignores.clone();
         let repo_path_str_for_log = std_path.to_string();
         let std_path_for_completion = std_path;
         let repository_handle_for_completion = repository_handle.clone();
+        let task_key = BuildTaskKey::new(
+            std_path_for_completion.clone(),
+            std_path_for_completion.clone(),
+        );
+        let task_key_for_completion = task_key.clone();
+        let task_future_id = Rc::new(Cell::new(None));
+        let task_future_id_for_completion = task_future_id.clone();
 
-        ctx.spawn(
+        let build_handle = ctx.spawn(
             async move {
-                let mut files: Vec<crate::entry::FileMetadata> = Vec::new();
-                let mut gitignores_for_build = gitignores_for_build;
-
-                let mut file_limit = MAX_FILES_PER_REPO;
-
-                let build_result = Entry::build_tree(
-                    &repo_path_for_build,
-                    &mut files,
-                    &mut gitignores_for_build,
-                    Some(&mut file_limit),
+                let build_result = Self::build_tree_from_local_path(
+                    repo_path_for_build,
                     MAX_TREE_DEPTH,        // max_depth
-                    0,                 // current_depth
-                    &IgnoredPathStrategy::IncludeLazy,
-                );
+                    IgnoredPathStrategy::IncludeLazy,
+                )
+                .await;
                 (
                     build_result,
-                    files,
-                    gitignores_for_build,
                     repo_path_str_for_log,
                     std_path_for_completion,
                     repository_handle_for_completion,
@@ -934,15 +1532,25 @@ impl LocalRepoMetadataModel {
             move |model: &mut LocalRepoMetadataModel,
                   (
                       build_result,
-                      files,
-                      gitignores_for_build,
                       repo_path_str,
                       std_repo_path,
                       repository_handle,
-                  ): (Result<Entry, _>, Vec<crate::entry::FileMetadata>, _, String, StandardizedPath, ModelHandle<Repository>),
-                  ctx| {
+                   ),
+                   ctx| {
+                if model
+                    .finish_build_task(
+                        &task_key_for_completion,
+                        task_future_id_for_completion.get(),
+                    )
+                    .is_none()
+                {
+                    return;
+                }
                 match build_result {
-                    Ok(root_entry) => {
+                    Ok((root_entry, files, gitignores_for_build)) => {
+                        repository_handle.update(ctx, |repository, _ctx| {
+                            repository.set_gitignores(gitignores_for_build.clone());
+                        });
                         let state =
                             FileTreeState::new(root_entry, gitignores_for_build, Some(repository_handle));
 
@@ -971,12 +1579,14 @@ impl LocalRepoMetadataModel {
                         ctx.emit(RepositoryMetadataEvent::UpdatingRepositoryFailed { path: std_repo_path.clone() });
                         model.repositories.insert(
                             std_repo_path,
-                            IndexedRepoState::Failed(RepoMetadataError::BuildTree(e)),
+                            IndexedRepoState::Failed(e),
                         );
                     }
                 }
             },
         );
+        task_future_id.set(Some(build_handle.future_id()));
+        self.track_build_task(task_key, BuildTaskKind::Index, build_handle);
 
         Ok(())
     }
@@ -1005,6 +1615,18 @@ impl LocalRepoMetadataModel {
 
 impl warpui::Entity for LocalRepoMetadataModel {
     type Event = RepositoryMetadataEvent;
+}
+
+impl Drop for LocalRepoMetadataModel {
+    fn drop(&mut self) {
+        for task in self.build_tasks.drain().map(|(_, task)| task) {
+            task.handle.abort();
+        }
+        #[cfg(feature = "local_fs")]
+        for task in self.watcher_update_tasks.drain().map(|(_, task)| task) {
+            task.handle.abort();
+        }
+    }
 }
 
 /// Helper function to recursively collect contents (files and optionally directories) from an Entry tree.
@@ -1073,8 +1695,9 @@ mod is_unsafe_watch_root_tests {
             home.display()
         );
 
+        let filesystem_root = home.ancestors().last().unwrap_or(Path::new("/"));
         assert!(
-            is_unsafe_watch_root(Path::new("/")),
+            is_unsafe_watch_root(filesystem_root),
             "filesystem root must be rejected",
         );
 

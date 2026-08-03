@@ -42,9 +42,11 @@ mod telemetry;
 pub mod watcher;
 pub mod wrapper_model;
 
+#[cfg(feature = "local_fs")]
+pub use entry::{add_gitignores_for_path, gitignores_for_directory, path_passes_filters};
 pub use entry::{
-    gitignores_for_directory, matches_gitignores, path_passes_filters, should_ignore_git_path,
-    BuildTreeError, DirectoryEntry, Entry, FileId, FileMetadata,
+    matches_gitignores, should_ignore_git_path, BuildTreeError, DirectoryEntry, Entry, FileId,
+    FileMetadata,
 };
 
 // Re-export the local model's event under its original name for backward compatibility.

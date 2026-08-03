@@ -1991,7 +1991,7 @@ fn test_vertical_tabs_panel_width_restores_from_window_snapshot() {
             width_handle
                 .lock()
                 .expect("vertical tabs panel width handle should not be poisoned")
-                .set_size(376.);
+                .set_requested_size(376.);
             workspace.snapshot(ctx.window_id(), false, ctx)
         });
 
@@ -2007,7 +2007,7 @@ fn test_vertical_tabs_panel_width_restores_from_window_snapshot() {
                 width_handle
                     .lock()
                     .expect("vertical tabs panel width handle should not be poisoned")
-                    .size(),
+                    .requested_size(),
                 376.
             );
         });
@@ -2034,7 +2034,7 @@ fn test_vertical_tabs_panel_width_is_not_saved_by_default() {
             width_handle
                 .lock()
                 .expect("vertical tabs panel width handle should not be poisoned")
-                .set_size(376.);
+                .set_requested_size(376.);
             workspace.snapshot(ctx.window_id(), false, ctx)
         });
 
