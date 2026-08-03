@@ -88,16 +88,10 @@ mod appimage {
                         "openWarp: cached release tag {} 没有名为 {asset} 的资产,回退到 tag URL",
                         release.tag_name
                     );
-                    format!(
-                        "https://github.com/zerx-lab/warp/releases/download/v{}/{asset}",
-                        version_info.version
-                    )
+                    crate::autoupdate::github::release_download_url(&version_info.version, asset)
                 }
             } else {
-                format!(
-                    "https://github.com/zerx-lab/warp/releases/download/v{}/{asset}",
-                    version_info.version
-                )
+                crate::autoupdate::github::release_download_url(&version_info.version, asset)
             }
         } else {
             let Some(appimage_name) = option_env!("APPIMAGE_NAME") else {

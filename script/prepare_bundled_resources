@@ -117,6 +117,7 @@ if [ -z "$NO_LICENSES" ]; then
   echo "Generating third-party licenses at $LICENSES_OUTPUT"
   cargo about generate \
       --workspace \
+      --locked \
       --manifest-path "$REPO_ROOT/Cargo.toml" \
       -c "$REPO_ROOT/about.toml" \
       -o "$LICENSES_OUTPUT" \

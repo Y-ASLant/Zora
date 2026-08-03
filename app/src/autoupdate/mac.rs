@@ -867,9 +867,7 @@ fn update_url(channel: Channel, version: &str) -> String {
                 release.tag_name
             );
         }
-        return format!(
-            "https://github.com/zerx-lab/warp/releases/download/v{version}/{asset}"
-        );
+        return github::release_download_url(version, &asset);
     }
     format!(
         "{}/{}",

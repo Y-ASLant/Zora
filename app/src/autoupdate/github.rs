@@ -9,8 +9,8 @@ use anyhow::{Context as _, Result};
 use lazy_static::lazy_static;
 use serde::Deserialize;
 
-const REPO_OWNER: &str = "zerx-lab";
-const REPO_NAME: &str = "warp";
+const REPO_OWNER: &str = "Y-ASLant";
+const REPO_NAME: &str = "zap";
 
 // GitHub 强制要求 User-Agent;同时显式声明 API 版本避免未来 default 漂移。
 const USER_AGENT: &str = "Zap-Autoupdate";
@@ -70,6 +70,15 @@ lazy_static! {
 
 pub fn cached_release() -> Option<GithubRelease> {
     LATEST_RELEASE.lock().ok().and_then(|g| g.clone())
+}
+
+pub fn latest_release_url() -> String {
+    format!("https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/latest")
+}
+
+pub fn release_download_url(version: &str, asset: &str) -> String {
+    let version = version.trim_start_matches('v');
+    format!("https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/download/v{version}/{asset}")
 }
 
 fn store_cached(release: GithubRelease) {

@@ -883,7 +883,7 @@ async fn fetch_version(
     update_id: &str,
     http_client: Arc<http_client::Client>,
 ) -> Result<VersionInfo> {
-    // openWarp 走 GitHub Releases(zerx-lab/warp),完全旁路 Zap 官方
+    // OSS 走当前 Zap 仓库的 GitHub Releases,完全旁路 Zap 官方
     // channel_versions / GCS。提前返回避免后续 fetch_channel_versions 必然失败。
     if matches!(channel, Channel::Oss) {
         let release = github::fetch_latest_release(http_client.as_ref()).await?;

@@ -349,9 +349,7 @@ impl AboutPageWidget {
                 );
                 let url = github::cached_release()
                     .map(|r| r.html_url)
-                    .unwrap_or_else(|| {
-                        "https://github.com/zerx-lab/warp/releases/latest".to_owned()
-                    });
+                    .unwrap_or_else(github::latest_release_url);
                 (text, UpdateAction::OpenReleasePage(url))
             }
             // 兜底(理论上不可达):任何剩余 stage 都视为"已是最新"。
