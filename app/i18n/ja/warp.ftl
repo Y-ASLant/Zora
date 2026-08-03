@@ -2324,6 +2324,13 @@ menu-tab-save-as-new-config = 新しい構成として保存
 menu-tab-default-no-color = デフォルト (色なし)
 
 # --- pane header 溢出菜单(terminal/view/pane_impl.rs) ---
+menu-pane-split-right = ペインを右に分割
+menu-pane-split-left = ペインを左に分割
+menu-pane-split-down = ペインを下に分割
+menu-pane-split-up = ペインを上に分割
+menu-pane-maximize = ペインを最大化
+menu-pane-minimize = ペインを最小化
+menu-pane-close = ペインを閉じる
 menu-pane-copy-link = リンクをコピー
 menu-pane-stop-sharing-session = セッションブロードキャストを停止
 menu-pane-open-on-desktop = デスクトップで開く

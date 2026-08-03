@@ -129,28 +129,28 @@ impl EnvVarCollectionView {
         ctx: &mut ViewContext<Self>,
     ) -> ViewHandle<Menu<EnvVarCollectionAction>> {
         let split_pane_right = Self::item(
-            "Split pane right",
+            crate::t!("menu-pane-split-right"),
             EnvVarCollectionAction::EmitPaneEvent(PaneEvent::SplitRight(None)),
             keybinding_name_to_display_string("pane_group:add_right", ctx),
             None,
         );
 
         let split_pane_left = Self::item(
-            "Split pane left",
+            crate::t!("menu-pane-split-left"),
             EnvVarCollectionAction::EmitPaneEvent(PaneEvent::SplitLeft(None)),
             keybinding_name_to_display_string("pane_group:add_left", ctx),
             None,
         );
 
         let split_pane_down = Self::item(
-            "Split pane down",
+            crate::t!("menu-pane-split-down"),
             EnvVarCollectionAction::EmitPaneEvent(PaneEvent::SplitDown(None)),
             keybinding_name_to_display_string("pane_group:add_down", ctx),
             None,
         );
 
         let split_pane_up = Self::item(
-            "Split pane up",
+            crate::t!("menu-pane-split-up"),
             EnvVarCollectionAction::EmitPaneEvent(PaneEvent::SplitUp(None)),
             keybinding_name_to_display_string("pane_group:add_up", ctx),
             None,
@@ -162,9 +162,9 @@ impl EnvVarCollectionView {
             .is_some_and(|handle| handle.split_pane_state(ctx).is_maximized());
         let toggle_maximize_pane = Self::item(
             if is_maximized {
-                "Minimize pane"
+                crate::t!("menu-pane-minimize")
             } else {
-                "Maximize pane"
+                crate::t!("menu-pane-maximize")
             },
             EnvVarCollectionAction::EmitPaneEvent(PaneEvent::ToggleMaximized),
             keybinding_name_to_display_string("pane_group:toggle_maximize_pane", ctx),
@@ -172,7 +172,7 @@ impl EnvVarCollectionView {
         );
 
         let close_pane = Self::item(
-            "Close pane",
+            crate::t!("menu-pane-close"),
             EnvVarCollectionAction::EmitPaneEvent(PaneEvent::Close),
             trigger_to_keystroke(&Trigger::Custom(CustomAction::CloseCurrentSession.into()))
                 .map(|keystroke| keystroke.displayed()),
@@ -337,7 +337,7 @@ impl EnvVarCollectionView {
     }
 
     fn item(
-        name: &str,
+        name: impl Into<String>,
         action: EnvVarCollectionAction,
         key_shortcut: Option<String>,
         icon: Option<Icon>,

@@ -2453,6 +2453,13 @@ menu-tab-save-as-new-config = Save as new config
 menu-tab-default-no-color = Default (no color)
 
 # --- pane header 溢出菜单(terminal/view/pane_impl.rs) ---
+menu-pane-split-right = Split pane right
+menu-pane-split-left = Split pane left
+menu-pane-split-down = Split pane down
+menu-pane-split-up = Split pane up
+menu-pane-maximize = Maximize pane
+menu-pane-minimize = Minimize pane
+menu-pane-close = Close pane
 menu-pane-copy-link = Copy link
 menu-pane-stop-sharing-session = Stop session broadcast
 menu-pane-open-on-desktop = Open on Desktop

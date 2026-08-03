@@ -2376,6 +2376,13 @@ menu-tab-save-as-new-config = 另存为新配置
 menu-tab-default-no-color = 默认（无颜色）
 
 # --- pane header 溢出菜单（terminal/view/pane_impl.rs） ---
+menu-pane-split-right = 向右分割窗格
+menu-pane-split-left = 向左分割窗格
+menu-pane-split-down = 向下分割窗格
+menu-pane-split-up = 向上分割窗格
+menu-pane-maximize = 最大化窗格
+menu-pane-minimize = 最小化窗格
+menu-pane-close = 关闭窗格
 menu-pane-copy-link = 复制链接
 menu-pane-stop-sharing-session = 停止会话广播
 menu-pane-open-on-desktop = 在桌面端打开
