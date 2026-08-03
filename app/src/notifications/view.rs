@@ -405,7 +405,7 @@ impl NotificationMailboxView {
 
         let label = appearance
             .ui_builder()
-            .wrappable_text("Notifications".to_string(), false)
+            .wrappable_text(crate::t!("workspace-notifications-tooltip"), false)
             .with_style(UiComponentStyles {
                 font_size: Some(14.),
                 font_color: Some(theme.main_text_color(theme.surface_2()).into()),
@@ -455,10 +455,11 @@ impl NotificationMailboxView {
 
             let is_active = self.active_filter == filter;
             let count = notifications.filtered_count(filter);
+            let filter_label = filter.label();
             let label = if count == 0 {
-                filter.label().to_string()
+                filter_label
             } else {
-                format!("{} ({count})", filter.label())
+                format!("{filter_label} ({count})")
             };
             let text_color = if is_active {
                 theme.main_text_color(theme.surface_2())
