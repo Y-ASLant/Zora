@@ -889,6 +889,10 @@ impl platform::FontDB for FontDB {
         self.text_layout_system.load_family_name_from_id(id)
     }
 
+    fn available_weights(&self, family_id: FamilyId) -> Vec<Weight> {
+        self.text_layout_system.available_weights(family_id)
+    }
+
     fn select_font(&self, family_id: FamilyId, properties: Properties) -> FontId {
         self.text_layout_system.select_font(family_id, properties)
     }
@@ -1174,6 +1178,31 @@ impl TextLayoutSystem {
 
     fn load_family_name_from_id(&self, id: FamilyId) -> Option<String> {
         self.families.get(&id).map(|family| family.name.to_owned())
+    }
+
+    fn available_weights(&self, family_id: FamilyId) -> Vec<Weight> {
+        let Some(family) = self.families.get(&family_id) else {
+            return vec![];
+        };
+
+        let internal_font_ids = {
+            let font_id_map = self.font_id_map.read();
+            family
+                .font_ids
+                .iter()
+                .filter_map(|font_id| font_id_map.get_by_left(font_id).copied())
+                .collect::<Vec<_>>()
+        };
+        let font_store = self.font_store.read();
+
+        internal_font_ids
+            .into_iter()
+            .filter_map(|font_id| {
+                let face = font_store.db().face(font_id)?;
+                Weight::from_numeric_weight(face.weight.0)
+            })
+            .unique()
+            .collect()
     }
 
     fn select_font(&self, family_id: FamilyId, properties: Properties) -> FontId {

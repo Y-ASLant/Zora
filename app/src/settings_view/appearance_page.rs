@@ -1166,7 +1166,7 @@ impl AppearanceSettingsPageView {
             dropdown.set_top_bar_max_width(FONT_WEIGHT_DROPDOWN_WIDTH);
             dropdown.set_menu_width(FONT_WEIGHT_DROPDOWN_WIDTH, ctx);
 
-            let selectable_weights: Vec<Weight> = all::<Weight>().collect();
+            let selectable_weights = Self::available_font_weights(ctx);
             let items = selectable_weights
                 .iter()
                 .map(|weight| {
@@ -1177,7 +1177,9 @@ impl AppearanceSettingsPageView {
                 })
                 .collect();
             dropdown.add_items(items, ctx);
-            dropdown.set_selected_by_name(monospace_font_weight.to_string(), ctx);
+            if selectable_weights.contains(&monospace_font_weight) {
+                dropdown.set_selected_by_name(monospace_font_weight.to_string(), ctx);
+            }
             dropdown
         });
 
@@ -2505,7 +2507,42 @@ impl AppearanceSettingsPageView {
             }
         });
 
+        self.update_font_weight_dropdown(ctx);
         ctx.notify();
+    }
+
+    fn available_font_weights(ctx: &mut ViewContext<Self>) -> Vec<Weight> {
+        let family_id = Appearance::as_ref(ctx).monospace_font_family();
+        let available_weights = ctx.font_cache().available_weights(family_id);
+        all::<Weight>()
+            .filter(|weight| available_weights.contains(weight))
+            .collect()
+    }
+
+    fn update_font_weight_dropdown(&mut self, ctx: &mut ViewContext<Self>) {
+        let monospace_font_weight = Appearance::as_ref(ctx).monospace_font_weight();
+        let selectable_weights = Self::available_font_weights(ctx);
+        let selected_weight = selectable_weights
+            .iter()
+            .copied()
+            .find(|weight| *weight == monospace_font_weight)
+            .or_else(|| selectable_weights.first().copied());
+
+        self.font_weight_dropdown.update(ctx, |dropdown, ctx| {
+            let items = selectable_weights
+                .iter()
+                .map(|weight| {
+                    DropdownItem::new(
+                        weight.to_string(),
+                        AppearancePageAction::SetFontWeight(*weight),
+                    )
+                })
+                .collect();
+            dropdown.set_items(items, ctx);
+            if let Some(selected_weight) = selected_weight {
+                dropdown.set_selected_by_name(selected_weight.to_string(), ctx);
+            }
+        });
     }
 
     #[cfg_attr(target_family = "wasm", allow(dead_code))]

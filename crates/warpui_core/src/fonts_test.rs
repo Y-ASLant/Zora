@@ -1,6 +1,13 @@
 use super::*;
 
 #[test]
+fn numeric_font_weights_only_map_to_supported_standard_weights() {
+    assert_eq!(Weight::from_numeric_weight(400), Some(Weight::Normal));
+    assert_eq!(Weight::from_numeric_weight(500), Some(Weight::Medium));
+    assert_eq!(Weight::from_numeric_weight(450), None);
+}
+
+#[test]
 fn test_subpixel_alignment_computation() {
     {
         // Default case - a non-fractional offset should have an alignment

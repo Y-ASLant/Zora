@@ -48,6 +48,21 @@ pub enum Weight {
 }
 
 impl Weight {
+    pub fn from_numeric_weight(weight: u16) -> Option<Self> {
+        match weight {
+            100 => Some(Self::Thin),
+            200 => Some(Self::ExtraLight),
+            300 => Some(Self::Light),
+            400 => Some(Self::Normal),
+            500 => Some(Self::Medium),
+            600 => Some(Self::Semibold),
+            700 => Some(Self::Bold),
+            800 => Some(Self::ExtraBold),
+            900 => Some(Self::Black),
+            _ => None,
+        }
+    }
+
     pub fn is_normal(&self) -> bool {
         matches!(self, Self::Normal)
     }
@@ -325,6 +340,10 @@ impl Cache {
 
     pub fn load_family_name_from_id(&self, id: FamilyId) -> Option<String> {
         self.platform.load_family_name_from_id(id)
+    }
+
+    pub fn available_weights(&self, family_id: FamilyId) -> Vec<Weight> {
+        self.platform.available_weights(family_id)
     }
 
     pub fn load_family_from_bytes(&mut self, name: &str, bytes: Vec<Vec<u8>>) -> Result<FamilyId> {

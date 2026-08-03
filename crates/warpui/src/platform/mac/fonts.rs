@@ -32,7 +32,7 @@ use std::sync::{
 };
 use warpui_core::fonts::{
     canvas::RasterFormat, FamilyId, FontId, FontInfo, GlyphId, Metrics, Properties,
-    RasterizedGlyph, SubpixelAlignment,
+    RasterizedGlyph, SubpixelAlignment, Weight,
 };
 use warpui_core::platform::{self, FontDB as _, LineStyle, TextLayoutSystem};
 use warpui_core::rendering;
@@ -550,6 +550,21 @@ impl crate::platform::FontDB for FontDB {
 
     fn load_family_name_from_id(&self, id: FamilyId) -> Option<String> {
         self.load_family_name_from_id(id)
+    }
+
+    fn available_weights(&self, family_id: FamilyId) -> Vec<Weight> {
+        let Some(family) = self.families.get(&family_id) else {
+            return vec![];
+        };
+
+        family
+            .font_ids
+            .iter()
+            .filter_map(|font_id| {
+                Weight::from_numeric_weight(self.font(*font_id).properties().weight.0.round() as u16)
+            })
+            .unique()
+            .collect()
     }
 
     fn select_font(&self, family_id: FamilyId, properties: Properties) -> FontId {
