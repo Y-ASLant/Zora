@@ -17,7 +17,8 @@ use i18n_embed::{
     LanguageLoader,
 };
 use rust_embed::RustEmbed;
-use std::sync::OnceLock;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Mutex, OnceLock};
 use unic_langid::LanguageIdentifier;
 
 /// 把 `app/i18n` 目录嵌进二进制。每次构建会重新嵌入(debug-embed feature 已在 workspace 开)。
@@ -26,6 +27,17 @@ use unic_langid::LanguageIdentifier;
 struct Localizations;
 
 static LANGUAGE_LOADER: OnceLock<FluentLanguageLoader> = OnceLock::new();
+
+#[derive(Clone, Debug)]
+struct SearchTranslation {
+    localized: String,
+    english: String,
+    expand_words: bool,
+    context: Option<String>,
+}
+
+static SETTINGS_SEARCH_TRANSLATIONS: OnceLock<Mutex<HashMap<String, Vec<SearchTranslation>>>> =
+    OnceLock::new();
 
 /// 在 app 启动早期调用一次。
 ///
@@ -195,12 +207,239 @@ pub fn reset_to_system_locale() {
     propagate_ui_locale(loader);
 }
 
-/// 获取已激活的语言列表(主选 + fallback)。仅供调试 / settings UI 显示用。
+/// 获取已激活的语言列表(主选 + fallback),供设置 UI 与本地化搜索使用。
 pub fn current_languages() -> Vec<LanguageIdentifier> {
     LANGUAGE_LOADER
         .get()
         .map(|l| l.current_languages())
         .unwrap_or_default()
+}
+
+/// 将当前语言的设置文案反向映射到英文搜索词。
+///
+/// 设置组件的 `search_terms()` 仍然包含稳定的英文关键词,这里补充当前语言 FTL
+/// 文案对应的英文别名与设置分组上下文,让设置搜索不依赖手工维护每种语言的关键词。
+pub fn localized_search_aliases(query: &str) -> Vec<Vec<String>> {
+    let locale = current_languages()
+        .first()
+        .map(ToString::to_string)
+        .unwrap_or_else(|| "en".to_string());
+    search_aliases_for_locale(&locale, query)
+}
+
+fn search_aliases_for_locale(locale: &str, query: &str) -> Vec<Vec<String>> {
+    let query = query.to_lowercase();
+    if query.is_ascii() {
+        return query.split_whitespace().map(|_| Vec::new()).collect();
+    }
+
+    let translations = search_translations_for_locale(locale);
+
+    query
+        .split_whitespace()
+        .map(|word| {
+            let word = normalize_search_text(word);
+            if word.is_empty() || word.is_ascii() {
+                return Vec::new();
+            }
+
+            let mut aliases = HashSet::new();
+            for translation in &translations {
+                if !translation.localized.contains(&word) {
+                    continue;
+                }
+
+                aliases.insert(translation.english.clone());
+                if translation.expand_words {
+                    if let Some(context) = &translation.context {
+                        aliases.insert(context.clone());
+                    }
+                    aliases.extend(
+                        translation
+                            .english
+                            .split_whitespace()
+                            .map(|word| {
+                                word.trim_matches(|character: char| !character.is_alphanumeric())
+                            })
+                            .filter(|word| word.len() >= 2)
+                            .map(str::to_owned),
+                    );
+                }
+            }
+
+            let mut aliases = aliases.into_iter().collect::<Vec<_>>();
+            aliases.sort_unstable();
+            aliases
+        })
+        .collect()
+}
+
+fn search_translations_for_locale(locale: &str) -> Vec<SearchTranslation> {
+    let cache = SETTINGS_SEARCH_TRANSLATIONS.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(translations) = cache.lock().unwrap().get(locale).cloned() {
+        return translations;
+    }
+
+    let translations = build_search_translations(locale);
+    cache
+        .lock()
+        .unwrap()
+        .insert(locale.to_string(), translations.clone());
+    translations
+}
+
+fn build_search_translations(locale: &str) -> Vec<SearchTranslation> {
+    let english_messages = load_ftl_messages("en");
+    let localized_messages = load_ftl_messages(locale);
+    let mut translations = Vec::new();
+
+    for (id, localized) in localized_messages {
+        if !is_settings_search_message(&id) {
+            continue;
+        }
+
+        let Some(english) = english_messages.get(&id) else {
+            continue;
+        };
+        let localized = normalize_search_text(&localized);
+        let english = normalize_search_text(english);
+        if localized.is_empty() || english.is_empty() || localized == english {
+            continue;
+        }
+
+        translations.push(SearchTranslation {
+            localized,
+            english,
+            expand_words: is_search_label_message(&id),
+            context: search_context(&id),
+        });
+    }
+
+    translations
+}
+
+fn load_ftl_messages(locale: &str) -> HashMap<String, String> {
+    let mut candidates = vec![format!("{locale}/warp.ftl")];
+    if let Some(base_language) = locale.split('-').next() {
+        if base_language != locale {
+            candidates.push(format!("{base_language}/warp.ftl"));
+        }
+    }
+    if locale.eq_ignore_ascii_case("zh") || locale.starts_with("zh-") {
+        candidates.push("zh-CN/warp.ftl".to_string());
+    }
+    candidates.push("en/warp.ftl".to_string());
+
+    for path in candidates {
+        if let Some(file) = Localizations::get(&path) {
+            let source = String::from_utf8_lossy(file.data.as_ref());
+            return parse_ftl_messages(&source);
+        }
+    }
+
+    HashMap::new()
+}
+
+fn parse_ftl_messages(source: &str) -> HashMap<String, String> {
+    let mut messages = HashMap::new();
+    let mut current_key = None;
+    let mut current_value = String::new();
+    let mut in_attribute = false;
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            flush_ftl_message(&mut messages, &mut current_key, &mut current_value);
+            in_attribute = false;
+            continue;
+        }
+
+        if line.starts_with(' ') || line.starts_with('\t') {
+            if current_key.is_some() && !in_attribute && !trimmed.starts_with('.') {
+                if !current_value.is_empty() {
+                    current_value.push(' ');
+                }
+                current_value.push_str(trimmed);
+            } else if trimmed.starts_with('.') {
+                in_attribute = true;
+            }
+            continue;
+        }
+
+        let Some((key, value)) = line.split_once('=') else {
+            flush_ftl_message(&mut messages, &mut current_key, &mut current_value);
+            in_attribute = false;
+            continue;
+        };
+        let key = key.trim();
+        if !is_ftl_message_id(key) {
+            flush_ftl_message(&mut messages, &mut current_key, &mut current_value);
+            in_attribute = false;
+            continue;
+        }
+
+        flush_ftl_message(&mut messages, &mut current_key, &mut current_value);
+        current_key = Some(key.to_string());
+        current_value.push_str(value.trim());
+        in_attribute = false;
+    }
+
+    flush_ftl_message(&mut messages, &mut current_key, &mut current_value);
+    messages
+}
+
+fn flush_ftl_message(
+    messages: &mut HashMap<String, String>,
+    current_key: &mut Option<String>,
+    current_value: &mut String,
+) {
+    if let Some(key) = current_key.take() {
+        messages.insert(key, current_value.trim().to_string());
+    }
+    current_value.clear();
+}
+
+fn is_ftl_message_id(id: &str) -> bool {
+    !id.is_empty()
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+}
+
+fn normalize_search_text(text: &str) -> String {
+    text.replace("\\n", " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+fn is_settings_search_message(id: &str) -> bool {
+    id.starts_with("settings-") || id.starts_with("language-widget-")
+}
+
+fn search_context(id: &str) -> Option<String> {
+    if !is_search_label_message(id) {
+        return None;
+    }
+
+    let mut segments = id.strip_prefix("settings-")?.split('-');
+    let context = segments.next()?;
+    segments.next().map(|_| context.to_string())
+}
+
+fn is_search_label_message(id: &str) -> bool {
+    (id.starts_with("settings-")
+        && (id.contains("-category-")
+            || id.ends_with("-header")
+            || id.ends_with("-label")
+            || id.ends_with("-name")
+            || id.ends_with("-page-title")
+            || id.ends_with("-placeholder")
+            || id.ends_with("-subheader")
+            || id.ends_with("-subtitle")
+            || id.ends_with("-title")))
+        || id == "language-widget-label"
 }
 
 /// 业务层主入口:`t!("key")` 或 `t!("key", name = value, count = 3)`。
@@ -298,5 +537,27 @@ mod tests {
 
         assert_eq!(languages.len(), 1);
         assert_eq!(languages[0].to_string(), "en");
+    }
+
+    #[test]
+    fn parses_ftl_messages_without_attributes() {
+        let messages = parse_ftl_messages(
+            "settings-test-label = 中文搜索\n    第二行\n    .accesskey = X\n\nother = ignored",
+        );
+
+        assert_eq!(
+            messages.get("settings-test-label"),
+            Some(&"中文搜索 第二行".to_string())
+        );
+    }
+
+    #[test]
+    fn zh_cn_search_aliases_map_to_english_terms() {
+        let aliases = search_aliases_for_locale("zh-CN", "代理模式");
+
+        assert!(aliases.iter().any(|alias| alias == "proxy"));
+
+        let aliases = search_aliases_for_locale("zh-CN", "用户名");
+        assert!(aliases.iter().any(|alias| alias == "network"));
     }
 }

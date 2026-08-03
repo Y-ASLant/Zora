@@ -1256,6 +1256,34 @@ impl From<usize> for MatchData {
     }
 }
 
+fn search_terms_match(terms: &str, query: &str, localized_aliases: &[Vec<String>]) -> bool {
+    if query.is_empty() {
+        return true;
+    }
+
+    let terms_lower = terms.to_lowercase();
+    query
+        .to_lowercase()
+        .split_whitespace()
+        .enumerate()
+        .all(|(index, word)| {
+            if terms_lower.contains(word) {
+                return true;
+            }
+
+            localized_aliases
+                .get(index)
+                .map(|aliases| {
+                    aliases.iter().any(|alias| {
+                        alias
+                            .split_whitespace()
+                            .all(|alias_word| terms_lower.contains(alias_word))
+                    })
+                })
+                .unwrap_or(false)
+        })
+}
+
 impl<V: warpui::View> PageType<V> {
     /// A page where the contents cannot be separated for showing search results. If any part
     /// matches the search query, the whole page must show. The whole page is one big
@@ -1389,37 +1417,46 @@ impl<V: warpui::View> PageType<V> {
         }
     }
 
-    /// Apply the search query by matching against all the widgets and storing the results.
-    /// Uses all-words matching: every word in the query must appear somewhere in the
-    /// widget's search terms (but not necessarily contiguously).
+    /// 应用搜索查询并保存匹配结果。
+    /// 使用全词匹配:查询中的每个词都必须出现在组件搜索词、页面/分类标题或当前语言别名中,
+    /// 但不要求连续出现。
     pub(super) fn update_filter(&mut self, query: &str, app: &AppContext) -> MatchData {
-        /// Returns true if every whitespace-delimited word in `query` appears
-        /// somewhere in `terms` (case-insensitive). An empty query matches everything.
-        fn search_terms_match(terms: &str, query: &str) -> bool {
-            if query.is_empty() {
-                return true;
-            }
-            let terms_lower = terms.to_lowercase();
-            query
-                .to_lowercase()
-                .split_whitespace()
-                .all(|word| terms_lower.contains(word))
-        }
+        let localized_aliases = crate::i18n::localized_search_aliases(query);
         match self {
-            Self::Monolith { widget, filter, .. } => {
-                *filter =
-                    widget.should_render(app) && search_terms_match(widget.search_terms(), query);
+            Self::Monolith {
+                widget,
+                filter,
+                title,
+                ..
+            } => {
+                let title_matches = title
+                    .map(|title| search_terms_match(title, query, &localized_aliases))
+                    .unwrap_or(false);
+                *filter = widget.should_render(app)
+                    && (title_matches
+                        || search_terms_match(widget.search_terms(), query, &localized_aliases));
                 (*filter).into()
             }
             Self::Uncategorized {
-                widgets, filter, ..
+                widgets,
+                filter,
+                title,
+                ..
             } => {
+                let title_matches = title
+                    .map(|title| search_terms_match(title, query, &localized_aliases))
+                    .unwrap_or(false);
                 *filter = widgets
                     .iter()
                     .enumerate()
                     .filter_map(|(i, widget)| {
                         (widget.should_render(app)
-                            && search_terms_match(widget.search_terms(), query))
+                            && (title_matches
+                                || search_terms_match(
+                                    widget.search_terms(),
+                                    query,
+                                    &localized_aliases,
+                                )))
                         .then_some(i)
                     })
                     .collect();
@@ -1435,13 +1472,20 @@ impl<V: warpui::View> PageType<V> {
                 *filter = categories
                     .iter()
                     .map(|category| {
+                        let category_matches =
+                            search_terms_match(category.title, query, &localized_aliases);
                         category
                             .widgets
                             .iter()
                             .enumerate()
                             .filter_map(|(i, widget)| {
                                 (widget.should_render(app)
-                                    && search_terms_match(widget.search_terms(), query))
+                                    && (category_matches
+                                        || search_terms_match(
+                                            widget.search_terms(),
+                                            query,
+                                            &localized_aliases,
+                                        )))
                                 .then_some(i)
                             })
                             .collect_vec()
@@ -1919,4 +1963,18 @@ pub(super) fn build_reset_button(
             ..Default::default()
         })
         .with_text_label(crate::t!("settings-page-reset-to-default"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::search_terms_match;
+
+    #[test]
+    fn search_terms_match_uses_localized_aliases() {
+        let aliases = vec![vec!["language".to_string()]];
+
+        assert!(search_terms_match("language locale", "语言", &aliases));
+        assert!(search_terms_match("语言", "语言", &[]));
+        assert!(!search_terms_match("font size", "语言", &aliases));
+    }
 }
