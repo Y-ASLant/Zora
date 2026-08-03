@@ -24,7 +24,8 @@ fn window_snapshot(vertical_tabs_panel_width: Option<f32>) -> WindowSnapshot {
 
 #[test]
 fn restored_vertical_tabs_panel_width_uses_saved_value() {
-    let modal_sizes = ModalSizes::from_restored(&window_snapshot(Some(376.)), 240., 480., true);
+    let modal_sizes =
+        ModalSizes::from_restored(&window_snapshot(Some(376.)), 240., 480., true, 320.);
 
     assert_eq!(
         modal_sizes
@@ -37,8 +38,23 @@ fn restored_vertical_tabs_panel_width_uses_saved_value() {
 }
 
 #[test]
-fn restored_vertical_tabs_panel_width_falls_back_to_default() {
-    let modal_sizes = ModalSizes::from_restored(&window_snapshot(None), 240., 480., true);
+fn restored_vertical_tabs_panel_width_falls_back_to_remembered_value() {
+    let modal_sizes = ModalSizes::from_restored(&window_snapshot(None), 240., 480., true, 376.);
+
+    assert_eq!(
+        modal_sizes
+            .vertical_tabs_panel_width
+            .lock()
+            .expect("vertical tabs panel width handle should not be poisoned")
+            .size(),
+        376.
+    );
+}
+
+#[test]
+fn restored_vertical_tabs_panel_width_is_not_used_when_persistence_is_disabled() {
+    let modal_sizes =
+        ModalSizes::from_restored(&window_snapshot(Some(376.)), 240., 480., false, 320.);
 
     assert_eq!(
         modal_sizes
@@ -51,8 +67,22 @@ fn restored_vertical_tabs_panel_width_falls_back_to_default() {
 }
 
 #[test]
-fn restored_vertical_tabs_panel_width_is_not_used_when_persistence_is_disabled() {
-    let modal_sizes = ModalSizes::from_restored(&window_snapshot(Some(376.)), 240., 480., false);
+fn new_vertical_tabs_panel_width_uses_remembered_value() {
+    let modal_sizes = ModalSizes::default_with_panel_defaults(240., 480., true, 376.);
+
+    assert_eq!(
+        modal_sizes
+            .vertical_tabs_panel_width
+            .lock()
+            .expect("vertical tabs panel width handle should not be poisoned")
+            .size(),
+        376.
+    );
+}
+
+#[test]
+fn new_vertical_tabs_panel_width_uses_default_when_persistence_is_disabled() {
+    let modal_sizes = ModalSizes::default_with_panel_defaults(240., 480., false, 376.);
 
     assert_eq!(
         modal_sizes

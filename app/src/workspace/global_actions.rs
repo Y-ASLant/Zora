@@ -2,13 +2,14 @@ use crate::network::NetworkStatus;
 use crate::persistence::ModelEvent;
 // Zap Wave 3-1:`AuthClient` trait 与 `workspace:debug_create_anonymous_user`
 // debug action 随 auth 子系统下线一同物理删。
-use crate::app_state::get_app_state;
+use crate::app_state::{get_app_state, AppState};
 use crate::terminal::alt_screen_reporting::AltScreenReporting;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::workspace::cross_window_tab_drag::CrossWindowTabDrag;
+use crate::workspace::tab_settings::TabSettings;
 // Zap Wave 3-1:`ServerApiProvider` 不再被本文件使用,`debug_create_anonymous_user`
 // debug action 随 AuthClient 一同物理删。
-use ::settings::ToggleableSetting;
+use ::settings::{Setting, ToggleableSetting};
 use warp_core::execution_mode::AppExecutionMode;
 
 use crate::ai::agent::conversation::AIConversationId;
@@ -115,6 +116,10 @@ pub fn init_global_actions(app: &mut AppContext) {
     app.add_global_action("workspace:toggle_mouse_reporting", toggle_mouse_reporting);
     app.add_global_action("workspace:toggle_scroll_reporting", toggle_scroll_reporting);
     app.add_global_action("workspace:toggle_focus_reporting", toggle_focus_reporting);
+    app.add_global_action(
+        "workspace:remember_vertical_tabs_panel_width",
+        remember_vertical_tabs_panel_width,
+    );
     app.add_global_action("workspace:save_app", save_app);
     app.add_global_action("workspace:fork_ai_conversation", fork_ai_conversation);
     app.add_global_action(
@@ -164,12 +169,44 @@ fn save_app(_: &(), ctx: &mut AppContext) {
     });
 }
 
-fn save_app_snapshot_now(ctx: &mut AppContext) {
-    if !AppExecutionMode::as_ref(ctx).can_save_session() {
+/// 仅在用户结束拖拽时写入；布局临时约束不会触发此路径。
+fn remember_vertical_tabs_panel_width(width: &f32, ctx: &mut AppContext) {
+    if !width.is_finite()
+        || *TabSettings::as_ref(ctx).remembered_vertical_tabs_panel_width == *width
+    {
         return;
     }
 
-    if !*GeneralSettings::as_ref(ctx).restore_session {
+    TabSettings::handle(ctx).update(ctx, |settings, ctx| {
+        if let Err(err) = settings
+            .remembered_vertical_tabs_panel_width
+            .set_value(*width, ctx)
+        {
+            log::error!("Failed to persist vertical tabs panel width: {err}");
+        }
+    });
+}
+
+/// 在持久化写入线程终止前，同步提交当前应用快照。
+pub(crate) fn persist_app_snapshot_before_termination(ctx: &mut AppContext) {
+    // 拖拽预览窗口中的 pane 处于转移状态，不能用它生成任何持久化数据。
+    if CrossWindowTabDrag::as_ref(ctx).is_active() {
+        return;
+    }
+
+    let should_save_session = session_snapshot_is_enabled(ctx);
+    if !should_save_session {
+        return;
+    }
+
+    let app_state = get_app_state(ctx);
+    if !app_state.windows.is_empty() {
+        send_app_snapshot(app_state, ctx);
+    }
+}
+
+fn save_app_snapshot_now(ctx: &mut AppContext) {
+    if !session_snapshot_is_enabled(ctx) {
         return;
     }
 
@@ -185,6 +222,15 @@ fn save_app_snapshot_now(ctx: &mut AppContext) {
         return;
     }
 
+    send_app_snapshot(get_app_state(ctx), ctx);
+}
+
+fn session_snapshot_is_enabled(ctx: &AppContext) -> bool {
+    AppExecutionMode::as_ref(ctx).can_save_session()
+        && *GeneralSettings::as_ref(ctx).restore_session
+}
+
+fn send_app_snapshot(app_state: AppState, ctx: &mut AppContext) {
     let Some(model_event_sender) = GlobalResourceHandlesProvider::as_ref(ctx)
         .get()
         .model_event_sender
@@ -193,8 +239,6 @@ fn save_app_snapshot_now(ctx: &mut AppContext) {
         return;
     };
 
-    // Only compute the app state if we're definitely going to use it.
-    let app_state = get_app_state(ctx);
     let event = ModelEvent::Snapshot(app_state);
 
     if let Err(err) = model_event_sender.send(event) {

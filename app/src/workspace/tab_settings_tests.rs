@@ -1,5 +1,6 @@
 use super::*;
 use crate::test_util::settings::initialize_settings_for_tests;
+use crate::terminal::resizable_data::DEFAULT_VERTICAL_TABS_PANEL_WIDTH;
 use settings::Setting;
 use warpui::{App, SingletonEntity};
 
@@ -82,4 +83,18 @@ fn persist_vertical_tabs_panel_width_uses_vertical_tabs_path() {
         PersistVerticalTabsPanelWidth::toml_key(),
         "persist_panel_width"
     );
+}
+
+#[test]
+fn remembered_vertical_tabs_panel_width_defaults_to_panel_default() {
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+
+        TabSettings::handle(&app).read(&app, |settings, _ctx| {
+            assert_eq!(
+                *settings.remembered_vertical_tabs_panel_width,
+                DEFAULT_VERTICAL_TABS_PANEL_WIDTH
+            );
+        });
+    });
 }

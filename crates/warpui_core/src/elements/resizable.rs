@@ -54,7 +54,8 @@ pub fn resizable_state_handle(size: f32) -> ResizableStateHandle {
 }
 
 pub struct ResizableState {
-    size: f32,
+    requested_size: f32,
+    effective_size: f32,
     bounds: Option<(f32, f32)>,
     mode: ResizableMode,
 }
@@ -71,19 +72,32 @@ pub enum ResizableMode {
 impl ResizableState {
     pub fn new(size: f32) -> Self {
         Self {
-            size,
+            requested_size: size,
+            effective_size: size,
             bounds: None,
             mode: Default::default(),
         }
     }
+
+    /// 返回当前布局实际采用的尺寸。
     pub fn size(&self) -> f32 {
-        self.size
+        self.effective_size
     }
 
-    pub fn clamp_size(&mut self) {
-        if let Some((min, max)) = self.bounds {
-            self.size = self.size.clamp(min, max);
-        }
+    /// 返回用户或调用方请求的尺寸，可安全用于快照和设置持久化。
+    pub fn requested_size(&self) -> f32 {
+        self.requested_size
+    }
+
+    fn set_bounds(&mut self, bounds: (f32, f32)) {
+        self.bounds = Some(bounds);
+        self.effective_size = self.clamp_to_bounds(self.requested_size);
+    }
+
+    fn clamp_to_bounds(&self, size: f32) -> f32 {
+        self.bounds
+            .map(|(min, max)| size.clamp(min, max))
+            .unwrap_or(size)
     }
 
     fn check_for_resize(
@@ -120,13 +134,17 @@ impl ResizableState {
                 DragBarSide::Top => old_position.y() - new_position.y(),
             };
 
-            let old_size = self.size;
+            let old_size = self.effective_size;
             if delta.abs() >= f32::EPSILON {
-                resized = true;
-                self.size += delta;
-                self.clamp_size();
+                let new_size = self.clamp_to_bounds(old_size + delta);
+                if (new_size - old_size).abs() >= f32::EPSILON {
+                    // 用户真正拖动到的新尺寸才会更新请求值；临时布局边界不能覆盖它。
+                    self.requested_size = new_size;
+                    self.effective_size = new_size;
+                    resized = true;
+                }
             }
-            let size = self.size;
+            let size = self.effective_size;
 
             // The last position should reflect the latest position of the dragbar.
             let last_position = match dragbar_side {
@@ -174,7 +192,8 @@ impl ResizableState {
     }
 
     pub fn set_size(&mut self, new_size: f32) {
-        self.size = new_size;
+        self.requested_size = new_size;
+        self.effective_size = self.clamp_to_bounds(new_size);
     }
 }
 
@@ -263,7 +282,7 @@ impl Resizable {
     }
 
     /// Sets a function that computes the (min, max) bounds on the width/height
-    /// of the resizable. The bounds are updated at paint time.
+    /// of the resizable. The bounds are updated at layout time.
     pub fn with_bounds_callback(mut self, callback: BoundsCallback) -> Self {
         self.bounds_callback = Some(callback);
         self
@@ -341,13 +360,11 @@ impl Element for Resizable {
                 log::error!("Resizable: min bound is greater than max bound");
                 new_bounds = (new_bounds.0, new_bounds.0);
             }
-            self.state().bounds = Some(new_bounds);
-
-            // With new bounds, we should also clamp the current width/height.
-            self.state().clamp_size();
+            // 布局约束只影响本帧实际尺寸，不能覆盖用户请求的可持久化尺寸。
+            self.state().set_bounds(new_bounds);
         }
 
-        let size = self.state().size;
+        let size = self.state().size();
 
         // We set the child constraints to never be greater than the current width/height constraint.
         let child_constraint = match self.direction {
@@ -506,3 +523,7 @@ fn dispatch_callback(callback: Option<&mut Handler>, ctx: &mut EventContext, app
         callback(ctx, app);
     }
 }
+
+#[cfg(test)]
+#[path = "resizable_tests.rs"]
+mod tests;

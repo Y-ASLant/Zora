@@ -4,6 +4,7 @@ use std::path::Path;
 use settings::{
     macros::define_settings_group, RespectUserSyncSetting, SupportedPlatforms, SyncToCloud,
 };
+use crate::terminal::resizable_data::DEFAULT_VERTICAL_TABS_PANEL_WIDTH;
 use warp_core::ui::theme::AnsiColorIdentifier;
 
 #[derive(
@@ -501,6 +502,13 @@ define_settings_group!(TabSettings, settings: [
         private: false,
         toml_path: "appearance.vertical_tabs.persist_panel_width",
         description: "Whether to persist the vertical tabs panel width across restarts.",
+    },
+    remembered_vertical_tabs_panel_width: RememberedVerticalTabsPanelWidth {
+        type: f32,
+        default: DEFAULT_VERTICAL_TABS_PANEL_WIDTH,
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Never,
+        private: true,
     },
     show_title_bar_search_bar: ShowTitleBarSearchBar {
         type: bool,
