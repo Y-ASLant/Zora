@@ -2,7 +2,6 @@ use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::blocklist::SerializedBlockListItem;
 use crate::appearance::Appearance;
 use crate::auth::AuthOverrideWarningModalVariant;
-use crate::auth::AuthState;
 use crate::auth::AuthStateProvider;
 use crate::auth::NeedsSsoLinkView;
 use crate::auth::{AuthManager, AuthManagerEvent};
@@ -17,19 +16,12 @@ use crate::interval_timer::IntervalTimer;
 use crate::launch_configs::launch_config;
 use crate::linear::LinearIssueWork;
 use crate::notebooks::manager::NotebookSource;
-use crate::settings::apply_onboarding_settings;
-use crate::settings::AISettings;
-use onboarding::{
-    AgentOnboardingEvent, AgentOnboardingView, OnboardingIntention, SelectedSettings,
-};
 
 use crate::auth::UserAuthenticationError;
 use crate::persistence::ModelEvent;
-use crate::report_if_error;
 use crate::server::ids::SyncId;
 use crate::server::telemetry::LaunchConfigUiLocation;
 use crate::settings::QuakeModeSettings;
-use crate::settings::ThemeSettings;
 use crate::settings_view::flags;
 use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::settings_view::SettingsSection;
@@ -38,16 +30,13 @@ use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::keys_settings::KeysSettings;
 use crate::terminal::shell::ShellType;
 use crate::terminal::view::cell_size_and_padding;
-use crate::themes::onboarding_theme_picker_themes;
-use crate::themes::theme::{AnsiColorIdentifier, Blend, Fill, ThemeKind, WarpThemeConfig};
+use crate::themes::theme::{AnsiColorIdentifier, Blend, Fill};
 use crate::uri::OpenMCPSettingsArgs;
 use crate::util::bindings::{self, is_binding_pty_compliant};
 use crate::util::traffic_lights::{traffic_light_data, TrafficLightData, TrafficLightMouseStates};
 use crate::view_components::DismissibleToast;
 use crate::window_settings::WindowSettings;
-use crate::workspace::hoa_onboarding::mark_hoa_onboarding_completed;
 use crate::workspace::WorkspaceAction;
-use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 use crate::{
     app_state::{AppState, PaneUuid, WindowSnapshot},
     autoupdate::{RequestType, UpdateReady},
@@ -61,7 +50,7 @@ use crate::{
 use crate::{
     auth::{AuthOverrideWarningModal, AuthOverrideWarningModalEvent},
     auth::{AuthView, AuthViewVariant},
-    workspace::{view::OnboardingTutorial, PaneViewLocator, Workspace, WorkspaceRegistry},
+    workspace::{PaneViewLocator, Workspace, WorkspaceRegistry},
 };
 use crate::{features::FeatureFlag, ChannelState};
 use crate::{send_telemetry_from_app_ctx, GlobalResourceHandles, GlobalResourceHandlesProvider};
@@ -78,12 +67,8 @@ use std::sync::mpsc::SyncSender;
 use std::sync::Arc;
 use std::{collections::HashMap, path::PathBuf};
 use warp_core::context_flag::ContextFlag;
-use warp_core::user_preferences::GetUserPreferences as _;
 use warpui::keymap::{EditableBinding, FixedBinding};
 use warpui::windowing::WindowManager;
-
-use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
-use crate::ai::onboarding::build_onboarding_models;
 
 use warpui::elements::{
     Border, ChildAnchor, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Stack,
@@ -374,18 +359,6 @@ pub fn init(app: &mut AppContext) {
         .with_group(bindings::BindingGroup::Navigation.as_str())
         .with_context_predicate(id!("RootView"))
         .with_linux_or_windows_key_binding("f11"),
-        // Debug binding for onboarding state
-        EditableBinding::new(
-            "root_view:enter_onboarding_state",
-            crate::t!("keybinding-desc-root-view-enter-onboarding-state"),
-            RootViewAction::DebugEnterOnboardingState,
-        )
-        .with_group(bindings::BindingGroup::Settings.as_str())
-        .with_context_predicate(id!("RootView"))
-        .with_key_binding("shift-f12")
-        .with_enabled(|| {
-            FeatureFlag::AgentOnboarding.is_enabled() && ChannelState::enable_debug_features()
-        }),
     ])
 }
 
@@ -1371,7 +1344,7 @@ struct WorkspaceArgs {
     workspace_setting: NewWorkspaceSource,
 }
 
-// Some onboarding states can either contain a ref to an existing terminal view
+// Authentication transitions can either contain a ref to an existing terminal view
 // if it exists or, if it doesn't, the args needed to create a new empty one.
 #[derive(Clone)]
 enum AuthOnboardingTarget {
@@ -1379,29 +1352,7 @@ enum AuthOnboardingTarget {
     Terminal(ViewHandle<Workspace>),
 }
 
-/// User preferences key to track whether the user has completed the onboarding slides locally
-/// (before login). This is needed because the server-side `is_onboarded` flag requires
-/// authentication.
-const HAS_COMPLETED_ONBOARDING_KEY: &str = "HasCompletedOnboarding";
-
-/// Returns whether the user has completed the onboarding slides locally (before login).
-pub(crate) fn has_completed_local_onboarding(ctx: &AppContext) -> bool {
-    ctx.private_user_preferences()
-        .read_value(HAS_COMPLETED_ONBOARDING_KEY)
-        .unwrap_or_default()
-        .and_then(|s| serde_json::from_str::<bool>(&s).ok())
-        .unwrap_or(false)
-}
-
-/// Persists the local onboarding-completed flag so we don't show onboarding again.
-fn mark_local_onboarding_completed(ctx: &AppContext) {
-    let _ = ctx.private_user_preferences().write_value(
-        HAS_COMPLETED_ONBOARDING_KEY,
-        serde_json::to_string(&true).expect("bool serializes to JSON"),
-    );
-}
-
-/// Whether auth and onboarding have completed and we should render the `Workspace`.
+/// Whether auth has completed and we should render the `Workspace`.
 enum AuthOnboardingState {
     Auth(Box<WorkspaceArgs>),
     ConfirmIncomingAuth(Box<WorkspaceArgs>),
@@ -1409,10 +1360,6 @@ enum AuthOnboardingState {
     #[cfg(target_family = "wasm")]
     WebImport(AuthOnboardingTarget),
     NeedsSsoLink(AuthOnboardingTarget),
-    Onboarding {
-        onboarding_view: ViewHandle<AgentOnboardingView>,
-        target: AuthOnboardingTarget,
-    },
     Terminal(ViewHandle<Workspace>),
 }
 
@@ -1431,8 +1378,6 @@ pub struct RootView {
     /// in the [`Self::render`] method, but there is no [`ViewContext`] available there. So, we
     /// need to store it in a field instead.
     window_id: WindowId,
-    /// Stores the tutorial from onboarding until the workspace is ready.
-    pending_tutorial: Option<OnboardingTutorial>,
 }
 
 impl RootView {
@@ -1448,8 +1393,6 @@ impl RootView {
         });
 
         // Zap(本地化,Phase 5):`PreferencesSyncer` 已物理删除。
-        // 原 `InitialLoadCompleted` 事件用于在云端 preferences 同步完成后调用
-        // `apply_onboarding_settings`,本地化场景下 onboarding 设置直接本地应用。
 
         let auth_view =
             ctx.add_typed_action_view(|ctx| AuthView::new(AuthViewVariant::Initial, ctx));
@@ -1469,8 +1412,7 @@ impl RootView {
             workspace_setting,
         };
 
-        // 去中心化分支:`is_logged_in` 在本地模式下恒为 true,这里保留原结构是为了
-        // 在编译期保留 wasm/onboarding 等其它分支的可达性,不需要的子分支永远不会触发。
+        // 去中心化分支:`is_logged_in` 在本地模式下恒为 true。
         let auth_onboarding_state = if auth_state.is_logged_in() {
             AuthOnboardingState::Terminal(workspace_args.create_workspace(ctx))
         } else {
@@ -1478,26 +1420,9 @@ impl RootView {
                 if #[cfg(target_family = "wasm")] {
                     AuthOnboardingState::WebImport(AuthOnboardingTarget::Workspace(workspace_args.into()))
                 } else {
-                    // When ZapNewSettingsModes is enabled, show onboarding before login for
-                    // users who haven't completed it yet (tracked via a local UserPreferences key).
-                    let has_completed_local_onboarding = FeatureFlag::ZapNewSettingsModes.is_enabled()
-                        && has_completed_local_onboarding(ctx);
-                    let should_show_pre_login_onboarding = FeatureFlag::ZapNewSettingsModes.is_enabled()
-                        && FeatureFlag::AgentOnboarding.is_enabled()
-                        && !has_completed_local_onboarding;
                     if FeatureFlag::ForceLogin.is_enabled() {
                         // ForceLogin is true for Preview
                         AuthOnboardingState::Auth(workspace_args.into())
-                    } else if should_show_pre_login_onboarding {
-                        let workspace_args_box: Box<WorkspaceArgs> = workspace_args.into();
-                        let onboarding_view = Self::create_agent_onboarding_view(ctx);
-                        onboarding_view.update(ctx, |view, ctx| {
-                            view.start_onboarding(ctx);
-                        });
-                        AuthOnboardingState::Onboarding {
-                            onboarding_view,
-                            target: AuthOnboardingTarget::Workspace(workspace_args_box),
-                        }
                     } else {
                         AuthOnboardingState::Terminal(workspace_args.create_workspace(ctx))
                     }
@@ -1525,7 +1450,6 @@ impl RootView {
             model_event_sender,
             mouse_states: Default::default(),
             window_id: ctx.window_id(),
-            pending_tutorial: None,
         };
 
         match &root_view.auth_onboarding_state {
@@ -1580,16 +1504,6 @@ impl RootView {
                 root_view.polling_update_check_complete(result, ctx)
             }
         });
-
-        // Ensure the onboarding view has focus after all views are created.
-        // The auth_view's internal editor may have grabbed focus during construction;
-        // this overrides that so keyboard input (Enter, arrow keys) routes to onboarding.
-        if let AuthOnboardingState::Onboarding {
-            onboarding_view, ..
-        } = &root_view.auth_onboarding_state
-        {
-            ctx.focus(onboarding_view);
-        }
 
         root_view
     }
@@ -1683,207 +1597,6 @@ impl RootView {
             state.toggle_fullscreen(window_id, ctx);
         });
         true
-    }
-
-    fn create_agent_onboarding_view(
-        ctx: &mut ViewContext<Self>,
-    ) -> ViewHandle<AgentOnboardingView> {
-        LLMPreferences::handle(ctx).update(ctx, |prefs, ctx| {
-            prefs.refresh_available_models(ctx);
-        });
-
-        let themes = onboarding_theme_picker_themes();
-        let onboarding_view = ctx.add_typed_action_view(move |ctx| {
-            let llm_preferences = LLMPreferences::as_ref(ctx);
-            let (models, default_model_id) = build_onboarding_models(llm_preferences);
-
-            let workspace_enforces_autonomy = UserWorkspaces::as_ref(ctx)
-                .ai_autonomy_settings()
-                .has_any_overrides();
-
-            AgentOnboardingView::new(
-                themes.clone(),
-                false, // Always use unskippable onboarding.
-                models,
-                default_model_id,
-                workspace_enforces_autonomy,
-                FeatureFlag::AgentView.is_enabled(),
-                ctx,
-            )
-        });
-
-        let onboarding_view_clone = onboarding_view.clone();
-        ctx.subscribe_to_model(
-            &LLMPreferences::handle(ctx),
-            move |_, llm_preferences, event, ctx| match event {
-                LLMPreferencesEvent::UpdatedAvailableLLMs => {
-                    let (models, default_model_id) =
-                        build_onboarding_models(llm_preferences.as_ref(ctx));
-                    onboarding_view_clone.update(ctx, |onboarding_view, ctx| {
-                        onboarding_view.set_onboarding_models(models, default_model_id, ctx);
-                    })
-                }
-
-                LLMPreferencesEvent::UpdatedActiveAgentModeLLM
-                | LLMPreferencesEvent::UpdatedActiveCodingLLM
-                | LLMPreferencesEvent::UpdatedReasoningEffort => {}
-            },
-        );
-
-        // Subscribe to workspace changes to update local autonomy enforcement state.
-        let onboarding_view_for_workspaces = onboarding_view.clone();
-        ctx.subscribe_to_model(
-            &UserWorkspaces::handle(ctx),
-            move |_, user_workspaces, event, ctx| match event {
-                UserWorkspacesEvent::UpdateWorkspaceSettingsSuccess => {
-                    let workspace_enforces_autonomy = user_workspaces
-                        .as_ref(ctx)
-                        .ai_autonomy_settings()
-                        .has_any_overrides();
-                    onboarding_view_for_workspaces.update(ctx, |onboarding_view, ctx| {
-                        onboarding_view
-                            .set_workspace_enforces_autonomy(workspace_enforces_autonomy, ctx);
-                    });
-                }
-                UserWorkspacesEvent::TeamsChanged => {
-                    ctx.notify();
-                }
-                _ => {}
-            },
-        );
-
-        ctx.subscribe_to_model(
-            &AuthManager::handle(ctx),
-            move |_, _auth_manager, event, ctx| {
-                if matches!(
-                    event,
-                    AuthManagerEvent::AuthComplete | AuthManagerEvent::SkippedLogin
-                ) && matches!(event, AuthManagerEvent::AuthComplete)
-                {
-                    LLMPreferences::handle(ctx).update(ctx, |prefs, ctx| {
-                        prefs.refresh_available_models(ctx);
-                    });
-                }
-            },
-        );
-
-        ctx.subscribe_to_view(&onboarding_view, |me, _view, event, ctx| {
-            me.handle_agent_onboarding_event(event, ctx);
-        });
-        onboarding_view
-    }
-
-    /// Debug method to enter the onboarding state.
-    fn debug_enter_onboarding_state(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
-        if !ChannelState::enable_debug_features() {
-            log::warn!("Attempted to enter onboarding state in release build");
-            return false;
-        }
-
-        if !FeatureFlag::AgentOnboarding.is_enabled() {
-            log::warn!("Attempted to enter onboarding state without AgentOnboarding enabled");
-            return false;
-        }
-
-        self.auth_onboarding_state.try_open_onboarding_slides(ctx);
-
-        ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
-        ctx.notify();
-        true
-    }
-
-    fn onboarding_theme_kind(theme_name: &str) -> Option<ThemeKind> {
-        WarpThemeConfig::new()
-            .theme_items()
-            .find_map(|(kind, theme)| {
-                (theme.name().as_deref() == Some(theme_name)).then(|| kind.clone())
-            })
-    }
-
-    fn handle_agent_onboarding_event(
-        &mut self,
-        event: &AgentOnboardingEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            AgentOnboardingEvent::ThemeSelected { theme_name } => {
-                let Some(theme_kind) = Self::onboarding_theme_kind(theme_name) else {
-                    log::warn!("Unknown onboarding theme selected: {theme_name}");
-                    return;
-                };
-
-                // Update both what we render with immediately, and the user's theme setting.
-                ThemeSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(settings.use_system_theme.set_value(false, ctx));
-                    report_if_error!(settings.theme_kind.set_value(theme_kind.clone(), ctx));
-                });
-            }
-            AgentOnboardingEvent::SyncWithOsToggled { enabled } => {
-                ThemeSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(settings.use_system_theme.set_value(*enabled, ctx));
-                });
-            }
-            AgentOnboardingEvent::OnboardingCompleted(selected_settings) => {
-                let AuthOnboardingState::Onboarding { target, .. } = &self.auth_onboarding_state
-                else {
-                    return;
-                };
-                let target = target.clone();
-
-                mark_local_onboarding_completed(ctx);
-                if FeatureFlag::HOAOnboardingFlow.is_enabled() {
-                    mark_hoa_onboarding_completed(ctx);
-                }
-
-                // Terminal-intent users should not see the conversation list
-                // auto-opened for discoverability.
-                if matches!(selected_settings, SelectedSettings::Terminal { .. }) {
-                    AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                        report_if_error!(settings
-                            .has_auto_opened_conversation_list
-                            .set_value(true, ctx));
-                    });
-                }
-
-                let is_logged_in = AuthStateProvider::as_ref(ctx).get().is_logged_in();
-
-                apply_onboarding_settings(selected_settings, ctx);
-
-                if is_logged_in {
-                    AuthManager::handle(ctx)
-                        .update(ctx, |model, ctx| model.set_user_onboarded(ctx));
-                }
-
-                let workspace = target.to_workspace(ctx);
-                let tutorial = OnboardingTutorial::from(selected_settings.clone());
-                self.pending_tutorial = Some(tutorial);
-                self.auth_onboarding_state = AuthOnboardingState::Terminal(workspace);
-                ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
-                self.start_pending_tutorial(ctx);
-                ctx.notify();
-            }
-            AgentOnboardingEvent::OnboardingSkipped => {
-                let AuthOnboardingState::Onboarding { target, .. } = &self.auth_onboarding_state
-                else {
-                    return;
-                };
-
-                mark_local_onboarding_completed(ctx);
-                if FeatureFlag::HOAOnboardingFlow.is_enabled() {
-                    mark_hoa_onboarding_completed(ctx);
-                }
-
-                if AuthStateProvider::as_ref(ctx).get().is_logged_in() {
-                    AuthManager::handle(ctx)
-                        .update(ctx, |model, ctx| model.set_user_onboarded(ctx));
-                }
-
-                let workspace = target.to_workspace(ctx);
-                self.auth_onboarding_state = AuthOnboardingState::Terminal(workspace);
-                ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
-                ctx.notify();
-            }
-        }
     }
 
     fn minimize_window(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
@@ -2189,30 +1902,11 @@ impl RootView {
         true
     }
 
-    /// 如果用户在进入终端前已完成本地 onboarding,则在 auth facade 进入“可用”状态后
-    /// 立刻补齐本地 `is_onboarded` 标记。
-    ///
-    /// 该逻辑在每次 `AuthComplete` 时运行,因此也覆盖“先跳过登录,之后从其它入口进入
-    /// 已认证态”的路径;整个过程只更新本地 auth facade,不做任何服务端同步。
-    fn finalize_local_onboarding_after_auth(auth_state: &AuthState, ctx: &mut AppContext) {
-        let is_onboarded = auth_state.is_onboarded().unwrap_or(true);
-        let is_anonymous = auth_state.is_user_anonymous().unwrap_or(false);
-        let has_completed_local_onboarding = has_completed_local_onboarding(ctx);
-
-        if has_completed_local_onboarding && !is_onboarded && !is_anonymous {
-            AuthManager::handle(ctx).update(ctx, |model, ctx| model.set_user_onboarded(ctx));
-        }
-    }
-
     fn handle_auth_manager_event(&mut self, event: &AuthManagerEvent, ctx: &mut ViewContext<Self>) {
         let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
 
         match event {
             AuthManagerEvent::AuthComplete => {
-                // 如果 onboarding 在进入 auth 完成态之前已结束,这里补齐本地
-                // `is_onboarded` 位,避免后续仍按“未完成引导”分支行事。
-                Self::finalize_local_onboarding_after_auth(&auth_state, ctx);
-
                 // If the user needs SSO after auth is complete, no matter what their current state is,
                 // we need to block their access to the rest of the app.
                 if auth_state.needs_sso_link().unwrap_or(false) {
@@ -2229,7 +1923,6 @@ impl RootView {
                     });
                     self.auth_onboarding_state
                         .complete_auth_and_create_workspace(ctx);
-                    self.start_pending_tutorial(ctx);
                 } else if let AuthOnboardingState::NeedsSsoLink { .. } = &self.auth_onboarding_state
                 {
                     // We should be able to access their SSO state; if not, default to true,
@@ -2286,7 +1979,6 @@ impl RootView {
                 {
                     self.auth_onboarding_state
                         .complete_auth_and_create_workspace(ctx);
-                    self.start_pending_tutorial(ctx);
                 }
                 self.focus(ctx);
             }
@@ -2368,11 +2060,6 @@ impl RootView {
             AuthOnboardingState::NeedsSsoLink { .. } => {
                 ctx.focus(&self.needs_sso_link_view);
             }
-            AuthOnboardingState::Onboarding {
-                onboarding_view, ..
-            } => {
-                ctx.focus(onboarding_view);
-            }
             AuthOnboardingState::Terminal(workspace) => {
                 ctx.focus(workspace);
             }
@@ -2422,43 +2109,6 @@ impl RootView {
         true
     }
 
-    /// Zap(本地化,Phase 5):原 `handle_preferences_syncer_event` 在云端
-    /// preferences 同步初始加载完成后应用 onboarding settings,随同步器物理删除。
-    /// onboarding settings 现在在 onboarding 完成时直接应用,不需要延迟到 cloud sync 后。
-    /// If onboarding stored a pending tutorial (because login was required first),
-    /// start it now that the workspace exists.
-    fn start_pending_tutorial(&mut self, ctx: &mut ViewContext<Self>) {
-        let Some(tutorial) = self.pending_tutorial.take() else {
-            return;
-        };
-
-        let AuthOnboardingState::Terminal(workspace) = &self.auth_onboarding_state else {
-            return;
-        };
-
-        if FeatureFlag::ZapNewSettingsModes.is_enabled()
-            && FeatureFlag::TabConfigs.is_enabled()
-        {
-            let intention = tutorial.intention();
-            // Terminal-intent users skip the session config modal.
-            if matches!(intention, OnboardingIntention::AgentDrivenDevelopment) {
-                workspace.update(ctx, |view, ctx| {
-                    view.set_pending_onboarding_intention(intention);
-                    view.open_vertical_tabs_panel_if_enabled(ctx);
-                    view.show_session_config_modal(ctx);
-                });
-            } else {
-                workspace.update(ctx, |view, ctx| {
-                    view.open_vertical_tabs_panel_if_enabled(ctx);
-                });
-            }
-        } else if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
-            workspace.update(ctx, |view, ctx| {
-                view.start_agent_onboarding_tutorial(tutorial, ctx);
-            });
-        }
-    }
-
     fn traffic_light_data(&self, ctx: &AppContext) -> Option<TrafficLightData> {
         // The workspace view will handle rendering of the traffic lights (so
         // that they can be hidden when the tab bar is hidden).
@@ -2487,14 +2137,6 @@ impl View for RootView {
     fn on_focus(&mut self, focus_ctx: &FocusContext, ctx: &mut ViewContext<Self>) {
         if focus_ctx.is_self_focused() {
             self.focus(ctx);
-        } else if matches!(
-            self.auth_onboarding_state,
-            AuthOnboardingState::Onboarding { .. }
-        ) {
-            // During onboarding, aggressively redirect focus.
-            // This ensures keystrokes (Enter) are handled by the correct view rather
-            // than something hidden like the input editor.
-            self.focus(ctx);
         }
     }
 
@@ -2509,9 +2151,6 @@ impl View for RootView {
             AuthOnboardingState::NeedsSsoLink { .. } => {
                 ChildView::new(&self.needs_sso_link_view).finish()
             }
-            AuthOnboardingState::Onboarding {
-                onboarding_view, ..
-            } => ChildView::new(onboarding_view).finish(),
             AuthOnboardingState::Terminal(workspace) => ChildView::new(workspace).finish(),
         };
 
@@ -2573,7 +2212,6 @@ pub enum RootViewAction {
     ToggleQuakeModeWindow,
     ShowOrHideNonQuakeModeWindows,
     ToggleFullscreen,
-    DebugEnterOnboardingState,
 }
 
 impl TypedActionView for RootView {
@@ -2594,9 +2232,6 @@ impl TypedActionView for RootView {
                     state.toggle_fullscreen(window_id, ctx);
                 });
             }
-            RootViewAction::DebugEnterOnboardingState => {
-                self.debug_enter_onboarding_state(&(), ctx);
-            }
         }
     }
 }
@@ -2616,24 +2251,6 @@ impl WorkspaceArgs {
 
 impl AuthOnboardingState {
     fn complete_auth_and_create_workspace(&mut self, ctx: &mut ViewContext<RootView>) {
-        // Check if we should show onboarding (only for users who are not yet onboarded).
-        // 本地 `is_onboarded` 标记会在 `AuthComplete` 时由
-        // `RootView::finalize_local_onboarding_after_auth` 补齐。
-        let auth_state = AuthStateProvider::as_ref(ctx).get();
-        let is_onboarded = auth_state.is_onboarded().unwrap_or(true);
-        let is_anonymous = auth_state.is_user_anonymous().unwrap_or(false);
-
-        let has_completed_local_onboarding = has_completed_local_onboarding(ctx);
-
-        if !is_onboarded
-            && !is_anonymous
-            && !has_completed_local_onboarding
-            && FeatureFlag::AgentOnboarding.is_enabled()
-        {
-            self.try_open_onboarding_slides(ctx);
-        }
-
-        // If we didn't transition to Onboarding, set the Terminal state.
         match self {
             AuthOnboardingState::Auth(ref args)
             | AuthOnboardingState::ConfirmIncomingAuth(ref args) => {
@@ -2643,30 +2260,6 @@ impl AuthOnboardingState {
             _ => {}
         };
         ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
-    }
-
-    fn try_open_onboarding_slides(&mut self, ctx: &mut ViewContext<RootView>) {
-        let target = match self {
-            AuthOnboardingState::Auth(args) | AuthOnboardingState::ConfirmIncomingAuth(args) => {
-                AuthOnboardingTarget::Workspace(args.clone())
-            }
-            AuthOnboardingState::Terminal(workspace) => {
-                AuthOnboardingTarget::Terminal(workspace.clone())
-            }
-            _ => {
-                // Onboarding slides can only be opened from Auth or Terminal states
-                return;
-            }
-        };
-
-        let onboarding_view = RootView::create_agent_onboarding_view(ctx);
-        onboarding_view.update(ctx, |view, ctx| {
-            view.start_onboarding(ctx);
-        });
-        *self = AuthOnboardingState::Onboarding {
-            onboarding_view,
-            target,
-        };
     }
 
     fn complete_sso_link(&mut self, ctx: &mut ViewContext<RootView>) {
@@ -2686,10 +2279,6 @@ impl AuthOnboardingState {
             AuthOnboardingState::WebImport(_) => (),
             AuthOnboardingState::NeedsSsoLink(target) => {
                 *self = AuthOnboardingState::WebImport(target.clone())
-            }
-            AuthOnboardingState::Onboarding { .. } => {
-                // For onboarding, we don't have a workspace yet, so we can't convert to web import.
-                // This case shouldn't normally occur
             }
             AuthOnboardingState::Terminal(view) => {
                 *self = AuthOnboardingState::WebImport(AuthOnboardingTarget::Terminal(view.clone()))
@@ -2720,10 +2309,6 @@ impl AuthOnboardingState {
                 log::error!("SSO link required after web user import");
             }
             AuthOnboardingState::NeedsSsoLink { .. } => (),
-            AuthOnboardingState::Onboarding { .. } => {
-                // For onboarding, we don't have a workspace yet, so we can't convert to SSO link.
-                // This case shouldn't normally occur
-            }
             AuthOnboardingState::Terminal(terminal_view_handle) => {
                 *self = AuthOnboardingState::NeedsSsoLink(AuthOnboardingTarget::Terminal(
                     terminal_view_handle.clone(),
@@ -2741,7 +2326,3 @@ impl AuthOnboardingTarget {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "root_view_tests.rs"]
-mod tests;

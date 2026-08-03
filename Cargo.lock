@@ -9238,20 +9238,13 @@ dependencies = [
 name = "onboarding"
 version = "0.1.0"
 dependencies = [
- "ai",
  "anyhow",
- "cfg-if",
- "instant",
  "log",
  "pathfinder_color",
  "pathfinder_geometry",
  "rust-embed 8.11.0",
  "serde",
- "serde_json",
- "strum 0.27.2",
- "strum_macros 0.27.2",
  "ui_components",
- "uuid",
  "warp_core",
  "warp_logging",
  "warpui",

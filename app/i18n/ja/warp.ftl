@@ -1911,7 +1911,6 @@ keybinding-desc-pane-group-toggle-maximize = アクティブペインの最大�
 
 # Root view bindings
 keybinding-desc-root-view-toggle-fullscreen = フルスクリーンを切り替え
-keybinding-desc-root-view-enter-onboarding-state = [Debug] オンボーディング状態に入る
 
 # Workflow view bindings
 keybinding-desc-workflow-view-save = ワークフローを保存
@@ -3076,59 +3075,6 @@ agent-message-bar-again-send-to-agent = 再度押すとエージェントに送�
 # Files: onboarding slides, auth modal, voice, launch configs, notebook file state,
 #        resource center, theme picker, terminal banners, AI footer/tool output
 # =============================================================================
-
-onboarding-intention-title = Zap へようこそ
-onboarding-intention-subtitle = どのように作業しますか？
-onboarding-intention-agent-title = AI エージェントでより速く開発する
-onboarding-intention-agent-description = クラス最高のターミナルサポートを備えたエージェントファースト体験。次のようなターミナル/エージェント駆動の AI 機能を利用できます:
-onboarding-intention-terminal-title = ターミナルとして使う
-onboarding-intention-terminal-badge = AI 機能なし
-onboarding-intention-terminal-description = AI を使わず、速度・コンテキスト・コントロールに最適化されたモダンなターミナル。
-onboarding-ai-feature-warp-agents = Zap エージェント
-onboarding-ai-feature-oz-cloud-agents-platform = Oz ローカルエージェントプラットフォーム
-onboarding-ai-feature-next-command-predictions = 次コマンド予測
-onboarding-ai-feature-prompt-suggestions = プロンプト候補
-onboarding-ai-feature-remote-control-agents = Claude Code、Codex、その他エージェントによるリモートコントロール
-onboarding-ai-feature-agents-over-ssh = SSH 経由のエージェント
-onboarding-agent-title = Zap エージェントをカスタマイズ
-onboarding-agent-subtitle = アプリ内エージェントの既定値を選択します。
-onboarding-agent-default-model = 既定モデル
-onboarding-agent-autonomy = 自律性
-onboarding-agent-set-by-team-workspace = ローカルワークスペースポリシーで管理
-onboarding-agent-team-workspace-autonomy-description = 自律性の設定はローカルワークスペースポリシーで構成されています。
-onboarding-agent-autonomy-full-title = フル
-onboarding-agent-autonomy-full-subtitle = 確認なしでコマンド実行・コード記述・ファイル読み取りを行います。
-onboarding-agent-autonomy-partial-title = パーシャル
-onboarding-agent-autonomy-partial-subtitle = 計画立案・ファイル読み取り・低リスクコマンドの実行が可能です。変更や機微なコマンド実行の前に確認します。
-onboarding-agent-autonomy-none-title = なし
-onboarding-agent-autonomy-none-subtitle = 承認なしでは何もアクションを行いません。
-onboarding-agent-disable-warp-agent = Zap エージェントを無効化
-onboarding-project-title = プロジェクトを開く
-onboarding-project-subtitle = Zap でのコーディング向けにプロジェクトを設定します。
-onboarding-project-open-local-folder = ローカルフォルダを開く
-onboarding-project-initialize-automatically = プロジェクトを自動で初期化
-onboarding-project-initialize-description = プロジェクト環境を準備し、コードのインデックスを構築し、プロジェクトルールを生成します。エージェントの理解を深め、性能を高めます。
-onboarding-intro-already-have-account = すでにアカウントをお持ちですか？{" "}
-onboarding-intro-subtitle = 最先端のエージェントを内蔵したモダンなターミナル。
-onboarding-get-started = はじめる
-onboarding-theme-title = テーマを選択
-onboarding-theme-subtitle = クリックまたは矢印キーで選択し、Enter で確定します。
-onboarding-theme-sync-with-os = OS のライト/ダークテーマと同期
-onboarding-third-party-title = サードパーティエージェントをカスタマイズ
-onboarding-third-party-subtitle = Claude Code、Codex、Gemini などのエージェントを使う際の既定値を選択します。
-onboarding-third-party-cli-toolbar = CLI エージェントツールバー
-onboarding-third-party-notifications = 通知
-onboarding-customize-title = Zap をカスタマイズ
-onboarding-customize-subtitle = 機能と UI を自分の作業スタイルに合わせて調整します。
-onboarding-customize-tab-styling = タブのスタイル
-onboarding-customize-vertical = 縦
-onboarding-customize-horizontal = 横
-onboarding-customize-conversation-history = 会話履歴
-onboarding-customize-file-explorer = ファイルエクスプローラー
-onboarding-customize-global-file-search = グローバルファイル検索
-onboarding-customize-warp-drive = Zap Drive
-onboarding-customize-tools-panel = ツールパネル
-onboarding-customize-code-review = コードレビュー
 
 auth-opt-out-line-1 = Zap はオンボーディングの選択をこのデバイスに保存します。
 auth-opt-out-line-2-prefix = 次から調整できます:{" "}

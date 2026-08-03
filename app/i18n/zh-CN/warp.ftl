@@ -1948,7 +1948,6 @@ keybinding-desc-pane-group-toggle-maximize = 切换最大化当前面板
 
 # 根视图相关 binding
 keybinding-desc-root-view-toggle-fullscreen = 切换全屏
-keybinding-desc-root-view-enter-onboarding-state = [调试] 进入引导状态
 
 # workflow 视图相关 binding
 keybinding-desc-workflow-view-save = 保存 workflow
@@ -3189,59 +3188,6 @@ agent-message-bar-again-send-to-agent = 再次发送给智能体
 # =============================================================================
 # SECTION: remaining-ui-surfaces (Owner: codex-i18n-remaining-ui-surfaces)
 # =============================================================================
-
-onboarding-intention-title = 欢迎使用 Zap
-onboarding-intention-subtitle = 你想如何工作？
-onboarding-intention-agent-title = 使用 AI 智能体更快构建
-onboarding-intention-agent-description = 以智能体优先的体验，同时保留一流终端能力。可使用这些终端与智能体驱动开发能力：
-onboarding-intention-terminal-title = 只使用终端
-onboarding-intention-terminal-badge = 不启用 AI 功能
-onboarding-intention-terminal-description = 现代化终端，专注速度、上下文和控制，不启用 AI。
-onboarding-ai-feature-warp-agents = Zap 智能体
-onboarding-ai-feature-oz-cloud-agents-platform = Oz 本地智能体平台
-onboarding-ai-feature-next-command-predictions = 下一条命令预测
-onboarding-ai-feature-prompt-suggestions = 提示词建议
-onboarding-ai-feature-remote-control-agents = 通过 Claude Code、Codex 等智能体进行远程控制
-onboarding-ai-feature-agents-over-ssh = SSH 上的智能体
-onboarding-agent-title = 自定义你的 Zap 智能体
-onboarding-agent-subtitle = 选择应用内智能体的默认设置。
-onboarding-agent-default-model = 默认模型
-onboarding-agent-autonomy = 自主程度
-onboarding-agent-set-by-team-workspace = 由本地工作区策略管理
-onboarding-agent-team-workspace-autonomy-description = 自主程度设置由本地工作区策略配置。
-onboarding-agent-autonomy-full-title = 完全
-onboarding-agent-autonomy-full-subtitle = 无需询问即可运行命令、编写代码和读取文件。
-onboarding-agent-autonomy-partial-title = 部分
-onboarding-agent-autonomy-partial-subtitle = 可以规划、读取文件并执行低风险命令；在改动文件或执行敏感命令前会询问。
-onboarding-agent-autonomy-none-title = 无
-onboarding-agent-autonomy-none-subtitle = 未经你批准不会执行任何操作。
-onboarding-agent-disable-warp-agent = 禁用 Zap 智能体
-onboarding-project-title = 打开项目
-onboarding-project-subtitle = 设置项目，让 Zap 更适合编码。
-onboarding-project-open-local-folder = 打开本地文件夹
-onboarding-project-initialize-automatically = 自动初始化项目
-onboarding-project-initialize-description = 准备项目环境、构建代码索引并生成项目规则，让智能体理解更深入、表现更好。
-onboarding-intro-already-have-account = 已有账号？{" "}
-onboarding-intro-subtitle = 内置先进智能体的现代终端。
-onboarding-get-started = 开始使用
-onboarding-theme-title = 选择主题
-onboarding-theme-subtitle = 点击或使用方向键选择，按 Enter 确认。
-onboarding-theme-sync-with-os = 跟随系统切换浅色/深色主题
-onboarding-third-party-title = 自定义第三方智能体
-onboarding-third-party-subtitle = 为 Claude Code、Codex、Gemini 等智能体设置默认行为。
-onboarding-third-party-cli-toolbar = CLI 智能体工具栏
-onboarding-third-party-notifications = 通知
-onboarding-customize-title = 自定义你的 Zap
-onboarding-customize-subtitle = 根据你的工作方式定制功能和界面。
-onboarding-customize-tab-styling = 标签页样式
-onboarding-customize-vertical = 垂直
-onboarding-customize-horizontal = 水平
-onboarding-customize-conversation-history = 对话历史
-onboarding-customize-file-explorer = 文件浏览器
-onboarding-customize-global-file-search = 全局文件搜索
-onboarding-customize-warp-drive = Zap Drive
-onboarding-customize-tools-panel = 工具面板
-onboarding-customize-code-review = 代码评审
 
 auth-opt-out-line-1 = Zap 会把引导选择保存在本机。
 auth-opt-out-line-2-prefix = 你可以调整你的

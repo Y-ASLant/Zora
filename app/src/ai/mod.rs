@@ -26,7 +26,6 @@ pub(crate) mod conversation_utils;
 pub(crate) mod document;
 pub(crate) mod harness_display;
 pub(crate) mod llms;
-pub mod onboarding;
 pub(crate) mod predict;
 pub(crate) mod project_rules_persister;
 pub mod request_usage_model;

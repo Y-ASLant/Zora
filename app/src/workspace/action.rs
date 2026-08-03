@@ -40,7 +40,7 @@ use super::tab_settings::{
     VerticalTabsCompactSubtitle, VerticalTabsDisplayGranularity, VerticalTabsPrimaryInfo,
     VerticalTabsTabItemMode, VerticalTabsViewMode,
 };
-use super::view::{OnboardingTutorial, WorkspaceBanner};
+use super::view::WorkspaceBanner;
 
 /// This enum determines how the search query is initialized when opening command search.
 #[derive(Clone, Default, Debug)]
@@ -581,9 +581,7 @@ pub enum WorkspaceAction {
         index: usize,
         image: lightbox::LightboxImage,
     },
-    StartAgentOnboardingTutorial(OnboardingTutorial),
     ShowSessionConfigModal,
-    DismissSessionConfigTabConfigChip,
     /// Start the HOA onboarding flow (for debugging)
     #[cfg(debug_assertions)]
     ShowHoaOnboardingFlow,
@@ -844,9 +842,7 @@ impl WorkspaceAction {
             | OpenConversationTranscriptViewer { .. }
             | OpenLightbox { .. }
             | UpdateLightboxImage { .. }
-            | StartAgentOnboardingTutorial(_)
             | ShowSessionConfigModal
-            | DismissSessionConfigTabConfigChip
             | SaveCurrentTabAsNewConfig(_)
             | SyncTrafficLights
             | OpenTabConfigErrorFile { .. }

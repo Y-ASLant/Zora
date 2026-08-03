@@ -27,7 +27,6 @@ pub mod manager;
 pub mod native_preference;
 pub mod network;
 pub mod network_secrets;
-mod onboarding;
 mod pane;
 mod privacy;
 mod same_line_prompt_block;
@@ -62,7 +61,6 @@ pub use language::*;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 pub use linux::*;
 pub use native_preference::*;
-pub use onboarding::*;
 pub use pane::*;
 pub use privacy::*;
 pub use same_line_prompt_block::*;
