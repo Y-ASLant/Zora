@@ -47,7 +47,7 @@ impl UiComponent for Checkbox {
                     .with_cross_axis_alignment(crate::elements::CrossAxisAlignment::Center)
                     .with_child(checkbox)
                     .with_child(
-                        Container::new(label.with_style(self.styles(state)).build().finish())
+                        Container::new(label.build().finish())
                             .with_margin_left(LABEL_LEFT_MARGIN)
                             .finish(),
                     )
