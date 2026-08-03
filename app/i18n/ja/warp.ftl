@@ -3072,16 +3072,13 @@ terminal-message-new-conversation = {" "}新しい会話
 agent-message-bar-again-send-to-agent = 再度押すとエージェントに送信
 # =============================================================================
 # SECTION: remaining-ui-surfaces (Owner: codex-i18n-remaining-ui-surfaces)
-# Files: onboarding slides, auth modal, voice, launch configs, notebook file state,
+# Files: auth modal, voice, launch configs, notebook file state,
 #        resource center, theme picker, terminal banners, AI footer/tool output
 # =============================================================================
 
-auth-opt-out-line-1 = Zap はオンボーディングの選択をこのデバイスに保存します。
-auth-opt-out-line-2-prefix = 次から調整できます:{" "}
 auth-privacy-settings-prefix = 次から調整できます:{" "}
 auth-privacy-settings-ai-prefix = ローカル AI 設定は次で調整できます:{" "}
 auth-privacy-settings = プライバシー設定
-auth-local-privacy-note = Zap はオンボーディングの選択をこのデバイスに保存します。
 auth-terms-prefix = 続行しても、この設定はこのデバイスに残ります。{" "}
 auth-terms-of-service = ローカル設定
 auth-log-in = ログイン

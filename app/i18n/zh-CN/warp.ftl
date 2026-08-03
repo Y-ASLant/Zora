@@ -3189,12 +3189,9 @@ agent-message-bar-again-send-to-agent = 再次发送给智能体
 # SECTION: remaining-ui-surfaces (Owner: codex-i18n-remaining-ui-surfaces)
 # =============================================================================
 
-auth-opt-out-line-1 = Zap 会把引导选择保存在本机。
-auth-opt-out-line-2-prefix = 你可以调整你的
 auth-privacy-settings-prefix = 你可以调整你的{" "}
 auth-privacy-settings-ai-prefix = 你可以在这里调整本地 AI 偏好：{" "}
 auth-privacy-settings = 隐私设置
-auth-local-privacy-note = Zap 会把引导选择保存在本设备。
 auth-terms-prefix = 继续后，此设置仍保留在本机。{" "}
 auth-terms-of-service = 本地设置
 auth-log-in = 登录

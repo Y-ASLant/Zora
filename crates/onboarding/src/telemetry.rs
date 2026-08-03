@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// Telemetry events for the onboarding flow.
+/// 终端引导提示流程的遥测事件。
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum OnboardingEvent {
     /// A callout was displayed.
@@ -9,8 +9,4 @@ pub enum OnboardingEvent {
     CalloutNext,
     /// The user completed the callout flow.
     CalloutCompleted { completion_type: String },
-    /// The user navigated to the next slide.
-    SlideNavigatedNext,
-    /// The user navigated to the previous slide.
-    SlideNavigatedBack,
 }

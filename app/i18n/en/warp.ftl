@@ -3297,16 +3297,13 @@ agent-message-bar-again-send-to-agent = again to send to agent
 
 # =============================================================================
 # SECTION: remaining-ui-surfaces (Owner: codex-i18n-remaining-ui-surfaces)
-# Files: onboarding slides, auth modal, voice, launch configs, notebook file state,
+# Files: auth modal, voice, launch configs, notebook file state,
 #        resource center, theme picker, terminal banners, AI footer/tool output
 # =============================================================================
 
-auth-opt-out-line-1 = Zap stores onboarding choices locally.
-auth-opt-out-line-2-prefix = You can adjust your{" "}
 auth-privacy-settings-prefix = You can adjust your{" "}
 auth-privacy-settings-ai-prefix = You can adjust your local AI preferences in{" "}
 auth-privacy-settings = Privacy Settings
-auth-local-privacy-note = Zap stores onboarding choices locally on this device.
 auth-terms-prefix = Continuing keeps this setup on your device.{" "}
 auth-terms-of-service = Local setup
 auth-log-in = Log in

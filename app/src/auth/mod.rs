@@ -747,7 +747,7 @@ impl AuthManager {
     /// 标记需要重新认证。本地化:no-op。
     pub fn set_needs_reauth(&mut self, _new_value: bool, _ctx: &mut ModelContext<Self>) {}
 
-    /// 创建匿名用户。本地化:no-op,直接发出 `AuthComplete` 让 onboarding 流推进。
+    /// 创建匿名用户。本地化:no-op，直接发出 `AuthComplete` 推进启动流程。
     pub fn create_anonymous_user(
         &mut self,
         _referral_code: Option<String>,

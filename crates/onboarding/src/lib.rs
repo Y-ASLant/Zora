@@ -4,7 +4,7 @@ pub mod callout;
 mod localization;
 pub mod telemetry;
 
-/// The user's intention selected during onboarding slides.
+/// 引导提示中用户选择的使用意图。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OnboardingIntention {
     Terminal,
