@@ -2026,7 +2026,6 @@ keybinding-desc-pane-group-toggle-maximize = Toggle Maximize Active Pane
 
 # Root view bindings
 keybinding-desc-root-view-toggle-fullscreen = Toggle fullscreen
-keybinding-desc-root-view-enter-onboarding-state = [Debug] Enter Onboarding State
 
 # Workflow view bindings
 keybinding-desc-workflow-view-save = Save workflow
@@ -3298,69 +3297,13 @@ agent-message-bar-again-send-to-agent = again to send to agent
 
 # =============================================================================
 # SECTION: remaining-ui-surfaces (Owner: codex-i18n-remaining-ui-surfaces)
-# Files: onboarding slides, auth modal, voice, launch configs, notebook file state,
+# Files: auth modal, voice, launch configs, notebook file state,
 #        resource center, theme picker, terminal banners, AI footer/tool output
 # =============================================================================
 
-onboarding-intention-title = Welcome to Zap
-onboarding-intention-subtitle = How do you want to work?
-onboarding-intention-agent-title = Build faster with AI agents
-onboarding-intention-agent-description = An agent-first experience with best in class terminal support. Get terminal and agent driven development AI features like:
-onboarding-intention-terminal-title = Just use the terminal
-onboarding-intention-terminal-badge = No AI features
-onboarding-intention-terminal-description = A modern terminal optimized for speed, context, and control without AI.
-onboarding-ai-feature-warp-agents = Zap agents
-onboarding-ai-feature-oz-cloud-agents-platform = Oz local agents platform
-onboarding-ai-feature-next-command-predictions = Next command predictions
-onboarding-ai-feature-prompt-suggestions = Prompt suggestions
-onboarding-ai-feature-remote-control-agents = Remote control with Claude Code, Codex, and other agents
-onboarding-ai-feature-agents-over-ssh = Agents over SSH
-onboarding-agent-title = Customize your Zap Agent
-onboarding-agent-subtitle = Select your in-app agent's defaults.
-onboarding-agent-default-model = Default model
-onboarding-agent-autonomy = Autonomy
-onboarding-agent-set-by-team-workspace = Managed by local workspace policy
-onboarding-agent-team-workspace-autonomy-description = Autonomy settings are configured by the local workspace policy.
-onboarding-agent-autonomy-full-title = Full
-onboarding-agent-autonomy-full-subtitle = Runs commands, writes code, and reads files without asking.
-onboarding-agent-autonomy-partial-title = Partial
-onboarding-agent-autonomy-partial-subtitle = Can plan, read files, and execute low-risk commands. Asks before making any changes or executing sensitive commands.
-onboarding-agent-autonomy-none-title = None
-onboarding-agent-autonomy-none-subtitle = Takes no actions without your approval.
-onboarding-agent-disable-warp-agent = Disable Zap Agent
-onboarding-project-title = Open a project
-onboarding-project-subtitle = Set up a project to optimize it for coding in Zap.
-onboarding-project-open-local-folder = Open local folder
-onboarding-project-initialize-automatically = Initialize project automatically
-onboarding-project-initialize-description = Prepares the project environment, builds an index of your code, and generates project rules—giving the agent deeper understanding and better performance.
-onboarding-intro-already-have-account = Already have an account?{" "}
-onboarding-intro-subtitle = A modern terminal with state of the art agents built in.
-onboarding-get-started = Get started
-onboarding-theme-title = Choose a theme
-onboarding-theme-subtitle = Click or use arrow keys to select, Enter to confirm.
-onboarding-theme-sync-with-os = Sync light/dark theme with OS
-onboarding-third-party-title = Customize third party agents
-onboarding-third-party-subtitle = Select defaults for using agents like Claude Code, Codex, and Gemini.
-onboarding-third-party-cli-toolbar = CLI agent toolbar
-onboarding-third-party-notifications = Notifications
-onboarding-customize-title = Customize your Zap
-onboarding-customize-subtitle = Tailor your features and UI to your working style.
-onboarding-customize-tab-styling = Tab styling
-onboarding-customize-vertical = Vertical
-onboarding-customize-horizontal = Horizontal
-onboarding-customize-conversation-history = Conversation history
-onboarding-customize-file-explorer = File explorer
-onboarding-customize-global-file-search = Global file search
-onboarding-customize-warp-drive = Zap Drive
-onboarding-customize-tools-panel = Tools panel
-onboarding-customize-code-review = Code review
-
-auth-opt-out-line-1 = Zap stores onboarding choices locally.
-auth-opt-out-line-2-prefix = You can adjust your{" "}
 auth-privacy-settings-prefix = You can adjust your{" "}
 auth-privacy-settings-ai-prefix = You can adjust your local AI preferences in{" "}
 auth-privacy-settings = Privacy Settings
-auth-local-privacy-note = Zap stores onboarding choices locally on this device.
 auth-terms-prefix = Continuing keeps this setup on your device.{" "}
 auth-terms-of-service = Local setup
 auth-log-in = Log in

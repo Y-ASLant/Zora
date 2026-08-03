@@ -380,7 +380,6 @@ pub mod flags {
     pub const TAB_INDICATORS_FLAG: &str = "Tab_Indicators_Enabled";
     pub const SHOW_CODE_REVIEW_BUTTON_FLAG: &str = "Show_Code_Review_Button_Enabled";
     pub const USE_VERTICAL_TABS_FLAG: &str = "Use_Vertical_Tabs";
-    pub const SESSION_CONFIG_TAB_CONFIG_CHIP_OPEN: &str = "Session_Config_Tab_Config_Chip_Open";
     pub const FOCUS_PANES_ON_HOVER_CONTEXT_FLAG: &str = "Focus_Panes_On_Hover";
     pub const HIDE_WORKSPACE_DECORATIONS_CONTEXT_FLAG: &str = "Hide_Workspace_Decorations";
     pub const ALIAS_EXPANSION_FLAG: &str = "Alias_Expansion_Enabled";

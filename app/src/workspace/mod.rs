@@ -133,19 +133,6 @@ pub fn init(app: &mut AppContext) {
         WorkspaceAction::DumpDebugInfo,
         id!("Workspace"),
     )]);
-    app.register_fixed_bindings([
-        FixedBinding::new(
-            "escape",
-            WorkspaceAction::DismissSessionConfigTabConfigChip,
-            id!("Workspace") & id!(flags::SESSION_CONFIG_TAB_CONFIG_CHIP_OPEN),
-        ),
-        FixedBinding::new(
-            "enter",
-            WorkspaceAction::DismissSessionConfigTabConfigChip,
-            id!("Workspace") & id!(flags::SESSION_CONFIG_TAB_CONFIG_CHIP_OPEN),
-        ),
-    ]);
-
     if ChannelState::enable_debug_features() {
         // 根据平台选择本地 crash 描述对应的 fluent key
         let crash_description = if cfg!(target_os = "macos") {
