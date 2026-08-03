@@ -401,8 +401,8 @@ jobs:
               # 预装 PKGBUILD `depends` 里的运行时依赖,避免 makepkg -s
               # 在容器内调 `sudo pacman -S` 装缺包(builder 没有免密 sudo,
               # 会因为读不到密码退出 8,Arch 包就此漏掉,见 run 26267606877)。
-              # `opengl-driver` 在官方仓库里不存在(NixOS 概念 / AUR 虚拟包),
-              # 单独用 --assume-installed 让依赖检查跳过它。
+              # `opengl-driver` 是虚拟依赖,不能作为 pacman 的直接安装目标。
+              # 所有实际运行时依赖已在这里预装,makepkg 阶段跳过依赖检查。
               pacman -Sy --noconfirm --needed \
                 base-devel git sudo rust cargo-about \
                 curl default-cursors fontconfig libegl libx11 libxcb \
@@ -420,11 +420,11 @@ jobs:
                 bash -c "
                   git config --global --add safe.directory /work
                   cd /work
-                  # 依赖已在外层 pacman 装好;告诉 makepkg `opengl-driver`
-                  # 视为已安装,避免它去 pacman -S 一个仓库里没有的包。
+                  # 依赖已在外层 pacman 装好;让 makepkg 跳过依赖检查,
+                  # 避免它尝试通过 pacman -S 解析无法直接安装的虚拟依赖。
                   # 另外带 --noconfirm:容器里没透传 GITHUB_ACTIONS,
                   # bundle_arch 里原生的那个分支不会生效。
-                  MAKEPKG_EXTRA_ARGS='\''--noconfirm --assume-installed opengl-driver'\'' \
+                  MAKEPKG_EXTRA_ARGS='\''--noconfirm --nodeps'\'' \
                     script/bundle --skip-build --channel oss --arch x86_64 --packages arch
                 "
             '
