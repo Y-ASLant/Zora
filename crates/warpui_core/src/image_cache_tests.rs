@@ -1,4 +1,4 @@
-use std::{borrow::Cow, rc::Rc};
+use std::{borrow::Cow, io::Write, rc::Rc};
 
 use rust_embed::RustEmbed;
 
@@ -34,6 +34,44 @@ fn new_asset_cache() -> AssetCache {
         Foreground::test().into(),
         Background::default().into(),
     )
+}
+
+fn new_asset_cache_with_foreground() -> (AssetCache, Rc<Foreground>) {
+    let foreground = Rc::new(Foreground::test());
+    let asset_cache = AssetCache::new(
+        Box::new(Assets),
+        foreground.clone(),
+        Background::default().into(),
+    );
+    (asset_cache, foreground)
+}
+
+#[test]
+fn test_loads_local_raster_file_asynchronously() {
+    let mut file = tempfile::NamedTempFile::new().unwrap();
+    file.write_all(include_bytes!("../test_data/local.png"))
+        .unwrap();
+    file.flush().unwrap();
+
+    let (asset_cache, foreground) = new_asset_cache_with_foreground();
+    let source = AssetSource::LocalRasterFile {
+        path: file.path().to_string_lossy().into_owned(),
+    };
+
+    let image_asset: AssetState<ImageType> = asset_cache.load_asset(source.clone());
+    let AssetState::Loading { handle } = image_asset else {
+        panic!("Local raster assets should load asynchronously!");
+    };
+    let when_loaded = handle
+        .when_loaded(&asset_cache)
+        .expect("The local raster asset should still be loading");
+    futures::executor::block_on(foreground.run(when_loaded));
+
+    let image_asset: AssetState<ImageType> = asset_cache.load_asset(source);
+    let AssetState::Loaded { data: image } = image_asset else {
+        panic!("The local raster asset should be decoded after loading!");
+    };
+    assert!(matches!(image.as_ref(), ImageType::StaticBitmap { .. }));
 }
 
 fn load_bundled_image(

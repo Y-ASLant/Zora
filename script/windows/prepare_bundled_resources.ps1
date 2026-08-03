@@ -76,6 +76,24 @@ if (Test-Path $BundledSource -PathType Container) {
     Write-Warning "No bundled directory found at $BundledSource"
 }
 
+# GUI 发行包把大 PNG/JPEG 资源置于可执行文件旁，而非嵌入其中。这里不依赖
+# release_bundle 参数，避免特性参数传递异常时生成缺少图片的安装包；独立 CLI 不会渲染这些资源。
+$CargoFeatureList = @($CargoFeatures -split ',' | ForEach-Object { $_.Trim() })
+if (-not ($CargoFeatureList -contains 'standalone')) {
+    $AsyncSource = Join-Path $RepoRoot 'app\assets\async'
+    if (-Not (Test-Path $AsyncSource -PathType Container)) {
+        Write-Error "Async assets directory not found at $AsyncSource"
+        exit 1
+    }
+
+    $AsyncDestination = Join-Path $DestinationDir 'async'
+    Write-Output "Copying async raster assets to $AsyncDestination"
+    if (Test-Path $AsyncDestination -PathType Container) {
+        Remove-Item -Path $AsyncDestination -Recurse -Force
+    }
+    Copy-Item -Path $AsyncSource -Destination $AsyncDestination -Recurse -Force
+}
+
 if ($env:GIT_RELEASE_TAG) {
     $VersionMetadataDir = Join-Path (Join-Path $DestinationDir 'bundled') 'metadata'
     $VersionMetadataPath = Join-Path $VersionMetadataDir 'version.json'

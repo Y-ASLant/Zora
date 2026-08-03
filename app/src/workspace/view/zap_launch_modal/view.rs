@@ -3,8 +3,8 @@ use markdown_parser::{
 };
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
+use warp_core::paths::async_raster_asset;
 use warp_core::ui::theme::{phenomenon::PhenomenonStyle, Fill};
-use warpui::assets::asset_cache::AssetSource;
 use warpui::elements::{
     Align, CacheOption, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius,
     CrossAxisAlignment, Expanded, Flex, FormattedTextElement, HighlightedHyperlink, Image,
@@ -153,16 +153,11 @@ impl ZapLaunchModal {
 
     fn render_hero(&self) -> Box<dyn Element> {
         let hero = ConstrainedBox::new(
-            Image::new(
-                AssetSource::Bundled {
-                    path: HERO_IMAGE_PATH,
-                },
-                CacheOption::Original,
-            )
-            .with_corner_radius(CornerRadius::with_top(Radius::Pixels(8.)))
-            .cover()
-            .top_aligned()
-            .finish(),
+            Image::new(async_raster_asset(HERO_IMAGE_PATH), CacheOption::Original)
+                .with_corner_radius(CornerRadius::with_top(Radius::Pixels(8.)))
+                .cover()
+                .top_aligned()
+                .finish(),
         )
         .with_width(MODAL_WIDTH)
         .with_height(HERO_HEIGHT)

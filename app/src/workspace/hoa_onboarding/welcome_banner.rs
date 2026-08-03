@@ -1,6 +1,6 @@
 use pathfinder_geometry::vector::vec2f;
+use warp_core::paths::async_raster_asset;
 use warp_core::ui::theme::{phenomenon::PhenomenonStyle, Fill};
-use warpui::assets::asset_cache::AssetSource;
 use warpui::elements::{
     CacheOption, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius,
     CrossAxisAlignment, Expanded, Flex, Image, MainAxisSize, OffsetPositioning, ParentAnchor,
@@ -55,16 +55,11 @@ pub fn render_welcome_banner(
 ) -> Box<dyn Element> {
     // Hero image with close button overlay
     let hero = ConstrainedBox::new(
-        Image::new(
-            AssetSource::Bundled {
-                path: HERO_IMAGE_PATH,
-            },
-            CacheOption::Original,
-        )
-        .with_corner_radius(CornerRadius::with_top(Radius::Pixels(8.)))
-        .cover()
-        .top_aligned()
-        .finish(),
+        Image::new(async_raster_asset(HERO_IMAGE_PATH), CacheOption::Original)
+            .with_corner_radius(CornerRadius::with_top(Radius::Pixels(8.)))
+            .cover()
+            .top_aligned()
+            .finish(),
     )
     .with_width(BANNER_WIDTH)
     .with_height(HERO_HEIGHT)

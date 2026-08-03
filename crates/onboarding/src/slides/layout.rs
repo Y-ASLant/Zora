@@ -1,6 +1,6 @@
 use pathfinder_geometry::vector::{vec2f, Vector2F};
+use warp_core::paths::async_raster_asset;
 use warpui::{
-    assets::asset_cache::AssetSource,
     elements::{
         Align, CacheOption, Clipped, ConstrainedBox, Container, CrossAxisAlignment, Empty,
         Expanded, Flex, Image, MainAxisSize, ParentElement, Point, Shrinkable,
@@ -11,14 +11,7 @@ use warpui::{
     SizeConstraint,
 };
 
-// Onboarding images live under `app/assets/async/` so they are excluded from the WASM
-// binary (RustEmbed excludes `async/**` on wasm targets). They are still bundled normally
-// on native builds. Unlike other `async/` assets these are NOT wired up with
-// `bundled_or_fetched_asset!`, so they cannot be fetched remotely on web. We can't use
-// that macro here because it resolves paths relative to CARGO_MANIFEST_DIR (i.e.
-// `crates/onboarding/`), but the assets live under `app/assets/`. Onboarding is not
-// shown on web, so this is fine.
-// TODO(APP-3934): support the macro outside the app crate
+// 开发构建内嵌引导图片，发行包从 `resources/async` 目录读取。Web 不展示 onboarding。
 pub const ONBOARDING_BG_PATH: &str = "async/png/onboarding/onboarding_bg.png";
 
 const LEFT_COLUMN_WIDTH: f32 = 580.;
@@ -287,9 +280,7 @@ pub fn onboarding_right_panel_with_bg(
     layout: ForegroundLayout,
 ) -> Box<dyn Element> {
     let background = Image::new(
-        AssetSource::Bundled {
-            path: ONBOARDING_BG_PATH,
-        },
+        async_raster_asset(ONBOARDING_BG_PATH),
         CacheOption::Original,
     )
     .stretch()
@@ -297,19 +288,19 @@ pub fn onboarding_right_panel_with_bg(
 
     let image = match layout.fit {
         ForegroundFit::CoverTopAligned => {
-            Image::new(AssetSource::Bundled { path }, CacheOption::Original)
+            Image::new(async_raster_asset(path), CacheOption::Original)
                 .cover()
                 .top_aligned()
                 .finish()
         }
         ForegroundFit::ContainTopAligned => {
-            Image::new(AssetSource::Bundled { path }, CacheOption::Original)
+            Image::new(async_raster_asset(path), CacheOption::Original)
                 .contain()
                 .top_aligned()
                 .finish()
         }
         ForegroundFit::ContainRightAligned => {
-            Image::new(AssetSource::Bundled { path }, CacheOption::Original)
+            Image::new(async_raster_asset(path), CacheOption::Original)
                 .contain()
                 .right_aligned()
                 .finish()

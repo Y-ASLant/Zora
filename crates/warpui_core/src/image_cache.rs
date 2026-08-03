@@ -318,28 +318,9 @@ impl Asset for ImageType {
         }
 
         match image::guess_format(data) {
-            Ok(ImageFormat::Jpeg) => {
-                let img = image::ImageReader::with_format(
-                    std::io::Cursor::new(data),
-                    image::ImageFormat::Jpeg,
-                )
-                .decode()?
-                .into_rgba8();
-                Ok(ImageType::StaticBitmap {
-                    image: Arc::new(StaticImage { img }),
-                })
-            }
-            Ok(ImageFormat::Png) => {
-                let img = image::ImageReader::with_format(
-                    std::io::Cursor::new(data),
-                    image::ImageFormat::Png,
-                )
-                .decode()?
-                .into_rgba8();
-                Ok(ImageType::StaticBitmap {
-                    image: Arc::new(StaticImage { img }),
-                })
-            }
+            Ok(ImageFormat::Jpeg | ImageFormat::Png) => Ok(ImageType::from_raster_image(
+                Self::decode_raster_image(data)?,
+            )),
             Ok(ImageFormat::WebP) => {
                 let decoder = WebPDecoder::new(std::io::Cursor::new(data))?;
                 if decoder.has_animation() {
@@ -466,6 +447,30 @@ pub enum ImageType {
 }
 
 impl ImageType {
+    /// 解码应用外置图片所使用的光栅格式。
+    ///
+    /// 返回的图片实现了 `Send`，调用方可以在 UI 线程外解码，再创建 UI 所属的
+    /// [`ImageType`]。
+    pub(crate) fn decode_raster_image(data: &[u8]) -> Result<image::RgbaImage> {
+        let format = image::guess_format(data)?;
+        let format = match format {
+            ImageFormat::Jpeg | ImageFormat::Png => format,
+            _ => return Err(anyhow!("expected a PNG or JPEG raster image")),
+        };
+
+        Ok(
+            image::ImageReader::with_format(std::io::Cursor::new(data), format)
+                .decode()?
+                .into_rgba8(),
+        )
+    }
+
+    pub(crate) fn from_raster_image(img: image::RgbaImage) -> Self {
+        Self::StaticBitmap {
+            image: Arc::new(StaticImage { img }),
+        }
+    }
+
     /// Returns the size of the underlying asset.
     pub fn image_size(&self) -> Option<Vector2I> {
         match self {

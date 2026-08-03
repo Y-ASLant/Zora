@@ -7,8 +7,8 @@ use crate::slides::{
 use crate::telemetry::OnboardingEvent;
 use ai::LLMId;
 use warp_core::features::FeatureFlag;
+use warp_core::paths::async_raster_asset;
 use warp_core::send_telemetry_from_ctx;
-use warpui::assets::asset_cache::AssetSource;
 use warpui::image_cache::ImageType;
 
 use pathfinder_geometry::vector::vec2f;
@@ -200,9 +200,9 @@ impl AgentOnboardingView {
         // instead of to other views (e.g. the editor).
         ctx.focus_self();
 
-        // Preload customize-slide images so they're ready when the user reaches that slide.
+        // 视觉页共用同一背景图。只预取这一张，避免打开引导时解码全部候选图片。
         if FeatureFlag::ZapNewSettingsModes.is_enabled() {
-            Self::preload_onboarding_images(ctx);
+            Self::preload_onboarding_background(ctx);
         }
 
         send_telemetry_from_ctx!(OnboardingEvent::OnboardingStarted, ctx);
@@ -214,28 +214,12 @@ impl AgentOnboardingView {
         );
     }
 
-    /// Eagerly loads all onboarding slide images into the asset cache
-    /// so they display instantly when the user navigates between slides.
-    fn preload_onboarding_images(ctx: &mut ViewContext<Self>) {
+    /// 仅预取共享背景图，各页视觉图片按需加载。
+    fn preload_onboarding_background(ctx: &mut ViewContext<Self>) {
         let asset_cache = warpui::assets::asset_cache::AssetCache::as_ref(ctx);
-        // Preload the shared background image used on all right panels.
-        asset_cache.load_asset::<ImageType>(AssetSource::Bundled {
-            path: crate::slides::layout::ONBOARDING_BG_PATH,
-        });
-        for path in IntentionSlide::VISUAL_IMAGE_PATHS {
-            asset_cache.load_asset::<ImageType>(AssetSource::Bundled { path });
-        }
-        for path in CustomizeUISlide::VISUAL_IMAGE_PATHS {
-            asset_cache.load_asset::<ImageType>(AssetSource::Bundled { path });
-        }
-        for path in ThirdPartySlide::VISUAL_IMAGE_PATHS {
-            asset_cache.load_asset::<ImageType>(AssetSource::Bundled { path });
-        }
-        for path in ThemePickerSlide::VISUAL_IMAGE_PATHS {
-            asset_cache.load_asset::<ImageType>(AssetSource::Bundled { path });
-        }
-        // Agent slide reuses customize_vertical_tabs / customize_horizontal_tabs
-        // which are already in CustomizeUISlide::VISUAL_IMAGE_PATHS.
+        asset_cache.load_asset::<ImageType>(async_raster_asset(
+            crate::slides::layout::ONBOARDING_BG_PATH,
+        ));
     }
 
     fn handle_onboarding_completed(&mut self, ctx: &mut ViewContext<Self>) {
