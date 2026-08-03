@@ -6109,15 +6109,21 @@ impl SettingsWidget for CLIAgentWidget {
         );
 
         let description_fragments = vec![
-            FormattedTextFragment::plain_text(
-                "Show a toolbar with quick actions when running coding agents like ",
-            ),
+            FormattedTextFragment::plain_text(crate::t!(
+                "settings-ai-show-coding-agent-toolbar-description-prefix"
+            )),
             FormattedTextFragment::inline_code("claude"),
-            FormattedTextFragment::plain_text(", "),
+            FormattedTextFragment::plain_text(crate::t!(
+                "settings-ai-show-coding-agent-toolbar-description-separator"
+            )),
             FormattedTextFragment::inline_code("codex"),
-            FormattedTextFragment::plain_text(", or "),
+            FormattedTextFragment::plain_text(crate::t!(
+                "settings-ai-show-coding-agent-toolbar-description-or"
+            )),
             FormattedTextFragment::inline_code("gemini"),
-            FormattedTextFragment::plain_text("."),
+            FormattedTextFragment::plain_text(crate::t!(
+                "settings-ai-show-coding-agent-toolbar-description-suffix"
+            )),
         ];
 
         let description = FormattedTextElement::new(

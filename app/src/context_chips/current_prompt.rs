@@ -1361,8 +1361,14 @@ impl CurrentPrompt {
                     .is_some_and(|state| state.last_computed_value.is_some());
                 if has_value && chip_kind.is_copyable() {
                     if let Some(chip) = chip_kind.to_chip() {
+                        let label = match &chip_kind {
+                            ContextChipKind::WorkingDirectory => {
+                                crate::t!("menu-block-copy-working-directory")
+                            }
+                            _ => format!("{} {}", crate::t!("menu-block-copy"), chip.title()),
+                        };
                         Some(
-                            MenuItemFields::new(format!("Copy {}", chip.title()))
+                            MenuItemFields::new(label)
                                 .with_on_select_action(TerminalAction::ContextMenu(
                                     ContextMenuAction::CopyPrompt {
                                         position,

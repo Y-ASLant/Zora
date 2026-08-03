@@ -973,6 +973,10 @@ settings-ai-toolbar-layout = ツールバーのレイアウト
 
 # Third-party CLI agents
 settings-ai-show-coding-agent-toolbar = コーディングエージェントのツールバーを表示
+settings-ai-show-coding-agent-toolbar-description-prefix = コーディングエージェント（
+settings-ai-show-coding-agent-toolbar-description-separator = 、
+settings-ai-show-coding-agent-toolbar-description-or = 、
+settings-ai-show-coding-agent-toolbar-description-suffix = ）の実行時に、クイックアクション付きのツールバーを表示します。
 settings-ai-auto-show-rich-input = エージェントの状態に応じて Rich Input を自動表示/非表示
 settings-ai-auto-show-rich-input-tooltip = コーディングエージェント用の Warp プラグインが必要です
 settings-ai-auto-open-rich-input = コーディングエージェントのセッション開始時に Rich Input を自動で開く

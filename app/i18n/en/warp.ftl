@@ -1065,6 +1065,10 @@ settings-ai-toolbar-layout = Toolbar layout
 
 # Third-party CLI agents
 settings-ai-show-coding-agent-toolbar = Show coding agent toolbar
+settings-ai-show-coding-agent-toolbar-description-prefix = Show a toolbar with quick actions when running coding agents like{" "}
+settings-ai-show-coding-agent-toolbar-description-separator = ,{" "}
+settings-ai-show-coding-agent-toolbar-description-or = , or{" "}
+settings-ai-show-coding-agent-toolbar-description-suffix = .
 settings-ai-auto-show-rich-input = Auto show/hide Rich Input based on agent status
 settings-ai-auto-show-rich-input-tooltip = Requires the Warp plugin for your coding agent
 settings-ai-auto-open-rich-input = Auto open Rich Input when a coding agent session starts

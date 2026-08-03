@@ -1050,6 +1050,10 @@ settings-ai-toolbar-layout = 工具栏布局
 
 # 第三方 CLI 智能体
 settings-ai-show-coding-agent-toolbar = 显示编码智能体工具栏
+settings-ai-show-coding-agent-toolbar-description-prefix = 运行类似
+settings-ai-show-coding-agent-toolbar-description-separator = 、
+settings-ai-show-coding-agent-toolbar-description-or = {" "}或{" "}
+settings-ai-show-coding-agent-toolbar-description-suffix = 的编码智能体时显示快捷操作工具栏。
 settings-ai-auto-show-rich-input = 根据智能体状态自动显示/隐藏富输入
 settings-ai-auto-show-rich-input-tooltip = 需要为你的编码智能体安装 Warp 插件
 settings-ai-auto-open-rich-input = 编码智能体会话启动时自动打开富输入
