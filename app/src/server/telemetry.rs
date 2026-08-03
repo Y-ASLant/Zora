@@ -1033,7 +1033,6 @@ pub enum TelemetryAgentViewEntryOrigin {
     ContinueConversationButton,
     ViewPassiveCodeDiffDetails,
     ResumeConversationButton,
-    CodexModal,
     LongRunningCommand,
     HistoryMenu,
     InlineConversationMenu,
@@ -1083,7 +1082,6 @@ impl From<AgentViewEntryOrigin> for TelemetryAgentViewEntryOrigin {
             AgentViewEntryOrigin::ContinueConversationButton => Self::ContinueConversationButton,
             AgentViewEntryOrigin::ViewPassiveCodeDiffDetails => Self::ViewPassiveCodeDiffDetails,
             AgentViewEntryOrigin::ResumeConversationButton => Self::ResumeConversationButton,
-            AgentViewEntryOrigin::CodexModal => Self::CodexModal,
             AgentViewEntryOrigin::InlineHistoryMenu => Self::HistoryMenu,
             AgentViewEntryOrigin::InlineConversationMenu => Self::InlineConversationMenu,
             AgentViewEntryOrigin::PromptChip => Self::PromptChip,
@@ -2498,10 +2496,6 @@ pub enum TelemetryEvent {
         /// Whether the shortcuts view is now visible.
         is_visible: bool,
     },
-    /// Emitted when the Codex modal is opened.
-    CodexModalOpened,
-    /// Emitted when the user clicks "Use Codex" in the Codex modal.
-    CodexModalUseCodexClicked,
     /// Emitted when a RequestComputerUse action is approved (manually or auto-executed).
     ComputerUseApproved {
         conversation_id: AIConversationId,
@@ -4058,8 +4052,6 @@ impl TelemetryEvent {
             TelemetryEvent::AgentShortcutsViewToggled { is_visible } => Some(json!({
                 "is_visible": is_visible,
             })),
-            TelemetryEvent::CodexModalOpened => None,
-            TelemetryEvent::CodexModalUseCodexClicked => None,
             TelemetryEvent::LinearIssueLinkOpened => None,
             TelemetryEvent::ComputerUseApproved {
                 conversation_id,
@@ -4485,8 +4477,6 @@ impl TelemetryEvent {
             | TelemetryEvent::CLIAgentRichInputSubmitted { .. }
             | TelemetryEvent::ToggleCLIAgentToolbarSetting { .. }
             | TelemetryEvent::ToggleUseAgentToolbarSetting { .. }
-            | TelemetryEvent::CodexModalOpened
-            | TelemetryEvent::CodexModalUseCodexClicked
             | TelemetryEvent::LinearIssueLinkOpened
             | TelemetryEvent::ComputerUseApproved { .. }
             | TelemetryEvent::ComputerUseCancelled { .. }

@@ -307,8 +307,6 @@ pub struct AvailableLLMs {
     default_id: LLMId,
     choices: Vec<LLMInfo>,
 
-    #[serde(default)]
-    preferred_codex_model_id: Option<LLMId>,
 }
 
 impl AvailableLLMs {
@@ -321,7 +319,6 @@ impl AvailableLLMs {
     pub fn new<T: Into<LLMInfo>>(
         mut default_id: LLMId,
         choices: impl IntoIterator<Item = T>,
-        preferred_codex_model_id: Option<LLMId>,
     ) -> Result<Self, anyhow::Error> {
         let choices: Vec<LLMInfo> = choices.into_iter().map(Into::into).collect();
         if choices.is_empty() {
@@ -343,7 +340,6 @@ impl AvailableLLMs {
         Ok(Self {
             default_id,
             choices: choices.into_iter().collect(),
-            preferred_codex_model_id,
         })
     }
 
@@ -361,7 +357,6 @@ impl AvailableLLMs {
         Self {
             default_id: llm_name.into(),
             choices: vec![LLMInfo::new_for_test(llm_name)],
-            preferred_codex_model_id: None,
         }
     }
 }
@@ -423,7 +418,6 @@ fn default_computer_use_llms() -> AvailableLLMs {
             discount_percentage: None,
             context_window: LLMContextWindow::default(),
         }],
-        preferred_codex_model_id: None,
     }
 }
 
@@ -450,7 +444,6 @@ impl Default for ModelsByFeature {
                     discount_percentage: None,
                     context_window: LLMContextWindow::default(),
                 }],
-                preferred_codex_model_id: None,
             },
             coding: AvailableLLMs {
                 default_id: "auto".to_owned().into(),
@@ -472,7 +465,6 @@ impl Default for ModelsByFeature {
                     discount_percentage: None,
                     context_window: LLMContextWindow::default(),
                 }],
-                preferred_codex_model_id: None,
             },
             cli_agent: Some(AvailableLLMs {
                 default_id: "cli-agent-auto".to_owned().into(),
@@ -494,7 +486,6 @@ impl Default for ModelsByFeature {
                     discount_percentage: None,
                     context_window: LLMContextWindow::default(),
                 }],
-                preferred_codex_model_id: None,
             }),
             computer_use: Some(default_computer_use_llms()),
         }
@@ -883,15 +874,6 @@ impl LLMPreferences {
     /// Returns the default coding model as a fallback.
     pub fn get_default_coding_model(&self) -> &LLMInfo {
         self.models_by_feature.coding.default_llm_info()
-    }
-
-    /// Returns the preferred Codex model, if set by the server.
-    pub fn get_preferred_codex_model(&self) -> Option<&LLMInfo> {
-        self.models_by_feature
-            .agent_mode
-            .preferred_codex_model_id
-            .as_ref()
-            .and_then(|id| self.models_by_feature.agent_mode.info_for_id(id))
     }
 
     #[cfg(feature = "integration_tests")]

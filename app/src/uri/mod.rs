@@ -71,8 +71,6 @@ pub enum UriHost {
     Home,
     /// Actions related to MCP servers (e.g.: oauth callbacks).
     Mcp,
-    /// Opens a new tab with the Codex model and starts a conversation.
-    Codex,
     /// Actions triggered from Linear integrations (e.g. work on issue).
     Linear,
 }
@@ -90,7 +88,6 @@ impl FromStr for UriHost {
             "settings" => Ok(Self::Settings),
             "home" => Ok(Self::Home),
             "mcp" => Ok(Self::Mcp),
-            "codex" => Ok(Self::Codex),
             "linear" => Ok(Self::Linear),
             _ => Err(anyhow!("Received url with unexpected host: {}", s)),
         }
@@ -315,15 +312,6 @@ impl UriHost {
                     }
                 }
             }
-            UriHost::Codex => {
-                dispatch_action_in_new_or_existing_window(
-                    primary_window_id,
-                    "root_view:open_codex_in_existing_window",
-                    "root_view:open_codex_in_new_window",
-                    &(),
-                    ctx,
-                );
-            }
             UriHost::Linear => match LinearAction::parse(url) {
                 Ok(LinearAction::WorkOnIssue) => {
                     let args = LinearIssueWork::from_url(url);
@@ -357,8 +345,6 @@ impl UriHost {
             Self::Action => W::Nothing,
             // TODO(vorporeal): probably want to focus the window with the MCP pane open
             Self::Mcp => W::Nothing,
-            // Codex opens a new tab with AI mode, use default behavior
-            Self::Codex => W::default(),
             // Linear deeplink opens a new tab with agent view
             Self::Linear => W::default(),
         }
@@ -1072,7 +1058,6 @@ fn validate_custom_uri(url: &Url) -> Result<UriHost> {
         | UriHost::Drive
         | UriHost::Settings
         | UriHost::Mcp
-        | UriHost::Codex
         | UriHost::Linear => true,
         // Auth and Home only allow the desktop redirect path
         UriHost::Auth | UriHost::Home => false,

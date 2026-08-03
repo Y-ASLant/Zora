@@ -650,10 +650,6 @@ pub enum FeatureFlag {
     /// Replaces the in-block warpification banner with a warpify footer.
     WarpifyFooter,
 
-    /// Guided onboarding flow for existing users introducing HOA features
-    /// (vertical tabs, agent inbox, tab configs).
-    HOAOnboardingFlow,
-
     /// Enables commit, push, and create-PR actions in the code review panel.
     GitOperationsInCodeReview,
 
