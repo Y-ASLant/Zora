@@ -36,7 +36,7 @@ use warpui::platform::Cursor;
 use warpui::text::SelectionType;
 
 use crate::terminal::shared_session::protocol::{ParticipantId, Selection};
-use chrono::{Datelike, Timelike};
+use chrono::Timelike;
 use pathfinder_color::ColorU;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};

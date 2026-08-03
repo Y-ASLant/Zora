@@ -1161,12 +1161,12 @@ impl AppearanceSettingsPageView {
             dropdown
         });
 
-        let font_weight_dropdown = ctx.add_typed_action_view(|ctx| {
+        let selectable_weights = Self::available_font_weights(ctx);
+        let font_weight_dropdown = ctx.add_typed_action_view(move |ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_top_bar_max_width(FONT_WEIGHT_DROPDOWN_WIDTH);
             dropdown.set_menu_width(FONT_WEIGHT_DROPDOWN_WIDTH, ctx);
 
-            let selectable_weights = Self::available_font_weights(ctx);
             let items = selectable_weights
                 .iter()
                 .map(|weight| {
