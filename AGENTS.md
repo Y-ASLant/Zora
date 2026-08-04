@@ -2,27 +2,27 @@
 
 > 本文件是给在本仓库中工作的 AI/自动化 agent 的导航文档。它汇总了仓库的整体架构、Cargo 工作区中每个 crate 的职责、`app/` 主二进制下各子模块的边界,以及在做改动前必须遵守的工程约定。
 >
-> 与 `WARP.md` 是配套关系:`WARP.md` 是工程师手册(命令、风格、流程),本文件是**代码地图**。先读 `WARP.md`,再用本文件定位到正确的 crate / 模块。
+> 本文件同时提供工程约定与代码地图。修改前先阅读对应章节,再用本文件定位到正确的 crate / 模块。
 
 ---
 
 ## 1. 仓库总览
 
-Warp 是一个以 Rust 为主的 **agentic 终端 / 开发环境**:在一个自研 UI 框架(WarpUI)上,集成了终端模拟、AI Agent、云同步(Drive)、代码评审、补全、Notebook、设置、IPC 等能力。
+Zap 是一个以 Rust 为主的 **agentic 终端 / 开发环境**:在一个自研 UI 框架(WarpUI)上,集成了终端模拟、AI Agent、云同步(Drive)、代码评审、补全、Notebook、设置、IPC 等能力。
 
 顶层目录:
 
 | 目录 | 作用 |
 |------|------|
 | `app/` | 主二进制 crate(`warp`),装配所有子系统、UI、数据库迁移、平台粘合层 |
-| `crates/` | 67 个工作区成员,按职责拆分的库 crate |
+| `crates/` | 61 个工作区 crate,按职责拆分的库 crate |
 | `command-signatures-v2/` | 独立子项目(在 nextest 运行时被 `--exclude`) |
 | `script/` | 跨平台 bootstrap、构建、presubmit 脚本 |
 | `resources/` | 字体、图标、shell 集成脚本、shaders 等运行时资源 |
 | `docker/` | 容器化构建相关 |
 | `specs/` | 产品/技术 spec 文档 |
-| `.agents/skills`, `.claude/skills` | agent 工作流的 skill 描述(创建 PR、修复错误、特性灰度等) |
-| `.warp/`, `.config/`, `.cargo/`, `.vscode/` | 各类工具配置 |
+| `.agents/skills` | agent 工作流的 skill 描述(创建 PR、修复错误、特性灰度等) |
+| `.agents/`, `.config/`, `.cargo/`, `.github/`, `.zed/` | 各类工具与自动化配置 |
 
 构建系统:Cargo workspace,`resolver = "2"`,`default-members` 故意收敛到经常需要编译/测试的子集(见 `Cargo.toml`)。`serve-wasm` 与 `integration` 默认不在 `default-members` 内。
 
@@ -50,7 +50,7 @@ app/  (主二进制:装配、入口、平台粘合、持久化迁移、UI 视图
                 managed_secrets / virtual_fs / watcher / asset_cache …
 ```
 
-关键架构模式(详见 `WARP.md`):
+关键架构模式:
 
 1. **Entity-Handle 系统**:`App` 全局拥有所有 view/model entity,View 之间通过 `ViewHandle<T>` 引用,而不是直接拥有。
 2. **Element / Action**:UI 由声明式 Element 树 + Action 事件系统组成(Flutter 风格)。
@@ -63,7 +63,7 @@ app/  (主二进制:装配、入口、平台粘合、持久化迁移、UI 视图
 
 ## 3. `crates/` 一览
 
-下表按主题分组列出全部 67 个 crate。每行只写**一句话职责**;要看实现细节,直接打开对应 `crates/<name>/src/lib.rs`(很多 crate 在 `lib.rs` 顶部有 `//!` 模块文档)。
+下表按主题分组列出工作区 crate。每行只写**一句话职责**;要看实现细节,直接打开对应 `crates/<name>/src/lib.rs`(很多 crate 在 `lib.rs` 顶部有 `//!` 模块文档)。
 
 ### 3.1 UI 框架 / 视图层
 
@@ -115,7 +115,7 @@ app/  (主二进制:装配、入口、平台粘合、持久化迁移、UI 视图
 
 | Crate | 职责 |
 |-------|------|
-| `persistence` | Diesel + SQLite 持久层基础;**migrations 在 `app/migrations/`,schema 在 `app/src/persistence/schema.rs`** |
+| `persistence` | Diesel + SQLite 持久层基础;**migrations 在 `crates/persistence/migrations/`,schema 在 `crates/persistence/src/schema.rs`** |
 | `warp_files` | Drive 文件、Workflow、Notebook 等可同步文件对象 |
 | `virtual_fs` | 抽象文件系统(测试用 mock 与生产用真实 FS 同接口) |
 | `repo_metadata` | 仓库元数据:文件树构建、`.gitignore` 处理、文件系统监听 |
@@ -226,8 +226,8 @@ app/  (主二进制:装配、入口、平台粘合、持久化迁移、UI 视图
 - `billing/` (3), `pricing/` (1), `usage/` (1), `reward_view.rs`
 
 ### 4.9 持久化
-- `persistence/` (9) — Diesel migrations 装配、`schema.rs`(由 Diesel 生成)、迁移运行器。
-- 迁移文件在仓库 `migrations/` 顶级目录(由 Diesel CLI 管理)。
+- `persistence/` — `app/src/persistence/` 负责应用层数据库连接与迁移启动,`crates/persistence/` 提供 Diesel 模型、schema 与 migrations。
+- 迁移文件在 `crates/persistence/migrations/`,schema 在 `crates/persistence/src/schema.rs`(由 Diesel 生成)。
 
 ### 4.10 平台 / 系统集成
 - `platform/` (2), `system/` (3) / `system.rs`
@@ -259,7 +259,7 @@ app/  (主二进制:装配、入口、平台粘合、持久化迁移、UI 视图
 
 ## 5. 工程纪律(给 Agent 的强约束)
 
-> 这些基于 `WARP.md` 与项目自定义规则整理;本文件对 agent 的验证要求以 `cargo check` 为准。
+> 这些约定基于当前代码库与项目自定义规则整理;本文件对 agent 的验证要求以 `cargo check` 为准。
 
 ### 5.1 必读约定
 - **注释/回复一律使用简体中文**(用户规则)。
@@ -270,7 +270,7 @@ app/  (主二进制:装配、入口、平台粘合、持久化迁移、UI 视图
 - 多解释方案、暴露不确定性,而不是默默替用户做选择。
 - worktree路径：.worktrees/<worktree_name>/
 
-### 5.2 Rust 风格(摘自 `WARP.md`)
+### 5.2 Rust 风格
 - 闭包参数不要写多余类型注解。
 - 顶部统一 `use`,不要写一长串路径限定;`#[cfg]` 分支内例外。
 - 上下文参数命名为 `ctx` 且放在最后;若同时有闭包参数,闭包放最后。
@@ -292,7 +292,7 @@ app/  (主二进制:装配、入口、平台粘合、持久化迁移、UI 视图
 
 ### 5.5 数据库
 - ORM:Diesel + SQLite。
-- 新增/改 schema 必须走 migration:在 `migrations/` 加新目录(`up.sql` / `down.sql`),不要手改 `app/src/persistence/schema.rs`(由 `diesel print-schema` 生成)。
+- 新增/改 schema 必须走 migration:在 `crates/persistence/migrations/` 加新目录(`up.sql` / `down.sql`),不要手改 `crates/persistence/src/schema.rs`(由 `diesel print-schema` 生成)。
 
 ### 5.6 测试
 - 用 `cargo nextest run --no-fail-fast --workspace --exclude command-signatures-v2`。
@@ -326,7 +326,7 @@ app/  (主二进制:装配、入口、平台粘合、持久化迁移、UI 视图
 | 加新设置项 | `crates/settings_value*`、`crates/settings`,UI 在 `app/src/settings_view/` |
 | 加 Feature Flag | `crates/warp_core/src/features.rs` + 使用点 |
 | 改云端同步对象 | `crates/warp_files` + `app/src/drive/` + `app/src/cloud_object/` |
-| 改持久化结构 | `migrations/` 加迁移 + `crates/persistence` |
+| 改持久化结构 | `crates/persistence/migrations/` 加迁移 + `crates/persistence` |
 | 加新二进制工具 | `app/src/bin/` |
 | 平台特定代码 | 用 `#[cfg(target_os = "...")]`,UI 平台胶水在 `app/src/platform/` |
 | Vim 模式 | `crates/vim` + `app/src/vim_registers.rs` |

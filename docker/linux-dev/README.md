@@ -1,6 +1,7 @@
 # Dockerfile for Linux Development
 
-The Dockerfile in this directory defines a container that has all of the necessary tools installed to quickly get engineers up and running with building Warp on Linux.
+The Dockerfile in this directory defines a container with the tools needed to
+build Zap on Linux.
 
 This container is based on Debian Sid, Debian's unstable branch.  It ensures that you are running the latest versions of things like `mesa` (an open-source 3D graphics library, providing implementations of OpenGL and Vulkan).
 
@@ -14,7 +15,7 @@ You'll need to install:
 
 ## Setup
 
-You'll run all of these commands from the `warp-internal` repository's root directory.
+Run these commands from the repository root.
 
 First, build the docker container image:
 
@@ -27,8 +28,7 @@ Next, run the container:
 
 ```
 # The path to the source code directory that you want to mount in the
-# container. This can be the `warp-internal` repository or some parent
-# directory of your choice.
+# container. This can be this repository or any parent directory.
 LOCAL_PATH="/Users/$USER/src"
 
 # Run the image as a container, bridging port 22 for SSH connections,
@@ -47,7 +47,7 @@ Every time you start XQuartz, you'll need to run this once in order for programs
 xhost +localhost
 ```
 
-You should be able to SSH into the container and build and run warp without any additional setup (dev account password is "password"):
+You should be able to SSH into the container and build and run Zap without any additional setup (dev account password is "password"):
 
 ```
 ssh dev@localhost
@@ -55,4 +55,4 @@ cd /src
 cargo run --features fast_dev
 ```
 
-It's possible you'll run into some odd errors while trying to compile Warp; if so, just keep rerunning the cargo command and it should work eventually.
+It's possible you'll run into some odd errors while compiling Zap; if so, rerun the cargo command and check the first reported error.

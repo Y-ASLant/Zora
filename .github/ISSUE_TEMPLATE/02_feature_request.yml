@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        **Zap's direction.** Zap is a community fork of Zap focused on:
+        **Zap's direction.** Zap is a community fork of Warp focused on:
 
         - **BYOP (Bring Your Own Provider)** — any OpenAI / Anthropic / Gemini / Ollama / DeepSeek-compatible endpoint, configured locally.
         - **Local-first & privacy-first** — credentials stay on disk; cloud agent / Computer Use / telemetry are off by default.
@@ -13,7 +13,7 @@ body:
         - **Preserved Zap UX** — Blocks, Workflows, Keymaps, themes; continuously merged from upstream.
         - **Localized UI** — English + Simplified Chinese, community-extensible.
 
-        **Out of scope:** features that require Zap's cloud account, Zap AI gateway, Zap Drive cloud sync, Warpify SSO, billing, team/enterprise admin, or Zap's first-party telemetry. Those belong to upstream Zap.
+        **Out of scope:** features that require Warp's cloud account, AI gateway, Drive cloud sync, Warpify SSO, billing, team/enterprise admin, or Warp's first-party telemetry. Those belong to upstream Warp.
   - type: checkboxes
     attributes:
       label: "Pre-submit Checks"
@@ -50,7 +50,7 @@ body:
     id: "additional-context"
     attributes:
       label: "Additional context"
-      description: "Mockups, screenshots, links, references to similar tools (opencode, Zed, etc.), or upstream Zap behavior worth contrasting."
+      description: "Mockups, screenshots, links, references to similar tools (opencode, Zed, etc.), or upstream Warp behavior worth contrasting."
     validations:
       required: false
   - type: dropdown

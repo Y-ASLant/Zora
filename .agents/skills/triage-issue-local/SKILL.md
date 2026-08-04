@@ -1,10 +1,10 @@
 ---
 name: triage-issue-local
 specializes: triage-issue
-description: Repo-specific triage guidance for warp-external. Only the categories declared overridable by the core triage-issue skill may be specialized here.
+description: Repo-specific triage guidance for zap-external. Only the categories declared overridable by the core triage-issue skill may be specialized here.
 ---
 
-# Repo-specific triage guidance for `warp-external`
+# Repo-specific triage guidance for `zap-external`
 
 This file is a companion to the core `triage-issue` skill. It does not
 redefine the triage output schema, safety rules, or follow-up-question
@@ -13,12 +13,12 @@ marks as overridable.
 
 ## Heuristics
 
-- `warp-external` is the public-facing Zap desktop client repository. Treat public issue reports as potentially incomplete and avoid asking for secrets, tokens, private workspace names, private repository names, or account identifiers in the public issue thread.
+- `zap-external` is the public-facing Zap desktop client repository. Treat public issue reports as potentially incomplete and avoid asking for secrets, tokens, private workspace names, private repository names, or account identifiers in the public issue thread.
 - Distinguish the user's observed Zap behavior from their guesses about Rust modules, UI components, server behavior, feature flags, or product intent.
 - For issue reports that mention another terminal, editor, shell, or CLI tool, identify whether the problem is Zap-specific or generally reproducible outside Zap before assigning Zap ownership.
 - When the issue includes screenshots, videos, logs, stack traces, or command output, use them as primary evidence and ask follow-up questions only for missing details that cannot be inferred from that evidence.
 - Before asking any follow-up questions, check the Zap documentation and the repository's existing feature set to determine whether the desired behavior the reporter is describing is already supported. If an existing feature, setting, or workflow satisfies the request, recommend it to the reporter instead of treating the issue as a bug or feature gap.
-- If the report is about billing (pricing, plans, subscriptions, payments, refunds, invoices, AI request quotas, charges) or about appeals (account suspensions, bans, takedowns, abuse decisions, or other account-status disputes), do not attempt to triage it as an actionable bug or feature request. Instead, notify the reporter that these requests must go through Zap's support channels (https://docs.warp.dev/support-and-community/troubleshooting-and-support/sending-us-feedback) and direct them there for resolution. Apply the relevant `area:billing` or `area:auth` label as appropriate so the issue is still routed correctly.
+- If the report is about billing (pricing, plans, subscriptions, payments, refunds, invoices, AI request quotas, charges) or about appeals (account suspensions, bans, takedowns, abuse decisions, or other account-status disputes), do not attempt to triage it as an actionable bug or feature request. Tell the reporter that these requests require a private maintainer response and do not request account details in the public issue. Apply the relevant `area:billing` or `area:auth` label as appropriate so the issue is still routed correctly.
 
 ## Follow-up question limit
 
@@ -54,7 +54,7 @@ Before asking the reporter for more information, check the issue body, comments,
 - For AI/agent reports: whether the agent is local or cloud, the model if known, relevant conversation/session link, repository context, tool or MCP server involved, and the exact user action that triggered the failure.
 - For performance reports: approximate project/session size, command output size, CPU/memory/GPU observations, profile or diagnostics if provided, and whether the issue appears after long-running sessions.
 - For keyboard or input reports: keyboard layout, custom keybindings, IME usage, conflicting OS shortcuts, focused surface, and whether the same keys work in other apps.
-- For account, billing, or auth reports: account tier or authentication method only if the user already provided it. Do not ask for private identifiers in public; direct the user to support when private account details are required. For billing or appeals reports specifically, do not pursue further triage questions in the public thread—redirect the reporter to Zap's support channels per the heuristic above.
+  - For account, billing, or auth reports: account tier or authentication method only if the user already provided it. Do not ask for private identifiers in public; direct the user to maintainers when private account details are required. For billing or appeals reports specifically, do not pursue further triage questions in the public thread—redirect the reporter to a private maintainer channel per the heuristic above.
 
 ## Recurring follow-up patterns
 
