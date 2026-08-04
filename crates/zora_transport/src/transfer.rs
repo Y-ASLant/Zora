@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use std::time::Instant;
 
 use crate::error::{Result, TransportError};
@@ -158,6 +160,16 @@ impl TransferController {
         }
     }
 
+    pub(crate) async fn wait_for_cancelled(&self) {
+        loop {
+            let notified = self.notify.notified();
+            if lock(&self.state).snapshot.status == TransferStatus::Cancelled {
+                return;
+            }
+            notified.await;
+        }
+    }
+
     pub fn pause(&self) {
         let snapshot = {
             let mut state = lock(&self.state);
@@ -278,6 +290,24 @@ impl TransferController {
             listener(event);
         }
     }
+}
+
+pub(crate) async fn run_transfer_io<T, F>(
+    controller: &TransferController,
+    timeout: Duration,
+    future: F,
+) -> Result<T>
+where
+    F: Future<Output = Result<T>>,
+{
+    tokio::time::timeout(timeout, async {
+        tokio::select! {
+            result = future => result,
+            _ = controller.wait_for_cancelled() => Err(TransportError::Cancelled),
+        }
+    })
+    .await
+    .map_err(|_| TransportError::Timeout)?
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {

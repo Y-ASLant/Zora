@@ -1,13 +1,18 @@
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::dir::{read_dir, remote_path};
-use crate::error::{Result, sftp_error};
+use crate::error::{Result, TransportError, sftp_error};
 use crate::file::{RemoteFile, to_open_flags};
 use crate::session::CommandOutput;
+use crate::transfer::{TransferController, run_transfer_io};
 use crate::types::{DirEntry, Metadata, OpenOptions, RenameOptions};
+
+const TRANSFER_IO_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// SFTP 高级操作封装。
 #[derive(Clone)]
@@ -150,10 +155,14 @@ impl Sftp {
         &self,
         local_path: &Path,
         remote_path: &Path,
-        controller: Option<&crate::transfer::TransferController>,
+        controller: Option<&TransferController>,
     ) -> Result<u64> {
+        if let Some(controller) = controller {
+            controller.wait_for_transfer_ready().await?;
+        }
         let mut local = tokio::fs::File::open(local_path).await?;
-        let mut remote = self.open(remote_path, &OpenOptions::write()).await?;
+        let mut remote =
+            transfer_io(controller, self.open(remote_path, &OpenOptions::write())).await?;
         let mut transferred = 0;
         let mut buffer = vec![0_u8; 64 * 1024];
         loop {
@@ -164,14 +173,14 @@ impl Sftp {
             if read == 0 {
                 break;
             }
-            remote.write_all(&buffer[..read]).await?;
+            transfer_io(controller, remote.write_all(&buffer[..read])).await?;
             transferred += read as u64;
             if let Some(controller) = controller {
                 controller.add_progress(read as u64);
             }
         }
-        remote.flush().await?;
-        remote.close().await?;
+        transfer_io(controller, remote.flush()).await?;
+        transfer_io(controller, remote.close()).await?;
         Ok(transferred)
     }
 
@@ -179,9 +188,13 @@ impl Sftp {
         &self,
         remote_path: &Path,
         local_path: &Path,
-        controller: Option<&crate::transfer::TransferController>,
+        controller: Option<&TransferController>,
     ) -> Result<u64> {
-        let mut remote = self.open(remote_path, &OpenOptions::read()).await?;
+        if let Some(controller) = controller {
+            controller.wait_for_transfer_ready().await?;
+        }
+        let mut remote =
+            transfer_io(controller, self.open(remote_path, &OpenOptions::read())).await?;
         let mut local = tokio::fs::File::create(local_path).await?;
         let mut transferred = 0;
         let mut buffer = vec![0_u8; 64 * 1024];
@@ -189,7 +202,7 @@ impl Sftp {
             if let Some(controller) = controller {
                 controller.wait_for_transfer_ready().await?;
             }
-            let read = remote.read(&mut buffer).await?;
+            let read = transfer_io(controller, remote.read(&mut buffer)).await?;
             if read == 0 {
                 break;
             }
@@ -200,7 +213,7 @@ impl Sftp {
             }
         }
         local.flush().await?;
-        remote.close().await?;
+        transfer_io(controller, remote.close()).await?;
         Ok(transferred)
     }
 
@@ -209,5 +222,17 @@ impl Sftp {
         Err(crate::TransportError::Unsupported(
             "SFTP 会话不保留 SSH 命令通道".to_string(),
         ))
+    }
+}
+
+async fn transfer_io<T, F>(controller: Option<&TransferController>, future: F) -> Result<T>
+where
+    F: Future<Output = Result<T>>,
+{
+    match controller {
+        Some(controller) => run_transfer_io(controller, TRANSFER_IO_TIMEOUT, future).await,
+        None => tokio::time::timeout(TRANSFER_IO_TIMEOUT, future)
+            .await
+            .map_err(|_| TransportError::Timeout)?,
     }
 }

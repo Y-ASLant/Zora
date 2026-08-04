@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
+use super::transfer::run_transfer_io;
 use super::{TransferController, TransferDirection, TransferStatus};
 
 #[tokio::test]
@@ -62,6 +64,49 @@ async fn cancel_wakes_waiting_transfer() {
     let result = waiting.await.expect("等待任务不应 panic");
     assert!(matches!(result, Err(super::TransportError::Cancelled)));
     assert_eq!(controller.snapshot().status, TransferStatus::Cancelled);
+}
+
+#[tokio::test]
+async fn cancel_wakes_in_flight_io() {
+    let controller = TransferController::new(
+        5,
+        TransferDirection::Upload,
+        PathBuf::from("source"),
+        PathBuf::from("target"),
+    );
+    let waiting = {
+        let controller = Arc::clone(&controller);
+        tokio::spawn(async move {
+            run_transfer_io(
+                &controller,
+                Duration::from_secs(1),
+                std::future::pending::<std::result::Result<(), super::TransportError>>(),
+            )
+            .await
+        })
+    };
+
+    tokio::task::yield_now().await;
+    controller.cancel();
+    let result = waiting.await.expect("I/O 等待任务不应 panic");
+    assert!(matches!(result, Err(super::TransportError::Cancelled)));
+}
+
+#[tokio::test]
+async fn in_flight_io_times_out() {
+    let controller = TransferController::new(
+        6,
+        TransferDirection::Download,
+        PathBuf::from("source"),
+        PathBuf::from("target"),
+    );
+    let result = run_transfer_io(
+        &controller,
+        Duration::from_millis(10),
+        std::future::pending::<std::result::Result<(), super::TransportError>>(),
+    )
+    .await;
+    assert!(matches!(result, Err(super::TransportError::Timeout)));
 }
 
 #[test]

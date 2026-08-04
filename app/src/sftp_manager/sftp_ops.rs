@@ -235,6 +235,82 @@ pub fn download_file_streaming_with_controller(
     )
 }
 
+pub(crate) async fn upload_file_streaming_async(
+    sftp: Sftp,
+    local_path: PathBuf,
+    remote_path: PathBuf,
+    cancel_flag: Arc<AtomicBool>,
+    controller: Arc<TransferController>,
+) -> Result<(), SftpOpsError> {
+    run_async_transfer(
+        &sftp,
+        &local_path,
+        &remote_path,
+        TransferDirection::Upload,
+        &cancel_flag,
+        controller,
+    )
+    .await
+    .map_err(Into::into)
+}
+
+pub(crate) async fn download_file_streaming_async(
+    sftp: Sftp,
+    remote_path: PathBuf,
+    local_path: PathBuf,
+    cancel_flag: Arc<AtomicBool>,
+    controller: Arc<TransferController>,
+) -> Result<(), SftpOpsError> {
+    run_async_transfer(
+        &sftp,
+        &remote_path,
+        &local_path,
+        TransferDirection::Download,
+        &cancel_flag,
+        controller,
+    )
+    .await
+    .map_err(Into::into)
+}
+
+pub(crate) async fn upload_directory_async(
+    sftp: Sftp,
+    local_path: PathBuf,
+    remote_path: PathBuf,
+    cancel_flag: Arc<AtomicBool>,
+    controller: Arc<TransferController>,
+) -> Result<(), SftpOpsError> {
+    run_async_directory_transfer(
+        &sftp,
+        &local_path,
+        &remote_path,
+        TransferDirection::Upload,
+        &cancel_flag,
+        controller,
+    )
+    .await
+    .map_err(Into::into)
+}
+
+pub(crate) async fn download_directory_async(
+    sftp: Sftp,
+    remote_path: PathBuf,
+    local_path: PathBuf,
+    cancel_flag: Arc<AtomicBool>,
+    controller: Arc<TransferController>,
+) -> Result<(), SftpOpsError> {
+    run_async_directory_transfer(
+        &sftp,
+        &remote_path,
+        &local_path,
+        TransferDirection::Download,
+        &cancel_flag,
+        controller,
+    )
+    .await
+    .map_err(Into::into)
+}
+
 fn run_transfer(
     sftp: &Sftp,
     source: &Path,
@@ -271,6 +347,70 @@ fn run_transfer(
     });
     report_progress(progress_cb, &controller);
     result.map_err(Into::into)
+}
+
+async fn run_async_transfer(
+    sftp: &Sftp,
+    source: &Path,
+    target: &Path,
+    direction: TransferDirection,
+    cancel_flag: &AtomicBool,
+    controller: Arc<TransferController>,
+) -> zora_transport::Result<()> {
+    let operation = async {
+        match direction {
+            TransferDirection::Upload => {
+                RemoteFs::upload_file(sftp, source, target, Some(controller.clone())).await
+            }
+            TransferDirection::Download => {
+                RemoteFs::download_file(sftp, source, target, Some(controller.clone())).await
+            }
+        }
+    };
+    run_transfer_with_cancel(operation, cancel_flag, &controller).await
+}
+
+async fn run_async_directory_transfer(
+    sftp: &Sftp,
+    source: &Path,
+    target: &Path,
+    direction: TransferDirection,
+    cancel_flag: &AtomicBool,
+    controller: Arc<TransferController>,
+) -> zora_transport::Result<()> {
+    let operation = async {
+        match direction {
+            TransferDirection::Upload => {
+                RemoteFs::upload_directory(sftp, source, target, Some(controller.clone())).await
+            }
+            TransferDirection::Download => {
+                RemoteFs::download_directory(sftp, source, target, Some(controller.clone())).await
+            }
+        }
+    };
+    run_transfer_with_cancel(operation, cancel_flag, &controller).await
+}
+
+async fn run_transfer_with_cancel<T, F>(
+    operation: F,
+    cancel_flag: &AtomicBool,
+    controller: &TransferController,
+) -> zora_transport::Result<T>
+where
+    F: Future<Output = zora_transport::Result<T>>,
+{
+    tokio::pin!(operation);
+    let mut tick = tokio::time::interval(Duration::from_millis(100));
+    loop {
+        tokio::select! {
+            result = &mut operation => break result,
+            _ = tick.tick() => {
+                if cancel_flag.load(Ordering::SeqCst) {
+                    controller.cancel();
+                }
+            }
+        }
+    }
 }
 
 fn report_progress(progress_cb: Option<&ProgressCallback>, controller: &TransferController) {

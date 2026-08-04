@@ -7,9 +7,12 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+use async_trait::async_trait;
+
 use super::sftp_ops::{self, ProgressCallback, SftpOpsError};
 use super::types::{FileEntry, FileEntryType};
 
+#[async_trait]
 pub trait SftpBackend: Send + Sync {
     fn list_dir(&self, path: &Path) -> Result<Vec<FileEntry>, SftpOpsError>;
     fn delete_file(&self, path: &Path) -> Result<(), SftpOpsError>;
@@ -46,6 +49,34 @@ pub trait SftpBackend: Send + Sync {
         local_path: &Path,
         controller: Option<Arc<zora_transport::TransferController>>,
     ) -> Result<(), SftpOpsError>;
+    async fn upload_file_async(
+        &self,
+        local_path: PathBuf,
+        remote_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError>;
+    async fn download_file_async(
+        &self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError>;
+    async fn upload_directory_async(
+        &self,
+        local_path: PathBuf,
+        remote_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError>;
+    async fn download_directory_async(
+        &self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError>;
 }
 
 pub struct LiveSftpBackend {
@@ -62,6 +93,7 @@ impl LiveSftpBackend {
     }
 }
 
+#[async_trait]
 impl SftpBackend for LiveSftpBackend {
     fn list_dir(&self, path: &Path) -> Result<Vec<FileEntry>, SftpOpsError> {
         sftp_ops::list_dir(&self.sftp, path)
@@ -172,6 +204,74 @@ impl SftpBackend for LiveSftpBackend {
         ))?;
         Ok(())
     }
+
+    async fn upload_file_async(
+        &self,
+        local_path: PathBuf,
+        remote_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        sftp_ops::upload_file_streaming_async(
+            self.sftp.clone(),
+            local_path,
+            remote_path,
+            cancel_flag,
+            controller,
+        )
+        .await
+    }
+
+    async fn download_file_async(
+        &self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        sftp_ops::download_file_streaming_async(
+            self.sftp.clone(),
+            remote_path,
+            local_path,
+            cancel_flag,
+            controller,
+        )
+        .await
+    }
+
+    async fn upload_directory_async(
+        &self,
+        local_path: PathBuf,
+        remote_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        sftp_ops::upload_directory_async(
+            self.sftp.clone(),
+            local_path,
+            remote_path,
+            cancel_flag,
+            controller,
+        )
+        .await
+    }
+
+    async fn download_directory_async(
+        &self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        sftp_ops::download_directory_async(
+            self.sftp.clone(),
+            remote_path,
+            local_path,
+            cancel_flag,
+            controller,
+        )
+        .await
+    }
 }
 
 pub struct InMemorySftpBackend {
@@ -196,6 +296,7 @@ impl InMemorySftpBackend {
     }
 }
 
+#[async_trait]
 impl SftpBackend for InMemorySftpBackend {
     fn list_dir(&self, path: &Path) -> Result<Vec<FileEntry>, SftpOpsError> {
         Ok(
@@ -334,6 +435,86 @@ impl SftpBackend for InMemorySftpBackend {
             local_path,
             controller,
         ))?;
+        Ok(())
+    }
+
+    async fn upload_file_async(
+        &self,
+        local_path: PathBuf,
+        remote_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        if cancel_flag.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(SftpOpsError::Cancelled);
+        }
+        zora_transport::RemoteFs::upload_file(
+            &self.remote_fs,
+            &local_path,
+            &remote_path,
+            Some(controller),
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn download_file_async(
+        &self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        if cancel_flag.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(SftpOpsError::Cancelled);
+        }
+        zora_transport::RemoteFs::download_file(
+            &self.remote_fs,
+            &remote_path,
+            &local_path,
+            Some(controller),
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn upload_directory_async(
+        &self,
+        local_path: PathBuf,
+        remote_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        if cancel_flag.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(SftpOpsError::Cancelled);
+        }
+        zora_transport::RemoteFs::upload_directory(
+            &self.remote_fs,
+            &local_path,
+            &remote_path,
+            Some(controller),
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn download_directory_async(
+        &self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        if cancel_flag.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(SftpOpsError::Cancelled);
+        }
+        zora_transport::RemoteFs::download_directory(
+            &self.remote_fs,
+            &remote_path,
+            &local_path,
+            Some(controller),
+        )
+        .await?;
         Ok(())
     }
 }

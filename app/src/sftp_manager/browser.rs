@@ -6,8 +6,8 @@
 //! date: 2026-05-26
 
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -225,6 +225,8 @@ pub struct SftpBrowserView {
     connect_handle: Option<SpawnedFutureHandle>,
     /// 当前刷新目录的 future handle
     refresh_handle: Option<SpawnedFutureHandle>,
+    /// 当前目录请求代次，防止旧请求覆盖新路径
+    refresh_generation: u64,
     /// 传输任务 ID 到 future handle 的映射
     transfer_handles: HashMap<usize, SpawnedFutureHandle>,
     /// 传输快照轮询任务
@@ -249,6 +251,30 @@ where
         op()
     })
     .await
+}
+
+impl SftpBrowserView {
+    fn run_async_transfer<F>(
+        &mut self,
+        ctx: &mut ViewContext<Self>,
+        future: F,
+        callback: impl FnOnce(&mut Self, Result<(), sftp_ops::SftpOpsError>, &mut ViewContext<Self>)
+            + 'static,
+    ) -> Option<SpawnedFutureHandle>
+    where
+        F: Future<Output = Result<(), sftp_ops::SftpOpsError>> + Send + 'static,
+    {
+        #[cfg(any(test, feature = "integration_tests"))]
+        {
+            let result = sftp_ops::block_on_transport(future);
+            callback(self, result, ctx);
+            None
+        }
+        #[cfg(not(any(test, feature = "integration_tests")))]
+        {
+            Some(ctx.spawn(future, callback))
+        }
+    }
 }
 
 impl SftpBrowserView {
@@ -297,6 +323,7 @@ impl SftpBrowserView {
             scroll_state: ClippedScrollStateHandle::default(),
             connect_handle: None,
             refresh_handle: None,
+            refresh_generation: 0,
             transfer_handles: HashMap::new(),
             transfer_progress_poll_handle: None,
             pending_uploads: Vec::new(),
@@ -403,6 +430,7 @@ impl SftpBrowserView {
             Some(s) => s.clone(),
             None => return,
         };
+        self.refresh_generation = self.refresh_generation.wrapping_add(1);
         let path = self.current_path.clone();
         match sftp.list_dir(&path) {
             Ok(mut entries) => {
@@ -627,14 +655,24 @@ impl SftpBrowserView {
             }
         };
 
+        if let Some(handle) = self.refresh_handle.take() {
+            handle.abort();
+        }
+        self.refresh_generation = self.refresh_generation.wrapping_add(1);
+        let generation = self.refresh_generation;
         self.is_loading = true;
         ctx.notify();
 
         let path = self.current_path.clone();
+        let requested_path = path.clone();
         self.refresh_handle = self.run_blocking(
             ctx,
             move || sftp.list_dir(&path),
-            |me, result, ctx| {
+            move |me, result, ctx| {
+                if me.refresh_generation != generation || me.current_path != requested_path {
+                    return;
+                }
+                me.refresh_handle = None;
                 me.is_loading = false;
                 match result {
                     Ok(Ok(mut entries)) => {
@@ -1229,67 +1267,44 @@ impl SftpBrowserView {
 
         if let Some(sftp) = &self.sftp {
             let sftp = sftp.clone();
-            let transferred = Arc::new(AtomicU64::new(0));
-            let transferred_clone = transferred.clone();
-
-            let progress_cb: sftp_ops::ProgressCallback = Box::new(move |bytes, _total| {
-                transferred_clone.store(bytes, Ordering::SeqCst);
-            });
-
             let local_path = local_path.to_path_buf();
             let remote_path = remote_path.to_path_buf();
-            if let Some(handle) = self.run_blocking(
-                ctx,
-                move || {
-                    sftp.upload_file(
-                        &local_path,
-                        &remote_path,
-                        Some(&progress_cb),
-                        Some(&cancel_flag),
-                        Some(controller),
-                    )
-                },
-                move |me, result, ctx| {
-                    if let Some(t) = me.transfers.iter_mut().find(|t| t.id == task_id) {
-                        match &result {
-                            Ok(Ok(())) => {
-                                t.state = TransferState::Completed;
-                                t.transferred = t.total_size;
-                            }
-                            Ok(Err(e)) => {
-                                if matches!(e, super::sftp_ops::SftpOpsError::Cancelled) {
-                                    t.state = TransferState::Cancelled;
-                                } else {
-                                    t.state = TransferState::Failed(e.to_string());
-                                }
-                                t.transferred = transferred.load(Ordering::SeqCst);
-                            }
-                            Err(_) => {
-                                // JoinError（被 abort）
-                                t.state = TransferState::Cancelled;
-                                t.transferred = transferred.load(Ordering::SeqCst);
-                            }
-                        }
-                    }
-
-                    // 传输完成后清理 handle（future 已结束，无需 abort）
-                    me.transfer_handles.remove(&task_id);
-
+            let future = async move {
+                sftp.upload_file_async(local_path, remote_path, cancel_flag, controller)
+                    .await
+            };
+            if let Some(handle) = self.run_async_transfer(ctx, future, move |me, result, ctx| {
+                if let Some(t) = me.transfers.iter_mut().find(|t| t.id == task_id) {
                     match &result {
-                        Ok(Ok(())) => {
-                            me.refresh_dir(ctx);
+                        Ok(()) => {
+                            t.sync_from_controller();
+                            t.state = TransferState::Completed;
+                            t.transferred = t.total_size;
                         }
-                        Ok(Err(e)) => {
-                            log::error!("sftp: 上传失败: {e}");
-                            me.show_error_toast(format!("上传失败: {e}"), ctx);
-                            ctx.notify();
-                        }
-                        Err(_) => {
-                            ctx.notify();
+                        Err(error) => {
+                            t.sync_from_controller();
+                            if !matches!(t.state, TransferState::Cancelled) {
+                                t.state = TransferState::Failed(error.to_string());
+                            }
                         }
                     }
-                },
-            ) {
+                }
+
+                me.transfer_handles.remove(&task_id);
+
+                match result {
+                    Ok(()) => {
+                        me.refresh_dir(ctx);
+                    }
+                    Err(error) => {
+                        if !matches!(error, super::sftp_ops::SftpOpsError::Cancelled) {
+                            log::error!("sftp: 上传失败: {error}");
+                            me.show_error_toast(format!("上传失败: {error}"), ctx);
+                        }
+                        ctx.notify();
+                    }
+                }
+            }) {
                 self.transfer_handles.insert(task_id, handle);
             }
             self.schedule_transfer_progress_poll(ctx);
@@ -1337,6 +1352,7 @@ impl SftpBrowserView {
         );
         self.next_transfer_id += 1;
         let task_id = task.id;
+        let cancel_flag = task.cancel_flag.clone();
         let controller = task.controller.clone();
         self.transfers.push(task);
         if let Some(task) = self.transfers.iter_mut().find(|task| task.id == task_id) {
@@ -1356,34 +1372,36 @@ impl SftpBrowserView {
         let sftp = sftp.clone();
         let source_path = source_path.to_path_buf();
         let target_path = target_path.to_path_buf();
-        if let Some(handle) = self.run_blocking(
-            ctx,
-            move || match direction {
+        let future = async move {
+            match direction {
                 TransferDirection::Upload => {
-                    sftp.upload_directory(&source_path, &target_path, Some(controller))
+                    sftp.upload_directory_async(source_path, target_path, cancel_flag, controller)
+                        .await
                 }
                 TransferDirection::Download => {
-                    sftp.download_directory(&source_path, &target_path, Some(controller))
+                    sftp.download_directory_async(source_path, target_path, cancel_flag, controller)
+                        .await
                 }
-            },
-            move |me, result, ctx| {
-                if let Some(task) = me.transfers.iter_mut().find(|task| task.id == task_id) {
-                    match result {
-                        Ok(Ok(())) => task.sync_from_controller(),
-                        Ok(Err(error)) => {
-                            task.sync_from_controller();
-                            if !matches!(task.state, TransferState::Cancelled) {
-                                task.state = TransferState::Failed(error.to_string());
-                            }
+            }
+        };
+        if let Some(handle) = self.run_async_transfer(ctx, future, move |me, result, ctx| {
+            if let Some(task) = me.transfers.iter_mut().find(|task| task.id == task_id) {
+                match &result {
+                    Ok(()) => task.sync_from_controller(),
+                    Err(error) => {
+                        task.sync_from_controller();
+                        if !matches!(task.state, TransferState::Cancelled) {
+                            task.state = TransferState::Failed(error.to_string());
                         }
-                        Err(_) => task.state = TransferState::Cancelled,
                     }
                 }
-                me.transfer_handles.remove(&task_id);
+            }
+            me.transfer_handles.remove(&task_id);
+            if result.is_ok() {
                 me.refresh_dir(ctx);
-                ctx.notify();
-            },
-        ) {
+            }
+            ctx.notify();
+        }) {
             self.transfer_handles.insert(task_id, handle);
         }
         self.schedule_transfer_progress_poll(ctx);
@@ -1418,58 +1436,39 @@ impl SftpBrowserView {
 
         if let Some(sftp) = &self.sftp {
             let sftp = sftp.clone();
-            let transferred = Arc::new(AtomicU64::new(0));
-            let transferred_clone = transferred.clone();
-
-            let progress_cb: sftp_ops::ProgressCallback = Box::new(move |bytes, _total| {
-                transferred_clone.store(bytes, Ordering::SeqCst);
-            });
-
             let remote_path = remote_path.to_path_buf();
             let local_path = local_path.to_path_buf();
-            if let Some(handle) = self.run_blocking(
-                ctx,
-                move || {
-                    sftp.download_file(
-                        &remote_path,
-                        &local_path,
-                        Some(&progress_cb),
-                        Some(&cancel_flag),
-                        Some(controller),
-                    )
-                },
-                move |me, result, ctx| {
-                    if let Some(t) = me.transfers.iter_mut().find(|t| t.id == task_id) {
-                        match &result {
-                            Ok(Ok(())) => {
-                                t.state = TransferState::Completed;
-                                t.transferred = t.total_size;
-                            }
-                            Ok(Err(e)) => {
-                                if matches!(e, super::sftp_ops::SftpOpsError::Cancelled) {
-                                    t.state = TransferState::Cancelled;
-                                } else {
-                                    t.state = TransferState::Failed(e.to_string());
-                                }
-                                t.transferred = transferred.load(Ordering::SeqCst);
-                            }
-                            Err(_) => {
-                                t.state = TransferState::Cancelled;
-                                t.transferred = transferred.load(Ordering::SeqCst);
+            let future = async move {
+                sftp.download_file_async(remote_path, local_path, cancel_flag, controller)
+                    .await
+            };
+            if let Some(handle) = self.run_async_transfer(ctx, future, move |me, result, ctx| {
+                if let Some(t) = me.transfers.iter_mut().find(|t| t.id == task_id) {
+                    match &result {
+                        Ok(()) => {
+                            t.sync_from_controller();
+                            t.state = TransferState::Completed;
+                            t.transferred = t.total_size;
+                        }
+                        Err(error) => {
+                            t.sync_from_controller();
+                            if !matches!(t.state, TransferState::Cancelled) {
+                                t.state = TransferState::Failed(error.to_string());
                             }
                         }
                     }
+                }
 
-                    // 传输完成后清理 handle（future 已结束，无需 abort）
-                    me.transfer_handles.remove(&task_id);
+                me.transfer_handles.remove(&task_id);
 
-                    if let Ok(Err(e)) = &result {
-                        log::error!("sftp: 下载失败: {e}");
-                        me.show_error_toast(format!("下载失败: {e}"), ctx);
+                if let Err(error) = result {
+                    if !matches!(error, super::sftp_ops::SftpOpsError::Cancelled) {
+                        log::error!("sftp: 下载失败: {error}");
+                        me.show_error_toast(format!("下载失败: {error}"), ctx);
                     }
-                    ctx.notify();
-                },
-            ) {
+                }
+                ctx.notify();
+            }) {
                 self.transfer_handles.insert(task_id, handle);
             }
             self.schedule_transfer_progress_poll(ctx);
@@ -1894,14 +1893,10 @@ impl TypedActionView for SftpBrowserView {
             }
             SftpBrowserAction::CancelTransfer(task_id) => {
                 let task_id = *task_id;
-                // 协作式取消：设置 cancel_flag
-                if let Some(t) = self.transfers.iter().find(|t| t.id == task_id) {
-                    t.cancel();
+                if let Some(t) = self.transfers.iter_mut().find(|t| t.id == task_id) {
+                    t.cancel_for_ui();
                 }
-                // 结构式取消：abort spawned future
-                if let Some(handle) = self.transfer_handles.remove(&task_id) {
-                    handle.abort();
-                }
+                // 不 abort 已开始的异步传输，让传输层完成远程句柄和 partial 文件清理。
                 self.schedule_transfer_progress_poll(ctx);
                 ctx.notify();
             }
@@ -1934,6 +1929,10 @@ impl TypedActionView for SftpBrowserView {
                 ) {
                     return;
                 }
+                if self.transfer_handles.contains_key(task_id) {
+                    self.show_error_toast("上一次传输仍在清理，请稍后重试".to_string(), ctx);
+                    return;
+                }
                 let source = task.source_path.clone();
                 let target = task.target_path.clone();
                 let direction = task.direction;
@@ -1963,12 +1962,11 @@ impl TypedActionView for SftpBrowserView {
                 ctx.notify();
             }
             SftpBrowserAction::ConfirmCloseTransferPanel => {
-                for task in &self.transfers {
-                    task.cancel();
+                for task in &mut self.transfers {
+                    task.cancel_for_ui();
                 }
-                for (_, handle) in self.transfer_handles.drain() {
-                    handle.abort();
-                }
+                // 丢弃句柄不会中止 Tokio 传输任务；任务会继续执行取消清理。
+                self.transfer_handles.clear();
                 self.stop_transfer_progress_poll();
                 self.transfers.clear();
                 self.transfer_panel_hidden = true;
@@ -2213,17 +2211,19 @@ impl BackingView for SftpBrowserView {
     /// 关闭视图
     fn close(&mut self, ctx: &mut ViewContext<Self>) {
         // 协作式取消：设置所有传输任务的 cancel_flag
-        for task in &self.transfers {
-            task.cancel();
+        for task in &mut self.transfers {
+            task.cancel_for_ui();
         }
-        // 结构式取消：abort spawned future
-        for (_, handle) in self.transfer_handles.drain() {
-            handle.abort();
-        }
+        // 已开始的传输必须完成取消清理，不能直接 abort。
+        self.transfer_handles.clear();
         self.stop_transfer_progress_poll();
         self.pending_uploads.clear();
-        self.connect_handle = None;
-        self.refresh_handle = None;
+        if let Some(handle) = self.connect_handle.take() {
+            handle.abort();
+        }
+        if let Some(handle) = self.refresh_handle.take() {
+            handle.abort();
+        }
         self._session = None;
         self.sftp = None;
         self.connection = ConnectionState::Disconnected;

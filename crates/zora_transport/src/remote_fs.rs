@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -8,6 +9,8 @@ use crate::error::{Result, TransportError};
 use crate::sftp::Sftp;
 use crate::transfer::{TransferController, TransferStatus};
 use crate::types::{DirEntry, FilePermissions, FileType, Metadata, RenameOptions};
+
+const PARTIAL_CLEANUP_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// 统一的异步远程文件系统接口。
 #[async_trait]
@@ -97,6 +100,9 @@ impl RemoteFs for Sftp {
         let result = async {
             self.upload_stream(local_path, &partial, controller.as_deref())
                 .await?;
+            if let Some(controller) = controller.as_deref() {
+                controller.wait_for_transfer_ready().await?;
+            }
             if self.try_exists(remote_path).await? {
                 self.remove_file(remote_path).await?;
             }
@@ -104,7 +110,7 @@ impl RemoteFs for Sftp {
         }
         .await;
         if result.is_err() {
-            let _ = self.remove_file(&partial).await;
+            let _ = tokio::time::timeout(PARTIAL_CLEANUP_TIMEOUT, self.remove_file(&partial)).await;
         }
         finish_transfer(controller.as_deref(), result)
     }
@@ -124,6 +130,9 @@ impl RemoteFs for Sftp {
         let result = async {
             self.download_stream(remote_path, &partial, controller.as_deref())
                 .await?;
+            if let Some(controller) = controller.as_deref() {
+                controller.wait_for_transfer_ready().await?;
+            }
             if tokio::fs::try_exists(local_path).await? {
                 tokio::fs::remove_file(local_path).await?;
             }
@@ -163,6 +172,9 @@ impl RemoteFs for Sftp {
                 let item_result: Result<()> = async {
                     self.upload_stream(&item.local, &partial, controller.as_deref())
                         .await?;
+                    if let Some(controller) = controller.as_deref() {
+                        controller.wait_for_transfer_ready().await?;
+                    }
                     if self.try_exists(&item.remote).await? {
                         self.remove_file(&item.remote).await?;
                     }
@@ -171,7 +183,9 @@ impl RemoteFs for Sftp {
                 }
                 .await;
                 if let Err(error) = item_result {
-                    let _ = self.remove_file(&partial).await;
+                    let _ =
+                        tokio::time::timeout(PARTIAL_CLEANUP_TIMEOUT, self.remove_file(&partial))
+                            .await;
                     return Err(error);
                 }
                 completed += 1;
@@ -210,6 +224,9 @@ impl RemoteFs for Sftp {
                 let item_result: Result<()> = async {
                     self.download_stream(&item.remote, &partial, controller.as_deref())
                         .await?;
+                    if let Some(controller) = controller.as_deref() {
+                        controller.wait_for_transfer_ready().await?;
+                    }
                     if tokio::fs::try_exists(&item.local).await? {
                         tokio::fs::remove_file(&item.local).await?;
                     }
@@ -488,6 +505,9 @@ impl RemoteFs for LocalRemoteFs {
         }
         let result = async {
             copy_local_file(local_path, &partial, controller.as_deref()).await?;
+            if let Some(controller) = controller.as_deref() {
+                controller.wait_for_transfer_ready().await?;
+            }
             if tokio::fs::try_exists(&target).await? {
                 tokio::fs::remove_file(&target).await?;
             }
@@ -516,6 +536,9 @@ impl RemoteFs for LocalRemoteFs {
         }
         let result = async {
             copy_local_file(&source, &partial, controller.as_deref()).await?;
+            if let Some(controller) = controller.as_deref() {
+                controller.wait_for_transfer_ready().await?;
+            }
             if tokio::fs::try_exists(local_path).await? {
                 tokio::fs::remove_file(local_path).await?;
             }
@@ -553,6 +576,9 @@ impl RemoteFs for LocalRemoteFs {
                     let partial = partial_path(&target);
                     let item_result: Result<()> = async {
                         copy_local_file(&item.local, &partial, controller.as_deref()).await?;
+                        if let Some(controller) = controller.as_deref() {
+                            controller.wait_for_transfer_ready().await?;
+                        }
                         if tokio::fs::try_exists(&target).await? {
                             tokio::fs::remove_file(&target).await?;
                         }
@@ -602,6 +628,9 @@ impl RemoteFs for LocalRemoteFs {
                 let partial = partial_path(&item.remote);
                 let item_result: Result<()> = async {
                     copy_local_file(&item.local, &partial, controller.as_deref()).await?;
+                    if let Some(controller) = controller.as_deref() {
+                        controller.wait_for_transfer_ready().await?;
+                    }
                     if tokio::fs::try_exists(&item.remote).await? {
                         tokio::fs::remove_file(&item.remote).await?;
                     }

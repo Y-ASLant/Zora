@@ -131,6 +131,11 @@ impl TransferTask {
         self.controller.cancel();
     }
 
+    pub fn cancel_for_ui(&mut self) {
+        self.cancel();
+        self.state = TransferState::Cancelled;
+    }
+
     /// 检查是否已取消
     pub fn is_cancelled(&self) -> bool {
         self.cancel_flag.load(Ordering::SeqCst)
@@ -348,7 +353,7 @@ mod tests {
     /// 测试 TransferTask 取消操作
     #[test]
     fn test_transfer_task_cancel() {
-        let task = TransferTask::new(
+        let mut task = TransferTask::new(
             1,
             PathBuf::from("/a"),
             PathBuf::from("/b"),
@@ -356,8 +361,9 @@ mod tests {
             100,
         );
         assert!(!task.is_cancelled());
-        task.cancel();
+        task.cancel_for_ui();
         assert!(task.is_cancelled());
+        assert!(matches!(task.state, TransferState::Cancelled));
     }
 
     /// 测试 TransferTask 取消标志共享
