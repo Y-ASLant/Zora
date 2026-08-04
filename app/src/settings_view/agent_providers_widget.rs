@@ -1040,18 +1040,22 @@ impl AgentProvidersWidget {
                 .with_child(
                     Expanded::new(
                         1.,
-                        Container::new(ChildView::new(&h_row.key_editor).finish())
-                            .with_margin_right(MODEL_ROW_GAP)
-                            .finish(),
+                        Container::new(
+                            Clipped::new(ChildView::new(&h_row.key_editor).finish()).finish(),
+                        )
+                        .with_margin_right(MODEL_ROW_GAP)
+                        .finish(),
                     )
                     .finish(),
                 )
                 .with_child(
                     Expanded::new(
                         1.,
-                        Container::new(ChildView::new(&h_row.val_editor).finish())
-                            .with_margin_right(MODEL_ROW_GAP)
-                            .finish(),
+                        Container::new(
+                            Clipped::new(ChildView::new(&h_row.val_editor).finish()).finish(),
+                        )
+                        .with_margin_right(MODEL_ROW_GAP)
+                        .finish(),
                     )
                     .finish(),
                 )
@@ -1410,7 +1414,7 @@ fn field_block(
     Flex::column()
         .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
         .with_child(label_text)
-        .with_child(editor_element)
+        .with_child(Clipped::new(editor_element).finish())
         .finish()
 }
 
@@ -1444,10 +1448,11 @@ impl AgentProvidersWidget {
             appearance,
         );
 
-        let search_box = Container::new(ChildView::new(&self.search_editor).finish())
-            .with_margin_left(8.)
-            .with_margin_right(8.)
-            .finish();
+        let search_box =
+            Container::new(Clipped::new(ChildView::new(&self.search_editor).finish()).finish())
+                .with_margin_left(8.)
+                .with_margin_right(8.)
+                .finish();
 
         let header_row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
