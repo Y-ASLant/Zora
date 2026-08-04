@@ -4,7 +4,7 @@
 
 当前 `crates/zap_sftp` 是同步 `ssh2` 薄封装，入口在 `src/session.rs`、`src/sftp.rs`、`src/file.rs` 和 `src/types.rs`。`app/src/sftp_manager/sftp_ops.rs` 负责认证解析、目录递归和 32 KiB 文件复制；`app/src/sftp_manager/sftp_backend.rs` 又把协议操作转换成 UI 类型。`app/src/sftp_manager/browser.rs` 在 `transfers: Vec<TransferTask>` 中维护任务，并用 `AtomicU64` 只保存后台进度，完成前没有稳定的 UI 刷新通道。传输面板位于 `transfer_panel.rs`，现有动作只有取消，没有暂停、恢复和重试。
 
-本次新增的 `crates/zora_transport` 按 NyaTerm 当前后端方向重建：crate 使用 Rust 2024 edition、Tokio 异步运行时、`russh` 0.62 和 `russh-sftp` 2.4。UI 仍通过 WarpUI 后台执行器调用同步适配层，但网络和磁盘传输本身不再由 app 自己实现。
+本次新增的 `crates/zora_transport` 按 NyaTerm 当前后端方向重建：crate 使用 Rust 2024 edition、Tokio 异步运行时、`russh` 0.62 和 `russh-sftp` 2.4。UI 仍通过 WarpUI 后台执行器调用同步适配层，但网络和磁盘传输本身不再由 app 自己实现。由于 `russh-sftp` 的原生实现依赖 Tokio reactor，所有生产 SFTP 操作必须通过 `SftpBrowserView::run_blocking` 进入 WarpUI 的 Tokio 后台运行时，不能在 UI 回调中直接驱动协议 future。
 
 ## Proposed changes
 

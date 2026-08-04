@@ -233,6 +233,20 @@ pub struct SftpBrowserView {
     pending_uploads: Vec<PathBuf>,
 }
 
+/// 在 WarpUI 的 Tokio 后台运行时中执行阻塞操作。
+///
+/// `russh-sftp` 的原生实现会调用 `tokio::spawn`，因此仅使用
+/// `spawn_blocking` 还不够：阻塞线程必须显式进入 Tokio 运行时上下文。
+async fn run_blocking_operation<T>(
+    op: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, tokio::task::JoinError>
+where
+    T: Send + 'static,
+{
+    let runtime_handle = tokio::runtime::Handle::current();
+    tokio::task::spawn_blocking(move || runtime_handle.block_on(async move { op() })).await
+}
+
 impl SftpBrowserView {
     /// 创建新的 SFTP 浏览器视图
     pub fn new(node_id: String, ctx: &mut ViewContext<Self>) -> Self {
@@ -486,20 +500,20 @@ impl SftpBrowserView {
                 let secret_store = KeychainSecretStore;
                 self.connect_handle = self.run_blocking(
                     ctx,
-                    move || sftp_ops::connect_from_server(&server, &secret_store),
+                    move || {
+                        let session = sftp_ops::connect_from_server(&server, &secret_store)?;
+                        let home = sftp_ops::realpath(&session.sftp(), std::path::Path::new("."))
+                            .unwrap_or_else(|_| PathBuf::from("/"));
+                        Ok::<_, sftp_ops::SftpOpsError>((session, home))
+                    },
                     move |me, result, ctx| {
                         me.is_loading = false;
                         match result {
-                            Ok(Ok(session)) => {
+                            Ok(Ok((session, home))) => {
                                 let sftp = session.sftp();
                                 let backend =
                                     Arc::new(LiveSftpBackend::new(sftp)) as Arc<dyn SftpBackend>;
-                                // 解析用户 home 目录
-                                if let Ok(home) = backend.realpath(std::path::Path::new(".")) {
-                                    me.current_path = normalize_remote_path(&home);
-                                } else {
-                                    me.current_path = PathBuf::from("/");
-                                }
+                                me.current_path = normalize_remote_path(&home);
                                 me.path_history = vec![me.current_path.clone()];
                                 me.history_index = 0;
                                 me.connection = ConnectionState::Connected;
@@ -552,12 +566,11 @@ impl SftpBrowserView {
         }
         #[cfg(not(any(test, feature = "integration_tests")))]
         {
-            Some(ctx.spawn(
-                async move { tokio::task::spawn_blocking(op).await },
-                move |me, result, ctx| {
+            Some(
+                ctx.spawn(run_blocking_operation(op), move |me, result, ctx| {
                     callback(me, result, ctx);
-                },
-            ))
+                }),
+            )
         }
     }
 
@@ -2269,6 +2282,15 @@ fn make_editor(
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    /// 回归测试：SFTP 阻塞操作必须在 Tokio 运行时上下文中执行。
+    #[tokio::test]
+    async fn test_run_blocking_operation_enters_tokio_runtime() {
+        let has_runtime = run_blocking_operation(|| tokio::runtime::Handle::try_current().is_ok())
+            .await
+            .expect("后台操作不应 panic");
+        assert!(has_runtime);
+    }
 
     // ============================================================
     // normalize_remote_path 测试
