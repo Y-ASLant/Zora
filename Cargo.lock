@@ -5704,7 +5704,9 @@ dependencies = [
 
 [[package]]
 name = "genai"
-version = "0.6.0-beta.18"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d12aba7e9dc2c4d54654566dc3dc8383b5cb52e0cfc5754989afe0480d933e3"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -15684,6 +15686,7 @@ dependencies = [
  "remote_server",
  "repo_metadata",
  "reqwest 0.12.28",
+ "reqwest 0.13.4",
  "reqwest-eventsource",
  "rmcp",
  "rquickjs",

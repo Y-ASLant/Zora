@@ -43,6 +43,7 @@ const BORDER_WIDTH: f32 = 1.;
 const MODAL_UNIFORM_PADDING: f32 = 24.;
 const CORNER_RADIUS_PIXELS: f32 = 8.;
 const PRIMARY_BUTTON_HEIGHT: f32 = 40.;
+const PRIMARY_BUTTON_VERTICAL_PADDING: f32 = 5.;
 const PRIMARY_BUTTON_HORIZONTAL_PADDING: f32 = 16.;
 const SECTION_UNIFORM_PADDING: f32 = 24.;
 
@@ -749,8 +750,8 @@ impl EditorModal {
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         let padding = Coords {
-            top: 10.,
-            bottom: 10.,
+            top: PRIMARY_BUTTON_VERTICAL_PADDING,
+            bottom: PRIMARY_BUTTON_VERTICAL_PADDING,
             right: PRIMARY_BUTTON_HORIZONTAL_PADDING,
             left: PRIMARY_BUTTON_HORIZONTAL_PADDING,
         };
@@ -758,8 +759,9 @@ impl EditorModal {
         let mut button = appearance
             .ui_builder()
             .button(variant, mouse_state_handle)
-            .with_text_label(label)
+            .with_centered_text_label(label)
             .with_style(UiComponentStyles {
+                height: Some(PRIMARY_BUTTON_HEIGHT),
                 padding: Some(padding),
                 font_size: Some(appearance.ui_font_subheading()),
                 ..Default::default()
@@ -803,25 +805,11 @@ impl EditorModal {
 
         Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
+            .with_child(Expanded::new(1.0, cancel_button).finish())
             .with_child(
                 Expanded::new(
                     1.0,
-                    ConstrainedBox::new(cancel_button)
-                        .with_height(PRIMARY_BUTTON_HEIGHT)
-                        .finish(),
-                )
-                .finish(),
-            )
-            .with_child(
-                Expanded::new(
-                    1.0,
-                    Container::new(
-                        ConstrainedBox::new(save_button)
-                            .with_height(PRIMARY_BUTTON_HEIGHT)
-                            .finish(),
-                    )
-                    .with_margin_left(8.)
-                    .finish(),
+                    Container::new(save_button).with_margin_left(8.).finish(),
                 )
                 .finish(),
             )

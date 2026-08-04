@@ -34,11 +34,7 @@ fn constrained_drag_does_not_commit_a_temporary_effective_size() {
     state.begin_resizing(vec2f(200., 0.));
 
     assert_eq!(
-        state.check_for_resize(
-            vec2f(220., 0.),
-            Some(vec2f(0., 0.)),
-            DragBarSide::Right,
-        ),
+        state.check_for_resize(vec2f(220., 0.), Some(vec2f(0., 0.)), DragBarSide::Right,),
         None
     );
     assert_eq!(state.effective_size(), 200.);

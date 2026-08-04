@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::terminal::resizable_data::DEFAULT_VERTICAL_TABS_PANEL_WIDTH;
 use settings::{
     macros::define_settings_group, RespectUserSyncSetting, SupportedPlatforms, SyncToCloud,
 };
-use crate::terminal::resizable_data::DEFAULT_VERTICAL_TABS_PANEL_WIDTH;
 use warp_core::ui::theme::AnsiColorIdentifier;
 
 #[derive(

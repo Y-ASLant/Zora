@@ -148,7 +148,7 @@ impl View for CloseSessionConfirmationDialog {
             .with_bottom_row_child(cancel_button)
             .with_bottom_row_child(close_session_button)
             .build()
-            .finish()
+            .finish(),
         )
         .with_margin_top(35.)
         .finish();

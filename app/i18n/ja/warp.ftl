@@ -2777,6 +2777,7 @@ workspace-right-panel-minimize = 最小化
 workspace-right-panel-maximize = 最大化
 terminal-pane-new-agent-conversation-title = 新しいエージェント会話
 vertical-tabs-no-tabs-open = 開いているタブはありません
+vertical-tabs-no-tabs-match-search = 検索条件に一致するタブはありません。
 vertical-tabs-untitled-tab = 無題のタブ
 vertical-tabs-view-options-tooltip = 表示オプション
 vertical-tabs-new-session = 新しいセッション

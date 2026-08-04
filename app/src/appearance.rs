@@ -347,7 +347,9 @@ fn load_default_monospace_font_family(ctx: &mut AppContext) -> anyhow::Result<Fa
             vec![
                 ASSETS.get("bundled/fonts/lilex/Lilex-Italic.ttf")?.to_vec(),
                 ASSETS.get("bundled/fonts/lilex/Lilex-Bold.ttf")?.to_vec(),
-                ASSETS.get("bundled/fonts/lilex/Lilex-Regular.ttf")?.to_vec(),
+                ASSETS
+                    .get("bundled/fonts/lilex/Lilex-Regular.ttf")?
+                    .to_vec(),
                 ASSETS
                     .get("bundled/fonts/lilex/Lilex-BoldItalic.ttf")?
                     .to_vec(),
@@ -492,8 +494,9 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
     let ui_font_family = if ui_font_name.is_empty() {
         load_default_ui_font_family(ctx).expect("unable to load default ui font family")
     } else {
-        get_or_load_font_family(&ui_font_name, ctx)
-            .unwrap_or_else(|| load_default_ui_font_family(ctx).expect("unable to load default ui font family"))
+        get_or_load_font_family(&ui_font_name, ctx).unwrap_or_else(|| {
+            load_default_ui_font_family(ctx).expect("unable to load default ui font family")
+        })
     };
 
     let am_font_family_from_settings = get_or_load_font_family(&am_font_name, ctx);

@@ -5,7 +5,7 @@ use settings::{
 define_settings_group!(AltScreenReporting, settings: [
     mouse_reporting_enabled: MouseReportingEnabled {
         type: bool,
-        default: false,
+        default: true,
         supported_platforms: SupportedPlatforms::ALL,
         sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
@@ -14,7 +14,7 @@ define_settings_group!(AltScreenReporting, settings: [
     },
     scroll_reporting_enabled: ScrollReportingEnabled {
         type: bool,
-        default: false,
+        default: true,
         supported_platforms: SupportedPlatforms::ALL,
         sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
@@ -23,7 +23,7 @@ define_settings_group!(AltScreenReporting, settings: [
     },
     focus_reporting_enabled: FocusReportingEnabled {
         type: bool,
-        default: false,
+        default: true,
         supported_platforms: SupportedPlatforms::ALL,
         sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,

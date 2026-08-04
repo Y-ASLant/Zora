@@ -3001,6 +3001,7 @@ workspace-right-panel-minimize = Minimize
 workspace-right-panel-maximize = Maximize
 terminal-pane-new-agent-conversation-title = New agent conversation
 vertical-tabs-no-tabs-open = No tabs open
+vertical-tabs-no-tabs-match-search = No tabs match your search.
 vertical-tabs-untitled-tab = Untitled tab
 vertical-tabs-view-options-tooltip = View options
 vertical-tabs-new-session = New session

@@ -141,6 +141,7 @@ rayon.workspace = true
 regex-automata = "0.4.6"
 regex.workspace = true
 reqwest.workspace = true
+reqwest-013.workspace = true
 rust-embed.workspace = true
 i18n-embed.workspace = true
 i18n-embed-fl.workspace = true
