@@ -3343,6 +3343,7 @@ voice-transcription-hold-key = Voice transcription (hold `{ $key }` key)
 
 get-started-welcome-title = Welcome to Zap
 get-started-subtitle = The Agentic Development Environment
+theme-creator-modal-header = Create new theme from image
 theme-creator-theme-name = Theme name
 theme-creator-background-color = Background color
 theme-creator-image-subheader = Automatically generate a theme based on extracted colors from an image (.png, .jpg).
@@ -3351,6 +3352,9 @@ theme-creator-selecting-image = Selecting image...
 theme-creator-select-new-image = Select a new image
 theme-creator-create-theme = Create theme
 theme-creator-process-image-failed = Failed to process selected image. Please try again with a different image.
+theme-deletion-modal-header = Are you sure you want to delete this theme?
+theme-deletion-subheader = This will permanently delete the theme.
+theme-deletion-delete = Delete theme
 theme-chooser-title = Themes
 theme-chooser-scope-all-windows = All windows
 theme-chooser-scope-this-window = This window

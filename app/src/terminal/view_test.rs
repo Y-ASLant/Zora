@@ -62,6 +62,7 @@ use crate::terminal::model::block::{
 use crate::terminal::model::blocks::{insert_block, TotalIndex};
 use crate::terminal::model::terminal_model::WithinBlock;
 use crate::terminal::view::load_ai_conversation::RestoredAIConversation;
+use crate::terminal::view::use_agent_footer::UseAgentToolbarEvent;
 use crate::test_util::ai_agent_tasks::{
     create_api_subtask, create_api_task, create_message, create_subagent_tool_call_message,
 };
@@ -5623,4 +5624,22 @@ fn onekey_empty_candidates_with_empty_query_returns_empty_ordered() {
     let candidates: Vec<(&str, &str)> = vec![];
     let result = filter_and_sort_onekey_candidates(candidates.iter().copied(), "");
     assert_eq!(rows_indices(result), Vec::<usize>::new());
+}
+
+#[test]
+fn selecting_use_agent_from_warpify_footer_focuses_input() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+        let editor = terminal.read(&app, |view, ctx| view.input().as_ref(ctx).editor().clone());
+
+        terminal.update(&mut app, |view, ctx| {
+            ctx.focus_self();
+            view.use_agent_footer.update(ctx, |_, ctx| {
+                ctx.emit(UseAgentToolbarEvent::UseAgent);
+            });
+        });
+
+        assert!(editor.read(&app, |editor, _| editor.is_focused()));
+    })
 }

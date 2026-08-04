@@ -3231,6 +3231,7 @@ voice-transcription-hold-key = 语音转写（按住 `{ $key }` 键）
 
 get-started-welcome-title = 欢迎使用 Zap
 get-started-subtitle = 智能体开发环境
+theme-creator-modal-header = 从图片创建新主题
 theme-creator-theme-name = 主题名称
 theme-creator-background-color = 背景色
 theme-creator-image-subheader = 根据图片（.png、.jpg）中提取的颜色自动生成主题。
@@ -3239,6 +3240,9 @@ theme-creator-selecting-image = 正在选择图片...
 theme-creator-select-new-image = 选择新图片
 theme-creator-create-theme = 创建主题
 theme-creator-process-image-failed = 无法处理所选图片。请换一张图片后重试。
+theme-deletion-modal-header = 确定要删除此主题吗？
+theme-deletion-subheader = 此操作将永久删除该主题。
+theme-deletion-delete = 删除主题
 theme-chooser-title = 主题
 theme-chooser-scope-all-windows = 所有窗口
 theme-chooser-scope-this-window = 当前窗口

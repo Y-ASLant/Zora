@@ -54,7 +54,6 @@ pub const SUPPORTED_EDITORS: &[Editor] = &[
     #[cfg(any(target_os = "macos", windows))]
     // Cursor *can* run on linux, but does not have a .desktop file
     Editor::Cursor,
-    Editor::Windsurf,
 ];
 
 #[derive(

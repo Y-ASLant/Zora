@@ -3118,6 +3118,7 @@ voice-transcription-hold-key = 音声書き起こし (`{ $key }` キーを押し
 
 get-started-welcome-title = Zap へようこそ
 get-started-subtitle = エージェント型開発環境
+theme-creator-modal-header = 画像から新しいテーマを作成
 theme-creator-theme-name = テーマ名
 theme-creator-background-color = 背景色
 theme-creator-image-subheader = 画像 (.png、.jpg) から抽出した色を基にテーマを自動生成します。
@@ -3126,6 +3127,9 @@ theme-creator-selecting-image = 画像を選択中…
 theme-creator-select-new-image = 新しい画像を選択
 theme-creator-create-theme = テーマを作成
 theme-creator-process-image-failed = 選択した画像の処理に失敗しました。別の画像でもう一度お試しください。
+theme-deletion-modal-header = このテーマを削除してもよろしいですか？
+theme-deletion-subheader = この操作を行うとテーマは完全に削除されます。
+theme-deletion-delete = テーマを削除
 theme-chooser-title = テーマ
 theme-chooser-scope-all-windows = すべてのウィンドウ
 theme-chooser-scope-this-window = このウィンドウ
