@@ -196,9 +196,6 @@ pub enum FeatureFlag {
     /// Enables using `esc` to clear autosuggestions.
     ClearAutosuggestionOnEscape,
 
-    /// If enabled, the default theme is set to Adeberry for new users.
-    DefaultAdeberryTheme,
-
     /// New, less intrusive autoupdate UI.
     AutoupdateUIRevamp,
 

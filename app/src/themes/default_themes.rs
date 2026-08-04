@@ -4,8 +4,8 @@ use warp_core::ui::theme::ui_colors::UiColors;
 use warp_core::ui::{
     color::{blend::Blend, coloru_with_opacity, OPAQUE},
     theme::{
-        color::CustomDetails, AnsiColor, AnsiColors, Details, Fill, HorizontalGradient, Image,
-        TerminalColors, VerticalGradient, WarpTheme,
+        AnsiColor, AnsiColors, Details, Fill, HorizontalGradient, Image, TerminalColors,
+        VerticalGradient, WarpTheme,
     },
 };
 
@@ -111,27 +111,6 @@ const DRACULA_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
     AnsiColor::from_u32(0xCAA9FAFF),
     AnsiColor::from_u32(0xFF79C6FF),
     AnsiColor::from_u32(0x8BE9FDFF),
-    AnsiColor::from_u32(0xFFFFFFFF),
-);
-
-const PHENOMENON_NORMAL_COLORS: AnsiColors = AnsiColors::new(
-    AnsiColor::from_u32(0x121212FF),
-    AnsiColor::from_u32(0xD22D1EFF),
-    AnsiColor::from_u32(0x1CA05AFF),
-    AnsiColor::from_u32(0xE5A01AFF),
-    AnsiColor::from_u32(0x3780E9FF),
-    AnsiColor::from_u32(0xBF409DFF),
-    AnsiColor::from_u32(0x799C92FF),
-    AnsiColor::from_u32(0xFAF9F6FF),
-);
-const PHENOMENON_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
-    AnsiColor::from_u32(0x292929FF),
-    AnsiColor::from_u32(0xAE756FFF),
-    AnsiColor::from_u32(0x789B88FF),
-    AnsiColor::from_u32(0xBD9F65FF),
-    AnsiColor::from_u32(0x6F839FFF),
-    AnsiColor::from_u32(0xA57899FF),
-    AnsiColor::from_u32(0xBFC5C3FF),
     AnsiColor::from_u32(0xFFFFFFFF),
 );
 
@@ -457,10 +436,6 @@ pub(super) fn dracula_colors() -> TerminalColors {
     TerminalColors::new(DRACULA_NORMAL_COLORS, DRACULA_BRIGHT_COLORS)
 }
 
-pub(super) fn phenomenon_colors() -> TerminalColors {
-    TerminalColors::new(PHENOMENON_NORMAL_COLORS, PHENOMENON_BRIGHT_COLORS)
-}
-
 pub(super) fn gruvbox_dark_colors() -> TerminalColors {
     TerminalColors::new(GRUVBOX_DARK_NORMAL_COLORS, GRUVBOX_DARK_BRIGHT_COLORS)
 }
@@ -649,58 +624,7 @@ pub(super) fn fancy_dracula() -> WarpTheme {
     )
 }
 
-pub(super) fn phenomenon() -> WarpTheme {
-    WarpTheme::new(
-        Fill::Solid(ColorU::from_u32(0x121212FF)),
-        ColorU::from_u32(0xFAF9F6FF),
-        Fill::Solid(ColorU::from_u32(0x2E5D9EFF)),
-        None,
-        Some(Details::Darker),
-        phenomenon_colors(),
-        Some(Image {
-            source: bundled_or_fetched_asset!("jpg/phenomenon_bg.jpg"),
-            opacity: 100,
-        }),
-        Some("Phenomenon".to_string()),
-        None,
-    )
-}
-
 /// Bundled themes with background images
-pub(super) fn jellyfish() -> WarpTheme {
-    WarpTheme::new(
-        Fill::Solid(ColorU::from_u32(0x1B1718FF)),
-        ColorU::white(),
-        Fill::Solid(ColorU::from_u32(0x538682FF)),
-        None,
-        Some(Details::Darker),
-        dark_mode_colors(),
-        Some(Image {
-            source: bundled_or_fetched_asset!("jpg/jellyfish_bg.jpg"),
-            opacity: 30,
-        }),
-        Some("Jellyfish".to_string()),
-        None,
-    )
-}
-
-pub(super) fn koi() -> WarpTheme {
-    WarpTheme::new(
-        Fill::Solid(ColorU::from_u32(0x211719FF)),
-        ColorU::white(),
-        Fill::Solid(ColorU::from_u32(0xFF3131FF)),
-        None,
-        Some(Details::Darker),
-        dark_mode_colors(),
-        Some(Image {
-            source: bundled_or_fetched_asset!("jpg/koi_bg.jpg"),
-            opacity: 30,
-        }),
-        Some("Koi".to_string()),
-        None,
-    )
-}
-
 pub(super) fn leafy() -> WarpTheme {
     WarpTheme::new(
         Fill::Solid(ColorU::black()),
@@ -735,26 +659,6 @@ pub(super) fn marble() -> WarpTheme {
     )
 }
 
-pub(super) fn pink_city() -> WarpTheme {
-    let details = CustomDetails {
-        ..CustomDetails::lighter_details()
-    };
-    WarpTheme::new(
-        Fill::Solid(ColorU::from_u32(0xFBEFF6FF)),
-        ColorU::black(),
-        Fill::Solid(ColorU::from_u32(0xE10087FF)),
-        None,
-        Some(Details::Custom(details)),
-        light_mode_colors(),
-        Some(Image {
-            source: bundled_or_fetched_asset!("jpg/pink_city_bg.jpg"),
-            opacity: 40,
-        }),
-        Some("Pink City".to_string()),
-        None,
-    )
-}
-
 pub(super) fn snowy() -> WarpTheme {
     WarpTheme::new(
         Fill::VerticalGradient(VerticalGradient::new(
@@ -771,28 +675,6 @@ pub(super) fn snowy() -> WarpTheme {
             opacity: 20,
         }),
         Some("Snowy".to_string()),
-        None,
-    )
-}
-
-pub(super) fn red_rock() -> WarpTheme {
-    WarpTheme::new(
-        Fill::VerticalGradient(VerticalGradient::new(
-            ColorU::from_u32(0x211719FF)
-                .blend(&coloru_with_opacity(ColorU::from_u32(0x4C3435FF), 45)),
-            ColorU::from_u32(0x211719FF)
-                .blend(&coloru_with_opacity(ColorU::from_u32(0xD3032FF), 45)),
-        )),
-        ColorU::white(),
-        Fill::Solid(ColorU::from_u32(0x9F4147FF)),
-        None,
-        Some(Details::Darker),
-        dark_mode_colors(),
-        Some(Image {
-            source: bundled_or_fetched_asset!("jpg/red_rock_bg.jpg"),
-            opacity: 30,
-        }),
-        Some("Red Rock".to_string()),
         None,
     )
 }
@@ -815,23 +697,6 @@ pub(super) fn dark_city() -> WarpTheme {
             opacity: 20,
         }),
         Some("Dark City".to_string()),
-        None,
-    )
-}
-
-pub(super) fn sent_referral_reward() -> WarpTheme {
-    WarpTheme::new(
-        Fill::Solid(ColorU::from_u32(0x334567FF)),
-        ColorU::white(),
-        Fill::Solid(ColorU::from_u32(0xCD51FFFF)),
-        None,
-        Some(Details::Darker),
-        dark_mode_colors(),
-        Some(Image {
-            source: bundled_or_fetched_asset!("jpg/sent_referral_reward_bg.jpg"),
-            opacity: 100,
-        }),
-        Some("Zap Referral".to_string()),
         None,
     )
 }
@@ -906,23 +771,6 @@ pub(super) fn wezterm_classic() -> WarpTheme {
         wezterm_classic_colors(),
         None,
         Some("WezTerm Classic".to_string()),
-        None,
-    )
-}
-
-pub(super) fn received_referral_reward() -> WarpTheme {
-    WarpTheme::new(
-        Fill::Solid(ColorU::from_u32(0xFFFFFFFF)),
-        ColorU::black(),
-        Fill::Solid(ColorU::from_u32(0xCD51FFFF)),
-        None,
-        Some(Details::Lighter),
-        light_mode_colors(),
-        Some(Image {
-            source: bundled_or_fetched_asset!("jpg/received_referral_reward_bg.jpg"),
-            opacity: 100,
-        }),
-        Some("Received Referral Reward".to_string()),
         None,
     )
 }
