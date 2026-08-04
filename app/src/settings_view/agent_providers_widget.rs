@@ -27,8 +27,8 @@ use std::collections::{HashMap, HashSet};
 
 use settings::Setting;
 use warpui::elements::{
-    ChildView, Container, CornerRadius, CrossAxisAlignment, Expanded, Flex, MainAxisAlignment,
-    MouseStateHandle, ParentElement, Radius, Text, Wrap,
+    ChildView, Clipped, Container, CornerRadius, CrossAxisAlignment, Expanded, Flex,
+    MainAxisAlignment, MouseStateHandle, ParentElement, Radius, Text, Wrap,
 };
 use warpui::ui_components::{
     button::ButtonVariant,
@@ -732,7 +732,7 @@ impl AgentProvidersWidget {
         let cell = |flex: f32, view: &ViewHandle<EditorView>| -> Box<dyn Element> {
             Expanded::new(
                 flex,
-                Container::new(ChildView::new(view).finish())
+                Container::new(Clipped::new(ChildView::new(view).finish()).finish())
                     .with_margin_right(MODEL_ROW_GAP)
                     .finish(),
             )
@@ -1117,12 +1117,15 @@ impl AgentProvidersWidget {
                 Expanded::new(
                     flex,
                     Container::new(
-                        Text::new(
-                            label.to_string(),
-                            appearance.ui_font_family(),
-                            appearance.ui_font_size(),
+                        Clipped::new(
+                            Text::new(
+                                label.to_string(),
+                                appearance.ui_font_family(),
+                                appearance.ui_font_size(),
+                            )
+                            .with_color(dim.into())
+                            .finish(),
                         )
-                        .with_color(dim.into())
                         .finish(),
                     )
                     .with_margin_right(MODEL_ROW_GAP)
