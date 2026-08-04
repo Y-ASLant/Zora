@@ -149,7 +149,7 @@ impl SftpBackend for LiveSftpBackend {
         remote_path: &Path,
         controller: Option<Arc<zora_transport::TransferController>>,
     ) -> Result<(), SftpOpsError> {
-        warpui::r#async::block_on(zora_transport::RemoteFs::upload_directory(
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::upload_directory(
             &self.sftp,
             local_path,
             remote_path,
@@ -164,7 +164,7 @@ impl SftpBackend for LiveSftpBackend {
         local_path: &Path,
         controller: Option<Arc<zora_transport::TransferController>>,
     ) -> Result<(), SftpOpsError> {
-        warpui::r#async::block_on(zora_transport::RemoteFs::download_directory(
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::download_directory(
             &self.sftp,
             remote_path,
             local_path,
@@ -199,20 +199,23 @@ impl InMemorySftpBackend {
 impl SftpBackend for InMemorySftpBackend {
     fn list_dir(&self, path: &Path) -> Result<Vec<FileEntry>, SftpOpsError> {
         Ok(
-            warpui::r#async::block_on(zora_transport::RemoteFs::list_dir(&self.remote_fs, path))?
-                .into_iter()
-                .map(Self::entry_from_transport)
-                .collect(),
+            sftp_ops::block_on_transport(zora_transport::RemoteFs::list_dir(
+                &self.remote_fs,
+                path,
+            ))?
+            .into_iter()
+            .map(Self::entry_from_transport)
+            .collect(),
         )
     }
 
     fn delete_file(&self, path: &Path) -> Result<(), SftpOpsError> {
-        warpui::r#async::block_on(zora_transport::RemoteFs::remove_file(&self.remote_fs, path))?;
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::remove_file(&self.remote_fs, path))?;
         Ok(())
     }
 
     fn delete_dir_recursive(&self, path: &Path) -> Result<(), SftpOpsError> {
-        warpui::r#async::block_on(zora_transport::RemoteFs::remove_dir_all(
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::remove_dir_all(
             &self.remote_fs,
             path,
         ))?;
@@ -220,12 +223,12 @@ impl SftpBackend for InMemorySftpBackend {
     }
 
     fn create_dir(&self, path: &Path) -> Result<(), SftpOpsError> {
-        warpui::r#async::block_on(zora_transport::RemoteFs::mkdir(&self.remote_fs, path))?;
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::mkdir(&self.remote_fs, path))?;
         Ok(())
     }
 
     fn rename(&self, old_path: &Path, new_path: &Path) -> Result<(), SftpOpsError> {
-        warpui::r#async::block_on(zora_transport::RemoteFs::rename(
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::rename(
             &self.remote_fs,
             old_path,
             new_path,
@@ -235,14 +238,14 @@ impl SftpBackend for InMemorySftpBackend {
     }
 
     fn realpath(&self, path: &Path) -> Result<PathBuf, SftpOpsError> {
-        Ok(warpui::r#async::block_on(
+        Ok(sftp_ops::block_on_transport(
             zora_transport::RemoteFs::realpath(&self.remote_fs, path),
         )?)
     }
 
     fn stat(&self, path: &Path) -> Result<FileEntry, SftpOpsError> {
         let metadata =
-            warpui::r#async::block_on(zora_transport::RemoteFs::stat(&self.remote_fs, path))?;
+            sftp_ops::block_on_transport(zora_transport::RemoteFs::stat(&self.remote_fs, path))?;
         Ok(entry_from_transport(
             path.to_path_buf(),
             path.file_name()
@@ -264,7 +267,7 @@ impl SftpBackend for InMemorySftpBackend {
             return Err(SftpOpsError::Cancelled);
         }
         let total = std::fs::metadata(local_path)?.len();
-        warpui::r#async::block_on(zora_transport::RemoteFs::upload_file(
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::upload_file(
             &self.remote_fs,
             local_path,
             remote_path,
@@ -287,12 +290,12 @@ impl SftpBackend for InMemorySftpBackend {
         if cancel_flag.is_some_and(|flag| flag.load(std::sync::atomic::Ordering::SeqCst)) {
             return Err(SftpOpsError::Cancelled);
         }
-        let total = warpui::r#async::block_on(zora_transport::RemoteFs::stat(
+        let total = sftp_ops::block_on_transport(zora_transport::RemoteFs::stat(
             &self.remote_fs,
             remote_path,
         ))?
         .size;
-        warpui::r#async::block_on(zora_transport::RemoteFs::download_file(
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::download_file(
             &self.remote_fs,
             remote_path,
             local_path,
@@ -310,7 +313,7 @@ impl SftpBackend for InMemorySftpBackend {
         remote_path: &Path,
         controller: Option<Arc<zora_transport::TransferController>>,
     ) -> Result<(), SftpOpsError> {
-        warpui::r#async::block_on(zora_transport::RemoteFs::upload_directory(
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::upload_directory(
             &self.remote_fs,
             local_path,
             remote_path,
@@ -325,7 +328,7 @@ impl SftpBackend for InMemorySftpBackend {
         local_path: &Path,
         controller: Option<Arc<zora_transport::TransferController>>,
     ) -> Result<(), SftpOpsError> {
-        warpui::r#async::block_on(zora_transport::RemoteFs::download_directory(
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::download_directory(
             &self.remote_fs,
             remote_path,
             local_path,

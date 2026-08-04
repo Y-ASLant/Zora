@@ -2,6 +2,7 @@
 //!
 //! 传输实现全部来自 zora_transport，这里仅负责把服务器凭据和 UI 类型接起来。
 
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -70,13 +71,33 @@ pub type ProgressCallback = Box<dyn Fn(u64, u64) + Send>;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// 驱动传输层 future。
+///
+/// 生产 SFTP 操作运行在 Tokio 的 blocking 线程中，必须用 Tokio 自己驱动
+/// `russh-sftp`；测试和离线后端没有 Tokio runtime 时继续使用 WarpUI executor。
+pub(crate) fn block_on_transport<F>(future: F) -> F::Output
+where
+    F: Future,
+{
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        if matches!(
+            handle.runtime_flavor(),
+            tokio::runtime::RuntimeFlavor::MultiThread
+        ) {
+            return tokio::task::block_in_place(|| handle.block_on(future));
+        }
+    }
+
+    warpui::r#async::block_on(future)
+}
+
 pub fn connect_from_server(
     server: &SshServerInfo,
     secret_store: &dyn SshSecretStore,
 ) -> Result<SftpSession, SftpOpsError> {
     let resolved_auth = resolve_sftp_auth(server)?;
     let auth = build_auth_method(server, &resolved_auth, secret_store)?;
-    warpui::r#async::block_on(SftpSession::connect_with_policy(
+    block_on_transport(SftpSession::connect_with_policy(
         &server.host,
         server.port,
         &resolved_auth.username,
@@ -97,42 +118,38 @@ fn resolve_sftp_auth(server: &SshServerInfo) -> Result<ResolvedSshAuth, SftpOpsE
 }
 
 pub fn list_dir(sftp: &Sftp, path: &Path) -> Result<Vec<FileEntry>, SftpOpsError> {
-    let entries = warpui::r#async::block_on(sftp.read_dir(path))?;
+    let entries = block_on_transport(sftp.read_dir(path))?;
     Ok(entries.into_iter().map(file_entry_from_transport).collect())
 }
 
 pub fn delete_file(sftp: &Sftp, path: &Path) -> Result<(), SftpOpsError> {
-    warpui::r#async::block_on(sftp.remove_file(path))?;
+    block_on_transport(sftp.remove_file(path))?;
     Ok(())
 }
 
 pub fn delete_dir_recursive(sftp: &Sftp, path: &Path) -> Result<(), SftpOpsError> {
-    warpui::r#async::block_on(RemoteFs::remove_dir_all(sftp, path))?;
+    block_on_transport(RemoteFs::remove_dir_all(sftp, path))?;
     Ok(())
 }
 
 pub fn create_dir(sftp: &Sftp, path: &Path) -> Result<(), SftpOpsError> {
-    warpui::r#async::block_on(sftp.create_dir(path))?;
+    block_on_transport(sftp.create_dir(path))?;
     Ok(())
 }
 
 pub fn rename(sftp: &Sftp, old_path: &Path, new_path: &Path) -> Result<(), SftpOpsError> {
-    warpui::r#async::block_on(sftp.rename(
-        old_path,
-        new_path,
-        zora_transport::RenameOptions::default(),
-    ))?;
+    block_on_transport(sftp.rename(old_path, new_path, zora_transport::RenameOptions::default()))?;
     Ok(())
 }
 
 pub fn realpath(sftp: &Sftp, path: &Path) -> Result<PathBuf, SftpOpsError> {
-    Ok(warpui::r#async::block_on(sftp.realpath(path))?)
+    Ok(block_on_transport(sftp.realpath(path))?)
 }
 
 pub fn stat(sftp: &Sftp, path: &Path) -> Result<FileEntry, SftpOpsError> {
     Ok(file_entry_from_transport_path(
         path.to_path_buf(),
-        warpui::r#async::block_on(sftp.stat(path))?,
+        block_on_transport(sftp.stat(path))?,
     ))
 }
 
@@ -227,7 +244,7 @@ fn run_transfer(
     cancel_flag: &AtomicBool,
     controller: Arc<TransferController>,
 ) -> Result<(), SftpOpsError> {
-    let result = warpui::r#async::block_on(async {
+    let result = block_on_transport(async {
         let operation = async {
             match direction {
                 TransferDirection::Upload => {

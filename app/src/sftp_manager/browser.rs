@@ -244,7 +244,11 @@ where
     T: Send + 'static,
 {
     let runtime_handle = tokio::runtime::Handle::current();
-    tokio::task::spawn_blocking(move || runtime_handle.block_on(async move { op() })).await
+    tokio::task::spawn_blocking(move || {
+        let _runtime_guard = runtime_handle.enter();
+        op()
+    })
+    .await
 }
 
 impl SftpBrowserView {
@@ -2290,6 +2294,20 @@ mod tests {
             .await
             .expect("后台操作不应 panic");
         assert!(has_runtime);
+    }
+
+    /// 回归测试：传输层 future 必须由 Tokio 驱动，而不是只进入运行时上下文。
+    #[tokio::test]
+    async fn test_run_blocking_operation_drives_tokio_future() {
+        let completed = run_blocking_operation(|| {
+            sftp_ops::block_on_transport(async {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+                true
+            })
+        })
+        .await
+        .expect("Tokio future 不应 panic");
+        assert!(completed);
     }
 
     // ============================================================
