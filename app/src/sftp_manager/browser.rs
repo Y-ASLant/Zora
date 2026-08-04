@@ -73,6 +73,12 @@ pub enum SftpBrowserAction {
     Refresh,
     /// 选中指定索引的条目
     SelectEntry(usize),
+    /// 按修饰键选择条目（Ctrl/Cmd 切换，Shift 范围选择）
+    SelectEntryWithModifiers {
+        index: usize,
+        ctrl_or_cmd: bool,
+        shift: bool,
+    },
     /// 打开指定索引的条目（目录则进入，文件则下载）
     OpenEntry(usize),
     /// 删除指定索引的条目
@@ -123,6 +129,11 @@ pub enum SftpBrowserAction {
     ExecuteUpload(String),
     /// 执行保存下载（用户已选择路径）
     DownloadSaveAs { index: usize, local_path: String },
+    /// 批量下载到用户选择的目录
+    DownloadBatchSaveAs {
+        indices: Vec<usize>,
+        local_path: String,
+    },
     /// 确认移动
     ConfirmMove,
     /// 取消传输任务
@@ -161,6 +172,8 @@ pub struct SftpBrowserView {
     pub(crate) entries: Vec<FileEntry>,
     /// 选中的条目索引集合
     pub(crate) selected: HashSet<usize>,
+    /// Shift 范围选择的锚点
+    selection_anchor: Option<usize>,
     /// 路径历史记录
     pub(crate) path_history: Vec<PathBuf>,
     /// 历史记录当前位置
@@ -295,6 +308,7 @@ impl SftpBrowserView {
             current_path: PathBuf::from("/"),
             entries: Vec::new(),
             selected: HashSet::new(),
+            selection_anchor: None,
             path_history: vec![PathBuf::from("/")],
             history_index: 0,
             transfers: Vec::new(),
@@ -453,6 +467,7 @@ impl SftpBrowserView {
                 });
                 self.entries = entries;
                 self.selected.clear();
+                self.selection_anchor = None;
                 self.sync_row_mouse_handles();
             }
             Err(_) => {}
@@ -507,6 +522,7 @@ impl SftpBrowserView {
         self.sftp = None;
         self.entries.clear();
         self.selected.clear();
+        self.selection_anchor = None;
         ctx.notify();
     }
 
@@ -695,6 +711,7 @@ impl SftpBrowserView {
                         });
                         me.entries = entries;
                         me.selected.clear();
+                        me.selection_anchor = None;
                         me.sync_row_mouse_handles();
                     }
                     Ok(Err(e)) => {
@@ -772,6 +789,50 @@ impl SftpBrowserView {
         }
     }
 
+    /// 根据鼠标修饰键更新文件列表选择状态。
+    fn select_entry_with_modifiers(&mut self, index: usize, ctrl_or_cmd: bool, shift: bool) {
+        if shift {
+            if let Some(anchor) = self.selection_anchor {
+                let start = anchor.min(index);
+                let end = anchor.max(index);
+                if !ctrl_or_cmd {
+                    self.selected.clear();
+                }
+                self.selected.extend(start..=end);
+            } else {
+                self.selected.clear();
+                self.selected.insert(index);
+                self.selection_anchor = Some(index);
+            }
+        } else if ctrl_or_cmd {
+            if !self.selected.remove(&index) {
+                self.selected.insert(index);
+            }
+            self.selection_anchor = Some(index);
+        } else {
+            self.selected.clear();
+            self.selected.insert(index);
+            self.selection_anchor = Some(index);
+        }
+    }
+
+    /// 返回某个操作应处理的条目索引，保证顺序稳定且过滤失效索引。
+    fn selected_indices_for_operation(&self, index: usize) -> Vec<usize> {
+        let mut indices = if self.selected.contains(&index) {
+            self.selected
+                .iter()
+                .copied()
+                .filter(|selected_index| *selected_index < self.entries.len())
+                .collect()
+        } else if index < self.entries.len() {
+            vec![index]
+        } else {
+            Vec::new()
+        };
+        indices.sort_unstable();
+        indices
+    }
+
     /// 打开指定索引的条目
     fn open_entry(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
         if let Some(entry) = self.entries.get(index) {
@@ -788,26 +849,19 @@ impl SftpBrowserView {
 
     /// 弹出删除确认对话框
     fn delete_selected(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
-        if let Some(entry) = self.entries.get(index) {
-            let (paths, is_dirs) = if self.selected.contains(&index) {
-                // 删除所有选中的
-                self.selected
-                    .iter()
-                    .filter_map(|&i| {
-                        self.entries.get(i).map(|e| {
-                            (
-                                e.path.clone(),
-                                matches!(e.file_type, FileEntryType::Directory),
-                            )
-                        })
+        if self.entries.get(index).is_some() {
+            let indices = self.selected_indices_for_operation(index);
+            let (paths, is_dirs): (Vec<_>, Vec<_>) = indices
+                .iter()
+                .filter_map(|&selected_index| {
+                    self.entries.get(selected_index).map(|entry| {
+                        (
+                            entry.path.clone(),
+                            matches!(entry.file_type, FileEntryType::Directory),
+                        )
                     })
-                    .unzip()
-            } else {
-                (
-                    vec![entry.path.clone()],
-                    vec![matches!(entry.file_type, FileEntryType::Directory)],
-                )
-            };
+                })
+                .unzip();
             self.dialog = Some(Dialog::DeleteConfirm { paths, is_dirs });
             ctx.notify();
         }
@@ -862,6 +916,7 @@ impl SftpBrowserView {
             move |me, result, ctx| {
                 me.is_loading = false;
                 me.selected.clear();
+                me.selection_anchor = None;
                 match result {
                     Ok(Ok(())) => {
                         me.refresh_dir(ctx);
@@ -882,39 +937,90 @@ impl SftpBrowserView {
 
     /// 创建下载传输任务
     fn download_entry(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
-        if let Some(entry) = self.entries.get(index) {
-            let default_name = entry.name.clone();
-            let idx = index;
-            if matches!(entry.file_type, FileEntryType::Directory) {
-                ctx.open_file_picker(
-                    move |result, ctx: &mut ViewContext<SftpBrowserView>| match result {
-                        Ok(mut paths) => {
-                            if let Some(path) = paths.pop() {
-                                ctx.dispatch_typed_action_deferred(
-                                    SftpBrowserAction::DownloadSaveAs {
-                                        index: idx,
-                                        local_path: path,
-                                    },
-                                );
-                            }
+        let Some(entry) = self.entries.get(index) else {
+            return;
+        };
+        let indices = self.selected_indices_for_operation(index);
+        if indices.len() > 1 {
+            ctx.open_file_picker(
+                move |result, ctx: &mut ViewContext<SftpBrowserView>| match result {
+                    Ok(mut paths) => {
+                        if let Some(path) = paths.pop() {
+                            ctx.dispatch_typed_action_deferred(
+                                SftpBrowserAction::DownloadBatchSaveAs {
+                                    indices: indices.clone(),
+                                    local_path: path,
+                                },
+                            );
                         }
-                        Err(error) => log::warn!("sftp: folder picker failed: {error}"),
-                    },
-                    FilePickerConfiguration::new().folders_only(),
-                );
-                return;
-            }
-            ctx.open_save_file_picker(
-                move |path_opt: Option<String>, _me: &mut Self, _ctx: &mut ViewContext<Self>| {
-                    if let Some(path) = path_opt {
-                        _ctx.dispatch_typed_action_deferred(SftpBrowserAction::DownloadSaveAs {
-                            index: idx,
-                            local_path: path,
-                        });
                     }
+                    Err(error) => log::warn!("sftp: folder picker failed: {error}"),
                 },
-                SaveFilePickerConfiguration::new().with_default_filename(default_name),
+                FilePickerConfiguration::new().folders_only(),
             );
+            return;
+        }
+
+        let default_name = entry.name.clone();
+        let idx = index;
+        if matches!(entry.file_type, FileEntryType::Directory) {
+            ctx.open_file_picker(
+                move |result, ctx: &mut ViewContext<SftpBrowserView>| match result {
+                    Ok(mut paths) => {
+                        if let Some(path) = paths.pop() {
+                            ctx.dispatch_typed_action_deferred(SftpBrowserAction::DownloadSaveAs {
+                                index: idx,
+                                local_path: path,
+                            });
+                        }
+                    }
+                    Err(error) => log::warn!("sftp: folder picker failed: {error}"),
+                },
+                FilePickerConfiguration::new().folders_only(),
+            );
+            return;
+        }
+        ctx.open_save_file_picker(
+            move |path_opt: Option<String>, _me: &mut Self, _ctx: &mut ViewContext<Self>| {
+                if let Some(path) = path_opt {
+                    _ctx.dispatch_typed_action_deferred(SftpBrowserAction::DownloadSaveAs {
+                        index: idx,
+                        local_path: path,
+                    });
+                }
+            },
+            SaveFilePickerConfiguration::new().with_default_filename(default_name),
+        );
+    }
+
+    /// 将多个选中条目下载到同一个本地目录。
+    fn download_batch_to_directory(
+        &mut self,
+        indices: &[usize],
+        local_path: &Path,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let entries: Vec<_> = indices
+            .iter()
+            .filter_map(|&index| {
+                self.entries.get(index).map(|entry| {
+                    (
+                        entry.path.clone(),
+                        entry.name.clone(),
+                        entry.file_type,
+                        entry.size,
+                    )
+                })
+            })
+            .collect();
+
+        for (remote_path, name, file_type, file_size) in entries {
+            let target = local_path.join(name);
+            if matches!(file_type, FileEntryType::Directory) {
+                self.execute_download_directory(&remote_path, &target, ctx);
+            } else {
+                self.execute_download(&remote_path, &target, file_size, ctx);
+            }
         }
     }
 
@@ -1609,8 +1715,15 @@ impl TypedActionView for SftpBrowserView {
             }
             SftpBrowserAction::SelectEntry(index) => {
                 let index = *index;
-                self.selected.clear();
-                self.selected.insert(index);
+                self.select_entry_with_modifiers(index, false, false);
+                ctx.notify();
+            }
+            SftpBrowserAction::SelectEntryWithModifiers {
+                index,
+                ctrl_or_cmd,
+                shift,
+            } => {
+                self.select_entry_with_modifiers(*index, *ctrl_or_cmd, *shift);
                 ctx.notify();
             }
             SftpBrowserAction::OpenEntry(index) => {
@@ -1802,8 +1915,9 @@ impl TypedActionView for SftpBrowserView {
                 let index = *index;
                 let position = *position;
                 self.context_menu = Some(ContextMenuState::new(index, position));
-                self.selected.clear();
-                self.selected.insert(index);
+                if !self.selected.contains(&index) {
+                    self.select_entry_with_modifiers(index, false, false);
+                }
                 ctx.notify();
             }
             SftpBrowserAction::CloseContextMenu => {
@@ -2009,6 +2123,12 @@ impl TypedActionView for SftpBrowserView {
                         self.execute_download(&remote_path, &local_path, file_size, ctx);
                     }
                 }
+            }
+            SftpBrowserAction::DownloadBatchSaveAs {
+                indices,
+                local_path,
+            } => {
+                self.download_batch_to_directory(indices, Path::new(local_path), ctx);
             }
         }
     }

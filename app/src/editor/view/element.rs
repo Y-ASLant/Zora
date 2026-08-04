@@ -74,6 +74,7 @@ const BEAM_CURSOR_WIDTH_PX: f32 = 3.;
 const REMOTE_BEAM_CURSOR_WIDTH_PX: f32 = 2.;
 /// Width for cursor analogous to CursorShape::Block.
 const DEFAULT_BLOCK_CURSOR_WIDTH_PX: f32 = 8.;
+const MIN_UNDERLINE_CURSOR_HEIGHT_PX: f32 = 1.;
 
 const COMMAND_X_RAY_BOTTOM_PADDING_PX: f32 = 5.;
 const COMMAND_X_RAY_HOVER_THRESHOLD_PX: f32 = 3.;
@@ -828,6 +829,28 @@ impl EditorElement {
         font_size * DEFAULT_UI_LINE_HEIGHT_RATIO.min(line_height_ratio)
     }
 
+    fn cursor_rect(
+        cursor_display_type: CursorDisplayType,
+        origin: Vector2F,
+        width: f32,
+        height: f32,
+        font_size: f32,
+    ) -> RectF {
+        match cursor_display_type {
+            CursorDisplayType::Bar | CursorDisplayType::Block => {
+                RectF::new(origin, vec2f(width, height))
+            }
+            CursorDisplayType::Underline => {
+                let underline_height = (height - font_size).max(MIN_UNDERLINE_CURSOR_HEIGHT_PX);
+                let underline_origin_y = (height - underline_height).max(0.);
+                RectF::new(
+                    origin + vec2f(0., underline_origin_y),
+                    vec2f(width, underline_height),
+                )
+            }
+        }
+    }
+
     /// Draws cursors and avatars for local and remote peers.
     fn draw_cursors(
         cursor_display_type: CursorDisplayType,
@@ -854,11 +877,13 @@ impl EditorElement {
                 _ if !is_local => REMOTE_BEAM_CURSOR_WIDTH_PX,
                 _ => BEAM_CURSOR_WIDTH_PX,
             };
-            let mut cursor_rect = RectF::new(cursor.origin, vec2f(cursor_width, cursor_height));
-
-            if cursor_display_type == CursorDisplayType::Underline {
-                cursor_rect.set_origin_y(cursor_rect.origin_y() + view_snapshot.font_size);
-            };
+            let cursor_rect = Self::cursor_rect(
+                cursor_display_type,
+                cursor.origin,
+                cursor_width,
+                cursor_height,
+                view_snapshot.font_size,
+            );
 
             ctx.scene
                 .draw_rect_with_hit_recording(cursor_rect)

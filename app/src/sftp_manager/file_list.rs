@@ -128,8 +128,12 @@ pub fn render_file_row(
             .finish()
     })
     .with_cursor(Cursor::PointingHand)
-    .on_click(move |ctx, _, _| {
-        ctx.dispatch_typed_action(SftpBrowserAction::SelectEntry(index));
+    .on_click_with_modifiers(move |ctx, _, _, modifiers| {
+        ctx.dispatch_typed_action(SftpBrowserAction::SelectEntryWithModifiers {
+            index,
+            ctrl_or_cmd: modifiers.ctrl || modifiers.cmd,
+            shift: modifiers.shift,
+        });
     })
     .on_double_click(move |ctx, _, _| {
         ctx.dispatch_typed_action(SftpBrowserAction::OpenEntry(index));

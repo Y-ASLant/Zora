@@ -167,6 +167,78 @@ fn test_toggle_select_entry() {
     });
 }
 
+/// 验证 Ctrl/Cmd 点击可以在多个条目之间切换选择
+#[test]
+fn test_modifier_selection_toggles_entries() {
+    warpui::App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let (_, view) = create_view(&mut app);
+
+        view.update(&mut app, |view, ctx| {
+            view.handle_action(&SftpBrowserAction::SelectEntry(1), ctx);
+            view.handle_action(
+                &SftpBrowserAction::SelectEntryWithModifiers {
+                    index: 3,
+                    ctrl_or_cmd: true,
+                    shift: false,
+                },
+                ctx,
+            );
+        });
+
+        view.read(&app, |view, _| {
+            assert_eq!(view.selected.len(), 2);
+            assert!(view.selected.contains(&1));
+            assert!(view.selected.contains(&3));
+        });
+
+        view.update(&mut app, |view, ctx| {
+            view.handle_action(
+                &SftpBrowserAction::SelectEntryWithModifiers {
+                    index: 1,
+                    ctrl_or_cmd: true,
+                    shift: false,
+                },
+                ctx,
+            );
+        });
+
+        view.read(&app, |view, _| {
+            assert_eq!(view.selected.len(), 1);
+            assert!(!view.selected.contains(&1));
+            assert!(view.selected.contains(&3));
+        });
+    });
+}
+
+/// 验证 Shift 点击会从锚点选择连续范围
+#[test]
+fn test_modifier_selection_selects_range() {
+    warpui::App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let (_, view) = create_view(&mut app);
+
+        view.update(&mut app, |view, ctx| {
+            view.handle_action(&SftpBrowserAction::SelectEntry(2), ctx);
+            view.handle_action(
+                &SftpBrowserAction::SelectEntryWithModifiers {
+                    index: 5,
+                    ctrl_or_cmd: false,
+                    shift: true,
+                },
+                ctx,
+            );
+        });
+
+        view.read(&app, |view, _| {
+            assert_eq!(view.selected.len(), 4);
+            for index in 2..=5 {
+                assert!(view.selected.contains(&index));
+            }
+        });
+    });
+}
+
 // ============================================================
 // 搜索过滤测试
 // ============================================================
@@ -508,6 +580,40 @@ fn test_context_menu_clears_previous_selection() {
             assert!(view.selected.contains(&7), "应选中 7");
             assert!(!view.selected.contains(&3), "应清除旧选择 3");
             assert_eq!(view.selected.len(), 1, "应只有一个选中项");
+        });
+    });
+}
+
+/// 验证右键点击已选条目时保留多选集合
+#[test]
+fn test_context_menu_preserves_selection() {
+    warpui::App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let (_, view) = create_view(&mut app);
+
+        view.update(&mut app, |view, ctx| {
+            view.handle_action(&SftpBrowserAction::SelectEntry(2), ctx);
+            view.handle_action(
+                &SftpBrowserAction::SelectEntryWithModifiers {
+                    index: 4,
+                    ctrl_or_cmd: true,
+                    shift: false,
+                },
+                ctx,
+            );
+            view.handle_action(
+                &SftpBrowserAction::ContextMenu {
+                    index: 4,
+                    position: Vector2F::new(100.0, 100.0),
+                },
+                ctx,
+            );
+        });
+
+        view.read(&app, |view, _| {
+            assert_eq!(view.selected.len(), 2);
+            assert!(view.selected.contains(&2));
+            assert!(view.selected.contains(&4));
         });
     });
 }

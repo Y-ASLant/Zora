@@ -4,8 +4,8 @@ use crate::text::word_boundaries::WordBoundariesPolicy;
 use crate::text::{IsRect, SelectionDirection, SelectionType};
 use crate::TaskId;
 use crate::{
-    event::DispatchedEvent, AfterLayoutContext, AppContext, Element, Event, EventContext,
-    PaintContext,
+    event::{DispatchedEvent, ModifiersState},
+    AfterLayoutContext, AppContext, Element, Event, EventContext, PaintContext,
 };
 use instant::Instant;
 use pathfinder_geometry::rect::RectF;
@@ -17,6 +17,8 @@ use std::time::Duration;
 /// First arg is is_hovered. True when hovering in, false when hovering out.
 type HoverHandler = Box<dyn FnMut(bool, &mut EventContext, &AppContext, Vector2F)>;
 type ClickHandler = Box<dyn FnMut(&mut EventContext, &AppContext, Vector2F)>;
+type ClickHandlerWithModifiers =
+    Box<dyn FnMut(&mut EventContext, &AppContext, Vector2F, ModifiersState)>;
 
 pub struct Hoverable {
     child: Box<dyn Element>,
@@ -26,6 +28,7 @@ pub struct Hoverable {
     // A click is comprised of a mouse down and a mouse up,
     // both within the hoverable.
     click_handler: Option<ClickHandler>,
+    click_handler_with_modifiers: Option<ClickHandlerWithModifiers>,
     mouse_down_handler: Option<ClickHandler>,
     double_click_handler: Option<ClickHandler>,
     middle_click_handler: Option<ClickHandler>,
@@ -192,6 +195,7 @@ impl Hoverable {
             origin: None,
             hover_handler: None,
             click_handler: None,
+            click_handler_with_modifiers: None,
             mouse_down_handler: None,
             double_click_handler: None,
             middle_click_handler: None,
@@ -243,6 +247,16 @@ impl Hoverable {
         F: 'static + FnMut(&mut EventContext, &AppContext, Vector2F),
     {
         self.click_handler = Some(Box::new(callback));
+        self
+    }
+
+    /// Fires when the mouse is released within the hoverable and provides the
+    /// modifier state that was active for the click.
+    pub fn on_click_with_modifiers<F>(mut self, callback: F) -> Self
+    where
+        F: 'static + FnMut(&mut EventContext, &AppContext, Vector2F, ModifiersState),
+    {
+        self.click_handler_with_modifiers = Some(Box::new(callback));
         self
     }
 
@@ -633,13 +647,18 @@ impl Element for Hoverable {
 
                 // We mark this as handled if we have a handler waiting to take action on the mouse-up event.
                 if self.click_handler.is_some()
+                    || self.click_handler_with_modifiers.is_some()
                     || (*click_count == 2 && self.double_click_handler.is_some())
                 {
                     ctx.notify();
                     return true;
                 }
             }
-            Event::LeftMouseUp { position, .. } => {
+            Event::LeftMouseUp {
+                position,
+                modifiers,
+                ..
+            } => {
                 // Mouse-up should always reset clicked and double-clicked to false.
                 let click_count = self.state().click_count.take();
 
@@ -662,11 +681,17 @@ impl Element for Hoverable {
                     handler(ctx, app, *position);
                     ctx.notify();
                     return true;
-                } else if click_count.is_some() && self.click_handler.is_some() {
-                    let handler = self.click_handler.as_mut().expect("handler should exist");
-                    handler(ctx, app, *position);
-                    ctx.notify();
-                    return true;
+                } else if click_count.is_some() {
+                    if let Some(handler) = self.click_handler_with_modifiers.as_mut() {
+                        handler(ctx, app, *position, *modifiers);
+                        ctx.notify();
+                        return true;
+                    }
+                    if let Some(handler) = self.click_handler.as_mut() {
+                        handler(ctx, app, *position);
+                        ctx.notify();
+                        return true;
+                    }
                 }
             }
             Event::MouseMoved {
