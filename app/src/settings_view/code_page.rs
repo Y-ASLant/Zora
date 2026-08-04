@@ -8,25 +8,26 @@
 #[cfg(feature = "local_fs")]
 use super::features::external_editor::ExternalEditorView;
 use super::{
-    LocalOnlyIconState, SettingsAction, SettingsSection, ToggleState,
     settings_page::{
-        MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget,
-        render_body_item,
+        render_body_item, MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle,
+        SettingsWidget,
     },
+    LocalOnlyIconState, SettingsAction, SettingsSection, ToggleState,
 };
 use crate::{
-    TelemetryEvent, appearance::Appearance, send_telemetry_from_ctx, settings::CodeSettings,
+    appearance::Appearance, send_telemetry_from_ctx, settings::CodeSettings,
     terminal::general_settings::GeneralSettings, workspace::tab_settings::TabSettings,
+    TelemetryEvent,
 };
 use ai::project_context::model::{ProjectContextModel, ProjectContextModelEvent};
 
 use std::path::PathBuf;
 use warp_core::{features::FeatureFlag, report_if_error, settings::ToggleableSetting as _};
 use warpui::{
-    Action, AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{ChildView, Element, Empty},
     keymap::ContextPredicate,
     ui_components::{components::UiComponent, switch::SwitchStateHandle},
+    Action, AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 pub struct CodeSettingsPageView {
@@ -159,11 +160,9 @@ impl TypedActionView for CodeSettingsPageView {
             }
             CodeSettingsPageAction::ToggleShowCodeReviewDiffStats => {
                 TabSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(
-                        settings
-                            .show_code_review_diff_stats
-                            .toggle_and_save_value(ctx)
-                    );
+                    report_if_error!(settings
+                        .show_code_review_diff_stats
+                        .toggle_and_save_value(ctx));
                 });
                 ctx.notify();
             }
@@ -199,11 +198,9 @@ impl TypedActionView for CodeSettingsPageView {
             }
             CodeSettingsPageAction::ToggleAutoOpenCodeReviewPane => {
                 GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(
-                        settings
-                            .auto_open_code_review_pane_on_first_agent_change
-                            .toggle_and_save_value(ctx)
-                    );
+                    report_if_error!(settings
+                        .auto_open_code_review_pane_on_first_agent_change
+                        .toggle_and_save_value(ctx));
                 });
                 send_telemetry_from_ctx!(
                     TelemetryEvent::FeaturesPageAction {

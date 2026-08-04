@@ -1,5 +1,5 @@
 use settings::{
-    RespectUserSyncSetting, SupportedPlatforms, SyncToCloud, macros::define_settings_group,
+    macros::define_settings_group, RespectUserSyncSetting, SupportedPlatforms, SyncToCloud,
 };
 
 define_settings_group!(CodeSettings, settings: [

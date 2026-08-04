@@ -782,10 +782,12 @@ fn open_settings_page_in_new_window(section: &SettingsSection, ctx: &mut AppCont
 fn workspace_action_for_open_settings(args: &OpenSettingsArgs) -> WorkspaceAction {
     match args {
         OpenSettingsArgs::Default => WorkspaceAction::ShowSettings,
-        OpenSettingsArgs::Search { query, section } => WorkspaceAction::ShowSettingsPageWithSearch {
-            search_query: query.clone(),
-            section: *section,
-        },
+        OpenSettingsArgs::Search { query, section } => {
+            WorkspaceAction::ShowSettingsPageWithSearch {
+                search_query: query.clone(),
+                section: *section,
+            }
+        }
     }
 }
 

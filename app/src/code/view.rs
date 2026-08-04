@@ -14,6 +14,7 @@ use crate::pane_group::pane::view::header::render_pane_header_draggable;
 use crate::pane_group::{CodePane, PaneConfigurationEvent, PaneDragDropLocation};
 use crate::quit_warning::UnsavedStateSummary;
 use crate::server::telemetry::CodeContextDestination;
+use crate::settings::{CodeSettings, CodeSettingsChangedEvent};
 use crate::terminal::cli_agent::{
     build_selection_line_range_prompt, build_selection_substring_prompt,
 };
@@ -21,7 +22,6 @@ use crate::terminal::view::CliAgentRouting;
 use crate::workspace::util::get_context_target_terminal_view;
 use crate::workspace::TabBarDropTargetData;
 use crate::{code::EditorTabBarDropTargetData, pane_group::pane::ActionOrigin};
-use crate::settings::{CodeSettings, CodeSettingsChangedEvent};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::vec2f;

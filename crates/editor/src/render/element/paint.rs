@@ -4,13 +4,13 @@ use std::ops::Range;
 
 use warp_core::ui::appearance::DEFAULT_UI_FONT_SIZE;
 use warpui::{
+    PaintContext,
     elements::{CornerRadius, Point, Radius},
     geometry::{
         rect::RectF,
-        vector::{vec2f, Vector2F},
+        vector::{Vector2F, vec2f},
     },
     text_layout::{Line, PaintStyleOverride, TextFrame},
-    PaintContext,
 };
 
 use crate::{
@@ -18,8 +18,8 @@ use crate::{
     render::{
         layout::line_height,
         model::{
-            saved_positions::SavedPositions, Decoration, Paragraph, ParagraphStyles, Positioned,
-            RenderState, RichTextStyles,
+            Decoration, Paragraph, ParagraphStyles, Positioned, RenderState, RichTextStyles,
+            saved_positions::SavedPositions,
         },
     },
 };
