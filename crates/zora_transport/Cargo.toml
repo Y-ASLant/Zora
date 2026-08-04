@@ -1,0 +1,16 @@
+[package]
+name = "zora_transport"
+version = "0.1.0"
+edition = "2024"
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+russh = { version = "0.62.5", default-features = false, features = ["async-trait", "des", "dsa", "flate2", "ring", "rsa"] }
+russh-sftp = "2.4.0"
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "io-util", "time", "fs"] }
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

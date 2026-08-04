@@ -8,26 +8,25 @@
 #[cfg(feature = "local_fs")]
 use super::features::external_editor::ExternalEditorView;
 use super::{
-    settings_page::{
-        render_body_item, MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle,
-        SettingsWidget,
-    },
     LocalOnlyIconState, SettingsAction, SettingsSection, ToggleState,
+    settings_page::{
+        MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget,
+        render_body_item,
+    },
 };
 use crate::{
-    appearance::Appearance, send_telemetry_from_ctx, settings::CodeSettings,
+    TelemetryEvent, appearance::Appearance, send_telemetry_from_ctx, settings::CodeSettings,
     terminal::general_settings::GeneralSettings, workspace::tab_settings::TabSettings,
-    TelemetryEvent,
 };
 use ai::project_context::model::{ProjectContextModel, ProjectContextModelEvent};
 
 use std::path::PathBuf;
 use warp_core::{features::FeatureFlag, report_if_error, settings::ToggleableSetting as _};
 use warpui::{
+    Action, AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{ChildView, Element, Empty},
     keymap::ContextPredicate,
     ui_components::{components::UiComponent, switch::SwitchStateHandle},
-    Action, AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 pub struct CodeSettingsPageView {
@@ -61,8 +60,7 @@ impl CodeSettingsPageView {
     fn build_page(
         ctx: &mut ViewContext<Self>,
     ) -> (PageType<Self>, Option<ViewHandle<ExternalEditorView>>) {
-        let (widgets, external_editor_view) = if FeatureFlag::ZapNewSettingsModes.is_enabled()
-        {
+        let (widgets, external_editor_view) = if FeatureFlag::ZapNewSettingsModes.is_enabled() {
             let editor_view = ctx.add_typed_action_view(ExternalEditorView::new);
             let widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![
                 Box::new(ExternalEditorCodeWidget),
@@ -70,6 +68,9 @@ impl CodeSettingsPageView {
                 Box::new(CodeReviewPanelToggleWidget::default()),
                 Box::new(CodeReviewDiffStatsToggleWidget::default()),
                 Box::new(ProjectExplorerToggleWidget::default()),
+                Box::new(ShowHiddenFilesToggleWidget::default()),
+                Box::new(ShowLineNumbersToggleWidget::default()),
+                Box::new(AutoSaveToggleWidget::default()),
                 Box::new(GlobalSearchToggleWidget::default()),
             ];
             (widgets, Some(editor_view))
@@ -96,6 +97,9 @@ impl CodeSettingsPageView {
                     Box::new(CodeReviewPanelToggleWidget::default()),
                     Box::new(CodeReviewDiffStatsToggleWidget::default()),
                     Box::new(ProjectExplorerToggleWidget::default()),
+                    Box::new(ShowHiddenFilesToggleWidget::default()),
+                    Box::new(ShowLineNumbersToggleWidget::default()),
+                    Box::new(AutoSaveToggleWidget::default()),
                     Box::new(GlobalSearchToggleWidget::default()),
                 ]
             } else {
@@ -131,6 +135,9 @@ pub enum CodeSettingsPageAction {
     ToggleShowCodeReviewDiffStats,
     ToggleAutoOpenCodeReviewPane,
     ToggleProjectExplorer,
+    ToggleShowHiddenFiles,
+    ToggleShowLineNumbers,
+    ToggleAutoSave,
     ToggleGlobalSearch,
 }
 
@@ -152,15 +159,35 @@ impl TypedActionView for CodeSettingsPageView {
             }
             CodeSettingsPageAction::ToggleShowCodeReviewDiffStats => {
                 TabSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(settings
-                        .show_code_review_diff_stats
-                        .toggle_and_save_value(ctx));
+                    report_if_error!(
+                        settings
+                            .show_code_review_diff_stats
+                            .toggle_and_save_value(ctx)
+                    );
                 });
                 ctx.notify();
             }
             CodeSettingsPageAction::ToggleProjectExplorer => {
                 CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
                     report_if_error!(settings.show_project_explorer.toggle_and_save_value(ctx));
+                });
+                ctx.notify();
+            }
+            CodeSettingsPageAction::ToggleShowHiddenFiles => {
+                CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    report_if_error!(settings.show_hidden_files.toggle_and_save_value(ctx));
+                });
+                ctx.notify();
+            }
+            CodeSettingsPageAction::ToggleShowLineNumbers => {
+                CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    report_if_error!(settings.show_line_numbers.toggle_and_save_value(ctx));
+                });
+                ctx.notify();
+            }
+            CodeSettingsPageAction::ToggleAutoSave => {
+                CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    report_if_error!(settings.auto_save.toggle_and_save_value(ctx));
                 });
                 ctx.notify();
             }
@@ -172,9 +199,11 @@ impl TypedActionView for CodeSettingsPageView {
             }
             CodeSettingsPageAction::ToggleAutoOpenCodeReviewPane => {
                 GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(settings
-                        .auto_open_code_review_pane_on_first_agent_change
-                        .toggle_and_save_value(ctx));
+                    report_if_error!(
+                        settings
+                            .auto_open_code_review_pane_on_first_agent_change
+                            .toggle_and_save_value(ctx)
+                    );
                 });
                 send_telemetry_from_ctx!(
                     TelemetryEvent::FeaturesPageAction {
@@ -412,6 +441,126 @@ impl SettingsWidget for ProjectExplorerToggleWidget {
                 })
                 .finish(),
             Some(crate::t!("settings-code-project-explorer-desc")),
+        )
+    }
+}
+
+#[derive(Default)]
+struct ShowHiddenFilesToggleWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for ShowHiddenFilesToggleWidget {
+    type View = CodeSettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "hidden files dotfiles project explorer file tree"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let code_settings = CodeSettings::as_ref(app);
+
+        render_body_item::<CodeSettingsPageAction>(
+            crate::t!("settings-code-show-hidden-files"),
+            None,
+            LocalOnlyIconState::Hidden,
+            ToggleState::Enabled,
+            appearance,
+            appearance
+                .ui_builder()
+                .switch(self.switch_state.clone())
+                .check(*code_settings.show_hidden_files)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(CodeSettingsPageAction::ToggleShowHiddenFiles);
+                })
+                .finish(),
+            Some(crate::t!("settings-code-show-hidden-files-desc")),
+        )
+    }
+}
+
+#[derive(Default)]
+struct ShowLineNumbersToggleWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for ShowLineNumbersToggleWidget {
+    type View = CodeSettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "line numbers gutter code editor"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let code_settings = CodeSettings::as_ref(app);
+
+        render_body_item::<CodeSettingsPageAction>(
+            crate::t!("settings-code-show-line-numbers"),
+            None,
+            LocalOnlyIconState::Hidden,
+            ToggleState::Enabled,
+            appearance,
+            appearance
+                .ui_builder()
+                .switch(self.switch_state.clone())
+                .check(*code_settings.show_line_numbers)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(CodeSettingsPageAction::ToggleShowLineNumbers);
+                })
+                .finish(),
+            Some(crate::t!("settings-code-show-line-numbers-desc")),
+        )
+    }
+}
+
+#[derive(Default)]
+struct AutoSaveToggleWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for AutoSaveToggleWidget {
+    type View = CodeSettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "auto save autosave save after typing editor files"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let code_settings = CodeSettings::as_ref(app);
+
+        render_body_item::<CodeSettingsPageAction>(
+            crate::t!("settings-code-auto-save"),
+            None,
+            LocalOnlyIconState::Hidden,
+            ToggleState::Enabled,
+            appearance,
+            appearance
+                .ui_builder()
+                .switch(self.switch_state.clone())
+                .check(*code_settings.auto_save)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(CodeSettingsPageAction::ToggleAutoSave);
+                })
+                .finish(),
+            Some(crate::t!("settings-code-auto-save-desc")),
         )
     }
 }

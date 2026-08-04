@@ -865,6 +865,15 @@ impl CodeEditorView {
         self
     }
 
+    pub(crate) fn set_show_line_numbers(
+        &mut self,
+        show_line_numbers: bool,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.display_options.show_line_numbers = show_line_numbers;
+        ctx.notify();
+    }
+
     pub(crate) fn with_horizontal_scrollbar_appearance(
         mut self,
         scrollbar_appearance: ScrollableAppearance,

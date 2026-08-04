@@ -1,5 +1,5 @@
 use settings::{
-    macros::define_settings_group, RespectUserSyncSetting, SupportedPlatforms, SyncToCloud,
+    RespectUserSyncSetting, SupportedPlatforms, SyncToCloud, macros::define_settings_group,
 };
 
 define_settings_group!(CodeSettings, settings: [
@@ -40,5 +40,32 @@ define_settings_group!(CodeSettings, settings: [
         private: false,
         toml_path: "code.editor.show_global_search",
         description: "Whether global file search is shown in the tools panel.",
+    },
+    show_hidden_files: ShowHiddenFiles {
+        type: bool,
+        default: false,
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+        private: false,
+        toml_path: "code.editor.show_hidden_files",
+        description: "Whether hidden files are shown in the project explorer.",
+    },
+    show_line_numbers: ShowLineNumbers {
+        type: bool,
+        default: true,
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+        private: false,
+        toml_path: "code.editor.show_line_numbers",
+        description: "Whether line numbers are shown in the code editor.",
+    },
+    auto_save: AutoSave {
+        type: bool,
+        default: false,
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+        private: false,
+        toml_path: "code.editor.auto_save",
+        description: "Whether the code editor saves file changes after typing stops.",
     },
 ]);

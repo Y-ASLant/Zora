@@ -31,7 +31,7 @@ use crate::terminal::keys_settings::KeysSettings;
 use crate::terminal::shell::ShellType;
 use crate::terminal::view::cell_size_and_padding;
 use crate::themes::theme::{AnsiColorIdentifier, Blend, Fill};
-use crate::uri::OpenMCPSettingsArgs;
+use crate::uri::{OpenMCPSettingsArgs, OpenSettingsArgs};
 use crate::util::bindings::{self, is_binding_pty_compliant};
 use crate::util::traffic_lights::{traffic_light_data, TrafficLightData, TrafficLightMouseStates};
 use crate::view_components::DismissibleToast;
@@ -292,6 +292,14 @@ pub fn init(app: &mut AppContext) {
     app.add_action(
         "root_view:open_settings_page_in_existing_window",
         RootView::open_settings_page_in_existing_window,
+    );
+    app.add_global_action(
+        "root_view:open_settings_in_new_window",
+        open_settings_in_new_window,
+    );
+    app.add_action(
+        "root_view:open_settings_in_existing_window",
+        RootView::open_settings_in_existing_window,
     );
 
     app.add_global_action(
@@ -767,6 +775,29 @@ fn open_settings_page_in_new_window(section: &SettingsSection, ctx: &mut AppCont
                 workspace_view_handle.id(),
                 &WorkspaceAction::ShowSettingsPage(*section),
             );
+        }
+    });
+}
+
+fn workspace_action_for_open_settings(args: &OpenSettingsArgs) -> WorkspaceAction {
+    match args {
+        OpenSettingsArgs::Default => WorkspaceAction::ShowSettings,
+        OpenSettingsArgs::Search { query, section } => WorkspaceAction::ShowSettingsPageWithSearch {
+            search_query: query.clone(),
+            section: *section,
+        },
+    }
+}
+
+fn open_settings_in_new_window(args: &OpenSettingsArgs, ctx: &mut AppContext) {
+    let action = workspace_action_for_open_settings(args);
+    let root_handle = open_new_window_get_handles(None, ctx).1;
+    root_handle.update(ctx, |root_view, ctx| {
+        if let AuthOnboardingState::Terminal(workspace_view_handle) =
+            &root_view.auth_onboarding_state
+        {
+            let window_id = ctx.window_id();
+            ctx.dispatch_typed_action_for_view(window_id, workspace_view_handle.id(), &action);
         }
     });
 }
@@ -1812,6 +1843,22 @@ impl RootView {
             ctx.windows().show_window_and_focus_app(window_id);
         } else {
             log::error!("Auth not complete before trying to open settings page {section:?}");
+        }
+        true
+    }
+
+    pub fn open_settings_in_existing_window(
+        &mut self,
+        args: &OpenSettingsArgs,
+        ctx: &mut ViewContext<Self>,
+    ) -> bool {
+        let window_id = ctx.window_id();
+        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
+            let action = workspace_action_for_open_settings(args);
+            ctx.dispatch_typed_action_for_view(window_id, handle.id(), &action);
+            ctx.windows().show_window_and_focus_app(window_id);
+        } else {
+            log::error!("Auth not complete before trying to open settings");
         }
         true
     }

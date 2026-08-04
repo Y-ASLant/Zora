@@ -21,6 +21,7 @@ use crate::terminal::view::CliAgentRouting;
 use crate::workspace::util::get_context_target_terminal_view;
 use crate::workspace::TabBarDropTargetData;
 use crate::{code::EditorTabBarDropTargetData, pane_group::pane::ActionOrigin};
+use crate::settings::{CodeSettings, CodeSettingsChangedEvent};
 use pathfinder_color::ColorU;
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::vec2f;
@@ -276,6 +277,19 @@ impl CodeView {
     fn new_internal(source: CodeSource, ctx: &mut ViewContext<Self>) -> Self {
         let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new(""));
         let window_id = ctx.window_id();
+
+        ctx.subscribe_to_model(&CodeSettings::handle(ctx), |view, _, event, ctx| {
+            if matches!(event, CodeSettingsChangedEvent::ShowLineNumbers { .. }) {
+                let show_line_numbers = *CodeSettings::as_ref(ctx).show_line_numbers;
+                for tab in &view.tab_group {
+                    tab.editor_view.update(ctx, |local_editor, ctx| {
+                        local_editor.editor().update(ctx, |code_editor, ctx| {
+                            code_editor.set_show_line_numbers(show_line_numbers, ctx);
+                        });
+                    });
+                }
+            }
+        });
 
         Self {
             tab_group: Default::default(),
@@ -647,6 +661,10 @@ impl CodeView {
         };
 
         let editor = code_editor.as_ref(ctx).editor().clone();
+        let show_line_numbers = *CodeSettings::as_ref(ctx).show_line_numbers;
+        editor.update(ctx, |editor, ctx| {
+            editor.set_show_line_numbers(show_line_numbers, ctx);
+        });
 
         ctx.subscribe_to_view(&editor, |me, _, event, ctx| match event {
             CodeEditorEvent::Focused => {
@@ -730,10 +748,12 @@ impl CodeView {
                     ctx,
                 );
             }
-            LocalCodeEditorEvent::FileSaved => {
+            LocalCodeEditorEvent::FileSaved { auto_saved } => {
                 me.sync_active_tab_path(ctx);
                 me.set_title_after_content_update(ctx);
-                CodeView::display_save_success(ctx.window_id(), ctx);
+                if !auto_saved {
+                    CodeView::display_save_success(ctx.window_id(), ctx);
+                }
                 ctx.notify();
                 // 远端异步 Save 完成:触发暂存的 close-tab callback。
                 if let Some(cb) = me.pending_remote_save_callbacks.remove(&emitter.id()) {

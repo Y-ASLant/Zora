@@ -113,9 +113,7 @@ impl TipAction {
             TipAction::SaveNewLaunchConfig => "workspace:open_launch_config_save_modal",
             TipAction::WarpAI => "workspace:toggle_ai_assistant",
             TipAction::ZapDrive => "workspace:toggle_left_panel",
-            // Slash commands are also registered as editable bindings, so callers can look them up here
-            // the same way they do regular app actions.
-            TipAction::Changelog => "/changelog",
+            TipAction::Changelog => "workspace:view_changelog",
             TipAction::Workflows => "input:toggle_workflows",
         }
     }

@@ -173,15 +173,6 @@ pub static OPEN_SETTINGS_FILE: LazyLock<StaticCommand> = LazyLock::new(|| Static
     argument: None,
 });
 
-pub static CHANGELOG: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/changelog",
-    description: t_static!("slash-cmd-changelog-desc"),
-    icon_path: "bundled/svg/book-open.svg",
-    availability: Availability::ALWAYS,
-    auto_enter_ai_mode: false,
-    argument: None,
-});
-
 pub static OPEN_REPO: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     name: "/open-repo",
     description: t_static!("slash-cmd-open-repo-desc"),
@@ -442,10 +433,6 @@ fn all_commands() -> Vec<StaticCommand> {
 
     if FeatureFlag::LocalDockerSandbox.is_enabled() {
         commands.push(CREATE_DOCKER_SANDBOX.clone());
-    }
-
-    if FeatureFlag::Changelog.is_enabled() {
-        commands.push(CHANGELOG.clone());
     }
 
     if FeatureFlag::AgentView.is_enabled() {

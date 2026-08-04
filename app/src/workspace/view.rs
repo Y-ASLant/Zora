@@ -20248,10 +20248,8 @@ impl View for Workspace {
             }
         }
 
-        // We only want to register the temporary changelog shortcut if the changelog toast is
-        // visible.
-        // There is a collision between the default shortcut and `/open-repo`, so durable changelog
-        // access lives in the command palette and slash-command menu instead.
+        // 仅在更新日志提示可见时注册临时快捷键。
+        // 默认快捷键与 `/open-repo` 冲突，因此持久化的更新日志入口保留在命令面板中。
         if self.update_toast_stack.as_ref(app).has_toasts() {
             context.set.insert("UpdateToastVisible");
         }

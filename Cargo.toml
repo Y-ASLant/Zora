@@ -78,6 +78,7 @@ warp_logging = { path = "crates/warp_logging" }
 warp_managed_secrets = { path = "crates/managed_secrets" }
 warp_ripgrep = { path = "crates/warp_ripgrep" }
 warp_ssh_manager = { path = "crates/warp_ssh_manager" }
+zora_transport = { path = "crates/zora_transport" }
 warp_terminal = { path = "crates/warp_terminal" }
 warp_util = { path = "crates/warp_util" }
 zap_sync = { path = "crates/zap_sync" }

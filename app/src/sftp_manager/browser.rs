@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use pathfinder_geometry::vector::Vector2F;
 use warp_core::ui::appearance::Appearance;
@@ -22,11 +23,11 @@ use warpui::elements::{
     ScrollbarWidth, Shrinkable, Stack, Text,
 };
 use warpui::platform::{Cursor, FilePickerConfiguration, SaveFilePickerConfiguration};
+use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::{
     AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle,
 };
-use warpui::r#async::SpawnedFutureHandle;
 
 use crate::editor::{
     EditorView, Event as EditorEvent, SingleLineEditorOptions, TextColors, TextOptions,
@@ -82,6 +83,8 @@ pub enum SftpBrowserAction {
     DownloadEntry(usize),
     /// 上传文件
     UploadFile,
+    /// 上传目录
+    UploadDirectory,
     /// 新建文件夹
     NewFolder,
     /// 确认删除
@@ -93,10 +96,7 @@ pub enum SftpBrowserAction {
     /// 确认覆盖
     ConfirmOverwrite,
     /// 弹出右键菜单
-    ContextMenu {
-        index: usize,
-        position: Vector2F,
-    },
+    ContextMenu { index: usize, position: Vector2F },
     /// 关闭右键菜单
     CloseContextMenu,
     /// 关闭对话框
@@ -127,6 +127,12 @@ pub enum SftpBrowserAction {
     ConfirmMove,
     /// 取消传输任务
     CancelTransfer(usize),
+    /// 暂停传输任务
+    PauseTransfer(usize),
+    /// 恢复传输任务
+    ResumeTransfer(usize),
+    /// 重试失败或取消的任务
+    RetryTransfer(usize),
     /// 切换传输面板可见性
     ToggleTransferPanel,
     /// 确认关闭传输面板（取消所有传输并清空记录）
@@ -145,7 +151,7 @@ pub struct SftpBrowserView {
     /// 连接状态
     pub(crate) connection: ConnectionState,
     /// SFTP 会话
-    _session: Option<zap_sftp::SftpSession>,
+    _session: Option<zora_transport::SftpSession>,
     /// SFTP 操作通道
     sftp: Option<Arc<dyn SftpBackend>>,
     // ---- 导航 ----
@@ -186,6 +192,8 @@ pub struct SftpBrowserView {
     forward_btn: MouseStateHandle,
     /// 上传按钮
     upload_btn: MouseStateHandle,
+    /// 上传目录按钮
+    upload_folder_btn: MouseStateHandle,
     /// 新建文件夹按钮
     new_folder_btn: MouseStateHandle,
     /// 对话框确认按钮
@@ -219,6 +227,8 @@ pub struct SftpBrowserView {
     refresh_handle: Option<SpawnedFutureHandle>,
     /// 传输任务 ID 到 future handle 的映射
     transfer_handles: HashMap<usize, SpawnedFutureHandle>,
+    /// 传输快照轮询任务
+    transfer_progress_poll_handle: Option<SpawnedFutureHandle>,
     /// 拖拽批量上传时的待处理队列
     pending_uploads: Vec<PathBuf>,
 }
@@ -255,6 +265,7 @@ impl SftpBrowserView {
             back_btn: MouseStateHandle::default(),
             forward_btn: MouseStateHandle::default(),
             upload_btn: MouseStateHandle::default(),
+            upload_folder_btn: MouseStateHandle::default(),
             new_folder_btn: MouseStateHandle::default(),
             dialog_confirm_btn: MouseStateHandle::default(),
             dialog_cancel_btn: MouseStateHandle::default(),
@@ -269,6 +280,7 @@ impl SftpBrowserView {
             connect_handle: None,
             refresh_handle: None,
             transfer_handles: HashMap::new(),
+            transfer_progress_poll_handle: None,
             pending_uploads: Vec::new(),
         };
 
@@ -479,28 +491,21 @@ impl SftpBrowserView {
                         me.is_loading = false;
                         match result {
                             Ok(Ok(session)) => {
-                                match session.sftp() {
-                                    Ok(sftp) => {
-                                        let backend = Arc::new(LiveSftpBackend::new(sftp)) as Arc<dyn SftpBackend>;
-                                        // 解析用户 home 目录
-                                        if let Ok(home) = backend.realpath(std::path::Path::new(".")) {
-                                            me.current_path = normalize_remote_path(&home);
-                                        } else {
-                                            me.current_path = PathBuf::from("/");
-                                        }
-                                        me.path_history = vec![me.current_path.clone()];
-                                        me.history_index = 0;
-                                        me.connection = ConnectionState::Connected;
-                                        me._session = Some(session);
-                                        me.sftp = Some(backend);
-                                        me.refresh_dir(ctx);
-                                    }
-                                    Err(e) => {
-                                        me.connection =
-                                            ConnectionState::Failed(format!("创建 SFTP 通道失败: {e}"));
-                                        me.show_error_toast(format!("创建 SFTP 通道失败: {e}"), ctx);
-                                    }
+                                let sftp = session.sftp();
+                                let backend =
+                                    Arc::new(LiveSftpBackend::new(sftp)) as Arc<dyn SftpBackend>;
+                                // 解析用户 home 目录
+                                if let Ok(home) = backend.realpath(std::path::Path::new(".")) {
+                                    me.current_path = normalize_remote_path(&home);
+                                } else {
+                                    me.current_path = PathBuf::from("/");
                                 }
+                                me.path_history = vec![me.current_path.clone()];
+                                me.history_index = 0;
+                                me.connection = ConnectionState::Connected;
+                                me._session = Some(session);
+                                me.sftp = Some(backend);
+                                me.refresh_dir(ctx);
                             }
                             Ok(Err(e)) => {
                                 me.connection = ConnectionState::Failed(e.to_string());
@@ -536,7 +541,8 @@ impl SftpBrowserView {
         &mut self,
         ctx: &mut ViewContext<Self>,
         op: impl FnOnce() -> T + Send + 'static,
-        callback: impl FnOnce(&mut Self, Result<T, tokio::task::JoinError>, &mut ViewContext<Self>) + 'static,
+        callback: impl FnOnce(&mut Self, Result<T, tokio::task::JoinError>, &mut ViewContext<Self>)
+            + 'static,
     ) -> Option<SpawnedFutureHandle> {
         #[cfg(any(test, feature = "integration_tests"))]
         {
@@ -553,6 +559,44 @@ impl SftpBrowserView {
                 },
             ))
         }
+    }
+
+    fn has_active_transfers(&self) -> bool {
+        self.transfers.iter().any(|task| {
+            matches!(
+                task.state,
+                TransferState::Pending | TransferState::InProgress | TransferState::Paused
+            )
+        })
+    }
+
+    fn stop_transfer_progress_poll(&mut self) {
+        if let Some(handle) = self.transfer_progress_poll_handle.take() {
+            handle.abort();
+        }
+    }
+
+    fn sync_transfer_snapshots(&mut self, ctx: &mut ViewContext<Self>) {
+        for task in &mut self.transfers {
+            task.sync_from_controller();
+        }
+        ctx.notify();
+    }
+
+    fn schedule_transfer_progress_poll(&mut self, ctx: &mut ViewContext<Self>) {
+        if !self.has_active_transfers() {
+            self.stop_transfer_progress_poll();
+            return;
+        }
+        let handle = ctx.spawn_abortable(
+            Timer::after(Duration::from_millis(100)),
+            |me, _, ctx| {
+                me.sync_transfer_snapshots(ctx);
+                me.schedule_transfer_progress_poll(ctx);
+            },
+            |_, _| {},
+        );
+        self.transfer_progress_poll_handle = Some(handle);
     }
 
     /// 刷新当前目录内容
@@ -626,8 +670,7 @@ impl SftpBrowserView {
     fn show_error_toast(&self, message: String, ctx: &mut ViewContext<Self>) {
         let window_id = ctx.window_id();
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::error(message)
-                .with_object_id("sftp_error".to_string());
+            let toast = DismissibleToast::error(message).with_object_id("sftp_error".to_string());
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
@@ -697,7 +740,10 @@ impl SftpBrowserView {
                     .iter()
                     .filter_map(|&i| {
                         self.entries.get(i).map(|e| {
-                            (e.path.clone(), matches!(e.file_type, FileEntryType::Directory))
+                            (
+                                e.path.clone(),
+                                matches!(e.file_type, FileEntryType::Directory),
+                            )
                         })
                     })
                     .unzip()
@@ -784,6 +830,25 @@ impl SftpBrowserView {
         if let Some(entry) = self.entries.get(index) {
             let default_name = entry.name.clone();
             let idx = index;
+            if matches!(entry.file_type, FileEntryType::Directory) {
+                ctx.open_file_picker(
+                    move |result, ctx: &mut ViewContext<SftpBrowserView>| match result {
+                        Ok(mut paths) => {
+                            if let Some(path) = paths.pop() {
+                                ctx.dispatch_typed_action_deferred(
+                                    SftpBrowserAction::DownloadSaveAs {
+                                        index: idx,
+                                        local_path: path,
+                                    },
+                                );
+                            }
+                        }
+                        Err(error) => log::warn!("sftp: folder picker failed: {error}"),
+                    },
+                    FilePickerConfiguration::new().folders_only(),
+                );
+                return;
+            }
             ctx.open_save_file_picker(
                 move |path_opt: Option<String>, _me: &mut Self, _ctx: &mut ViewContext<Self>| {
                     if let Some(path) = path_opt {
@@ -909,6 +974,14 @@ impl SftpBrowserView {
                 "Upload",
                 appearance,
                 "sftp_btn:upload",
+            ))
+            .with_child(self.render_toolbar_btn(
+                Icon::Folder,
+                self.upload_folder_btn.clone(),
+                SftpBrowserAction::UploadDirectory,
+                "Upload folder",
+                appearance,
+                "sftp_btn:upload_folder",
             ))
             .with_child(self.render_toolbar_btn(
                 Icon::Plus,
@@ -1065,10 +1138,16 @@ impl SftpBrowserView {
             }
         };
 
+        if std::fs::metadata(local_path).is_ok_and(|metadata| metadata.is_dir()) {
+            self.execute_upload_directory(local_path, &remote_path, ctx);
+            return;
+        }
+
         // 检查远程目录中是否已存在同名文件
-        let existing = self.entries.iter().find(|e| {
-            e.name == file_name && matches!(e.file_type, FileEntryType::File)
-        });
+        let existing = self
+            .entries
+            .iter()
+            .find(|e| e.name == file_name && matches!(e.file_type, FileEntryType::File));
 
         if existing.is_some() {
             let local_size = std::fs::metadata(local_path).map(|m| m.len()).unwrap_or(0);
@@ -1122,6 +1201,7 @@ impl SftpBrowserView {
         self.next_transfer_id += 1;
         let task_id = task.id;
         let cancel_flag = task.cancel_flag.clone();
+        let controller = task.controller.clone();
         self.transfers.push(task);
 
         if let Some(t) = self.transfers.iter_mut().find(|t| t.id == task_id) {
@@ -1135,17 +1215,22 @@ impl SftpBrowserView {
             let transferred = Arc::new(AtomicU64::new(0));
             let transferred_clone = transferred.clone();
 
-            let progress_cb: sftp_ops::ProgressCallback =
-                Box::new(move |bytes, _total| {
-                    transferred_clone.store(bytes, Ordering::SeqCst);
-                });
+            let progress_cb: sftp_ops::ProgressCallback = Box::new(move |bytes, _total| {
+                transferred_clone.store(bytes, Ordering::SeqCst);
+            });
 
             let local_path = local_path.to_path_buf();
             let remote_path = remote_path.to_path_buf();
             if let Some(handle) = self.run_blocking(
                 ctx,
                 move || {
-                    sftp.upload_file(&local_path, &remote_path, Some(&progress_cb), Some(&cancel_flag))
+                    sftp.upload_file(
+                        &local_path,
+                        &remote_path,
+                        Some(&progress_cb),
+                        Some(&cancel_flag),
+                        Some(controller),
+                    )
                 },
                 move |me, result, ctx| {
                     if let Some(t) = me.transfers.iter_mut().find(|t| t.id == task_id) {
@@ -1190,6 +1275,7 @@ impl SftpBrowserView {
             ) {
                 self.transfer_handles.insert(task_id, handle);
             }
+            self.schedule_transfer_progress_poll(ctx);
         } else {
             if let Some(t) = self.transfers.iter_mut().find(|t| t.id == task_id) {
                 t.state = TransferState::Failed("未连接到服务器".to_string());
@@ -1198,6 +1284,92 @@ impl SftpBrowserView {
             self.show_error_toast("上传失败: 未连接到服务器".to_string(), ctx);
             ctx.notify();
         }
+    }
+
+    fn execute_upload_directory(
+        &mut self,
+        local_path: &Path,
+        remote_path: &Path,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.execute_directory_transfer(local_path, remote_path, TransferDirection::Upload, ctx);
+    }
+
+    fn execute_download_directory(
+        &mut self,
+        remote_path: &Path,
+        local_path: &Path,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.execute_directory_transfer(remote_path, local_path, TransferDirection::Download, ctx);
+    }
+
+    fn execute_directory_transfer(
+        &mut self,
+        source_path: &Path,
+        target_path: &Path,
+        direction: TransferDirection,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let task = TransferTask::new(
+            self.next_transfer_id,
+            source_path.to_path_buf(),
+            target_path.to_path_buf(),
+            direction,
+            0,
+        );
+        self.next_transfer_id += 1;
+        let task_id = task.id;
+        let controller = task.controller.clone();
+        self.transfers.push(task);
+        if let Some(task) = self.transfers.iter_mut().find(|task| task.id == task_id) {
+            task.state = TransferState::InProgress;
+        }
+        self.transfer_panel_hidden = false;
+        ctx.notify();
+
+        let Some(sftp) = &self.sftp else {
+            if let Some(task) = self.transfers.iter_mut().find(|task| task.id == task_id) {
+                task.state = TransferState::Failed("未连接到服务器".to_string());
+            }
+            self.show_error_toast("目录传输失败: 未连接到服务器".to_string(), ctx);
+            ctx.notify();
+            return;
+        };
+        let sftp = sftp.clone();
+        let source_path = source_path.to_path_buf();
+        let target_path = target_path.to_path_buf();
+        if let Some(handle) = self.run_blocking(
+            ctx,
+            move || match direction {
+                TransferDirection::Upload => {
+                    sftp.upload_directory(&source_path, &target_path, Some(controller))
+                }
+                TransferDirection::Download => {
+                    sftp.download_directory(&source_path, &target_path, Some(controller))
+                }
+            },
+            move |me, result, ctx| {
+                if let Some(task) = me.transfers.iter_mut().find(|task| task.id == task_id) {
+                    match result {
+                        Ok(Ok(())) => task.sync_from_controller(),
+                        Ok(Err(error)) => {
+                            task.sync_from_controller();
+                            if !matches!(task.state, TransferState::Cancelled) {
+                                task.state = TransferState::Failed(error.to_string());
+                            }
+                        }
+                        Err(_) => task.state = TransferState::Cancelled,
+                    }
+                }
+                me.transfer_handles.remove(&task_id);
+                me.refresh_dir(ctx);
+                ctx.notify();
+            },
+        ) {
+            self.transfer_handles.insert(task_id, handle);
+        }
+        self.schedule_transfer_progress_poll(ctx);
     }
 
     /// 执行下载操作（公共逻辑，供确认覆盖和另存为共用）
@@ -1218,6 +1390,7 @@ impl SftpBrowserView {
         self.next_transfer_id += 1;
         let task_id = task.id;
         let cancel_flag = task.cancel_flag.clone();
+        let controller = task.controller.clone();
         self.transfers.push(task);
 
         if let Some(t) = self.transfers.iter_mut().find(|t| t.id == task_id) {
@@ -1231,17 +1404,22 @@ impl SftpBrowserView {
             let transferred = Arc::new(AtomicU64::new(0));
             let transferred_clone = transferred.clone();
 
-            let progress_cb: sftp_ops::ProgressCallback =
-                Box::new(move |bytes, _total| {
-                    transferred_clone.store(bytes, Ordering::SeqCst);
-                });
+            let progress_cb: sftp_ops::ProgressCallback = Box::new(move |bytes, _total| {
+                transferred_clone.store(bytes, Ordering::SeqCst);
+            });
 
             let remote_path = remote_path.to_path_buf();
             let local_path = local_path.to_path_buf();
             if let Some(handle) = self.run_blocking(
                 ctx,
                 move || {
-                    sftp.download_file(&remote_path, &local_path, Some(&progress_cb), Some(&cancel_flag))
+                    sftp.download_file(
+                        &remote_path,
+                        &local_path,
+                        Some(&progress_cb),
+                        Some(&cancel_flag),
+                        Some(controller),
+                    )
                 },
                 move |me, result, ctx| {
                     if let Some(t) = me.transfers.iter_mut().find(|t| t.id == task_id) {
@@ -1277,6 +1455,7 @@ impl SftpBrowserView {
             ) {
                 self.transfer_handles.insert(task_id, handle);
             }
+            self.schedule_transfer_progress_poll(ctx);
         } else {
             if let Some(t) = self.transfers.iter_mut().find(|t| t.id == task_id) {
                 t.state = TransferState::Failed("未连接到服务器".to_string());
@@ -1449,6 +1628,19 @@ impl TypedActionView for SftpBrowserView {
                     FilePickerConfiguration::new(),
                 );
             }
+            SftpBrowserAction::UploadDirectory => {
+                ctx.open_file_picker(
+                    move |result, ctx: &mut ViewContext<SftpBrowserView>| match result {
+                        Ok(mut paths) => {
+                            if let Some(path) = paths.pop() {
+                                ctx.dispatch_typed_action(&SftpBrowserAction::ExecuteUpload(path));
+                            }
+                        }
+                        Err(error) => log::warn!("sftp: folder picker failed: {error}"),
+                    },
+                    FilePickerConfiguration::new().folders_only(),
+                );
+            }
             SftpBrowserAction::NewFolder => {
                 self.dialog = Some(Dialog::CreateFolder {
                     parent_path: self.current_path.clone(),
@@ -1475,7 +1667,10 @@ impl TypedActionView for SftpBrowserView {
                     let new_path = match build_rename_path(original_path, &new_name) {
                         Some(p) => p,
                         None => {
-                            self.show_error_toast("名称不合法：不能包含路径分隔符".to_string(), ctx);
+                            self.show_error_toast(
+                                "名称不合法：不能包含路径分隔符".to_string(),
+                                ctx,
+                            );
                             return;
                         }
                     };
@@ -1518,7 +1713,10 @@ impl TypedActionView for SftpBrowserView {
                     let folder_path = match build_new_folder_path(parent_path, &folder_name) {
                         Some(p) => p,
                         None => {
-                            self.show_error_toast("名称不合法：不能包含路径分隔符".to_string(), ctx);
+                            self.show_error_toast(
+                                "名称不合法：不能包含路径分隔符".to_string(),
+                                ctx,
+                            );
                             return;
                         }
                     };
@@ -1552,9 +1750,12 @@ impl TypedActionView for SftpBrowserView {
             SftpBrowserAction::ConfirmOverwrite => {
                 // 从对话框中提取路径和传输方向
                 let (source, target, file_size, direction) = match &self.dialog {
-                    Some(Dialog::OverwriteConfirm { source, target, file_size, direction }) => {
-                        (source.clone(), target.clone(), *file_size, *direction)
-                    }
+                    Some(Dialog::OverwriteConfirm {
+                        source,
+                        target,
+                        file_size,
+                        direction,
+                    }) => (source.clone(), target.clone(), *file_size, *direction),
                     Some(Dialog::DeleteConfirm { .. })
                     | Some(Dialog::Rename { .. })
                     | Some(Dialog::CreateFolder { .. })
@@ -1597,7 +1798,10 @@ impl TypedActionView for SftpBrowserView {
                 // 用户取消覆盖确认时，清空剩余的批量上传队列
                 let was_upload_overwrite = matches!(
                     self.dialog,
-                    Some(Dialog::OverwriteConfirm { direction: TransferDirection::Upload, .. })
+                    Some(Dialog::OverwriteConfirm {
+                        direction: TransferDirection::Upload,
+                        ..
+                    })
                 );
                 self.dialog = None;
                 if was_upload_overwrite {
@@ -1681,11 +1885,57 @@ impl TypedActionView for SftpBrowserView {
                 if let Some(handle) = self.transfer_handles.remove(&task_id) {
                     handle.abort();
                 }
+                self.schedule_transfer_progress_poll(ctx);
                 ctx.notify();
+            }
+            SftpBrowserAction::PauseTransfer(task_id) => {
+                if let Some(task) = self.transfers.iter_mut().find(|task| task.id == *task_id) {
+                    if matches!(task.state, TransferState::InProgress) {
+                        task.pause();
+                    }
+                }
+                ctx.notify();
+            }
+            SftpBrowserAction::ResumeTransfer(task_id) => {
+                if let Some(task) = self.transfers.iter_mut().find(|task| task.id == *task_id) {
+                    if matches!(task.state, TransferState::Paused) {
+                        task.resume();
+                    }
+                }
+                self.schedule_transfer_progress_poll(ctx);
+                ctx.notify();
+            }
+            SftpBrowserAction::RetryTransfer(task_id) => {
+                let task_index = self.transfers.iter().position(|task| task.id == *task_id);
+                let Some(task_index) = task_index else {
+                    return;
+                };
+                let task = &self.transfers[task_index];
+                if matches!(
+                    task.state,
+                    TransferState::Pending | TransferState::InProgress | TransferState::Paused
+                ) {
+                    return;
+                }
+                let source = task.source_path.clone();
+                let target = task.target_path.clone();
+                let direction = task.direction;
+                self.transfers.remove(task_index);
+                match direction {
+                    TransferDirection::Upload => {
+                        self.execute_upload_confirmed(&source, &target, ctx);
+                    }
+                    TransferDirection::Download => {
+                        self.execute_download(&source, &target, 0, ctx);
+                    }
+                }
             }
             SftpBrowserAction::ToggleTransferPanel => {
                 let has_active = self.transfers.iter().any(|t| {
-                    matches!(t.state, TransferState::Pending | TransferState::InProgress)
+                    matches!(
+                        t.state,
+                        TransferState::Pending | TransferState::InProgress | TransferState::Paused
+                    )
                 });
                 if has_active {
                     self.dialog = Some(Dialog::CloseTransferPanelConfirm);
@@ -1702,6 +1952,7 @@ impl TypedActionView for SftpBrowserView {
                 for (_, handle) in self.transfer_handles.drain() {
                     handle.abort();
                 }
+                self.stop_transfer_progress_poll();
                 self.transfers.clear();
                 self.transfer_panel_hidden = true;
                 self.dialog = None;
@@ -1727,13 +1978,21 @@ impl TypedActionView for SftpBrowserView {
             }
             SftpBrowserAction::DownloadSaveAs { index, local_path } => {
                 let local_path = PathBuf::from(local_path);
-                let (remote_path, file_size) = self
-                    .entries
-                    .get(*index)
-                    .map(|e| (e.path.clone(), e.size))
-                    .unzip();
-                if let (Some(remote_path), Some(file_size)) = (remote_path, file_size) {
-                    self.execute_download(&remote_path, &local_path, file_size, ctx);
+                let entry = self.entries.get(*index).map(|entry| {
+                    (
+                        entry.path.clone(),
+                        entry.name.clone(),
+                        entry.file_type,
+                        entry.size,
+                    )
+                });
+                if let Some((remote_path, name, file_type, file_size)) = entry {
+                    if matches!(file_type, FileEntryType::Directory) {
+                        let target = local_path.join(name);
+                        self.execute_download_directory(&remote_path, &target, ctx);
+                    } else {
+                        self.execute_download(&remote_path, &local_path, file_size, ctx);
+                    }
                 }
             }
         }
@@ -1893,12 +2152,11 @@ impl View for SftpBrowserView {
         }
 
         // 11. 保存面板位置（用于右键菜单位置计算）
-        let positioned_content =
-            SavePosition::new(main_content, SFTP_PANEL_POSITION_ID).finish();
+        let positioned_content = SavePosition::new(main_content, SFTP_PANEL_POSITION_ID).finish();
 
         // 12. 键盘事件拦截
-        let key_handler = EventHandler::new(positioned_content).on_keydown(
-            move |ctx, _app, keystroke| {
+        let key_handler =
+            EventHandler::new(positioned_content).on_keydown(move |ctx, _app, keystroke| {
                 match keystroke.key.as_str() {
                     "delete" => {
                         ctx.dispatch_typed_action(SftpBrowserAction::DeleteSelected);
@@ -1914,8 +2172,7 @@ impl View for SftpBrowserView {
                     }
                     _ => DispatchEventResult::PropagateToParent,
                 }
-            },
-        );
+            });
 
         // 13. 拖拽事件拦截
         super::drop_target::SftpDropTargetElement::new(key_handler.finish()).finish()
@@ -1946,6 +2203,7 @@ impl BackingView for SftpBrowserView {
         for (_, handle) in self.transfer_handles.drain() {
             handle.abort();
         }
+        self.stop_transfer_progress_poll();
         self.pending_uploads.clear();
         self.connect_handle = None;
         self.refresh_handle = None;

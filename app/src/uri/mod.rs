@@ -48,6 +48,14 @@ pub struct OpenMCPSettingsArgs {
     pub autoinstall: Option<String>,
 }
 
+pub enum OpenSettingsArgs {
+    Default,
+    Search {
+        query: String,
+        section: Option<SettingsSection>,
+    },
+}
+
 /// Source query parameter value indicating auth was initiated from agent setup.
 /// Zap Wave 7-3:URI handler / Settings UI 已删,仅供 `update_environment_form` 在 agent UI
 /// 大手术 commit 完成前充当起起过渡 (后者不拼发出的 URL 用到)。
@@ -246,57 +254,76 @@ impl UriHost {
                     .into_iter()
                     .flatten()
                     .last()
+                    .filter(|segment| !segment.is_empty())
                     .map(|s| s.to_string());
                 let query_string: HashMap<_, _> = url.query_pairs().collect();
 
-                if let Some(settings_sub_page) = settings_sub_page {
-                    match settings_sub_page.as_str() {
-                        "environments" => {
-                            // Zap Wave 7-3:warp://settings/environments URI handler 随
-                            // ambient-agent UI 子系统物理删。还保留 GitHub auth completion
-                            // 通知 —— 其他独立的组件可能需要听。
-                            GitHubAuthNotifier::handle(ctx).update(ctx, |notifier, ctx| {
-                                notifier.notify_auth_completed(ctx);
-                            });
-                            let _ = query_string;
-                        }
-                        "mcp" => {
-                            // warp://settings/mcp?autoinstall=<name> auto-installs a gallery MCP server.
-                            // The value is matched case-insensitively against gallery titles.
-                            let autoinstall =
-                                query_string.get("autoinstall").map(|v| v.to_string());
-                            let args = OpenMCPSettingsArgs { autoinstall };
+                match settings_sub_page.as_deref() {
+                    Some("environments") => {
+                        // Zap Wave 7-3:warp://settings/environments URI handler 随
+                        // ambient-agent UI 子系统物理删。还保留 GitHub auth completion
+                        // 通知 —— 其他独立的组件可能需要听。
+                        GitHubAuthNotifier::handle(ctx).update(ctx, |notifier, ctx| {
+                            notifier.notify_auth_completed(ctx);
+                        });
+                        let _ = query_string;
+                    }
+                    Some("mcp") => {
+                        // warp://settings/mcp?autoinstall=<name> auto-installs a gallery MCP server.
+                        // The value is matched case-insensitively against gallery titles.
+                        let autoinstall = query_string.get("autoinstall").map(|v| v.to_string());
+                        let args = OpenMCPSettingsArgs { autoinstall };
+                        dispatch_action_in_new_or_existing_window(
+                            primary_window_id,
+                            "root_view:open_mcp_settings_in_existing_window",
+                            "root_view:open_mcp_settings_in_new_window",
+                            &args,
+                            ctx,
+                        );
+                    }
+                    // Zap Wave 3-1:"platform" URI 路由原指向
+                    // `SettingsSection::OzCloudAPIKeys`(云端 API key 管理页),
+                    // 随 UI 一同物理删。保留 arm 以记录原意图,物理处理为 no-op。
+                    Some("platform") => {
+                        log::warn!("warp://settings/platform 路由在 Zap 中已下线,忽略该请求");
+                    }
+                    sub_page => {
+                        let section = sub_page.and_then(settings_section_for_simple_subpage);
+                        let search_query = query_string
+                            .get("q")
+                            .map(|query| query.to_string())
+                            .filter(|query| !query.is_empty());
+
+                        if let Some(query) = search_query {
+                            let args = OpenSettingsArgs::Search { query, section };
                             dispatch_action_in_new_or_existing_window(
                                 primary_window_id,
-                                "root_view:open_mcp_settings_in_existing_window",
-                                "root_view:open_mcp_settings_in_new_window",
+                                "root_view:open_settings_in_existing_window",
+                                "root_view:open_settings_in_new_window",
                                 &args,
                                 ctx,
                             );
-                        }
-                        // Zap Wave 3-1:"platform" URI 路由原指向
-                        // `SettingsSection::OzCloudAPIKeys`(云端 API key 管理页),
-                        // 随 UI 一同物理删。保留 arm 以记录原意图,物理处理为 no-op。
-                        "platform" => {
-                            log::warn!(
-                                "warp://settings/platform 路由在 Zap 中已下线,忽略该请求"
-                            );
-                        }
-                        "appearance" => {
+                        } else if let Some(section) = section {
                             dispatch_action_in_new_or_existing_window(
                                 primary_window_id,
                                 "root_view:open_settings_page_in_existing_window",
                                 "root_view:open_settings_page_in_new_window",
-                                &SettingsSection::Appearance,
+                                &section,
                                 ctx,
                             );
-                        }
-                        _ => {
+                        } else if sub_page.is_none() {
+                            let args = OpenSettingsArgs::Default;
+                            dispatch_action_in_new_or_existing_window(
+                                primary_window_id,
+                                "root_view:open_settings_in_existing_window",
+                                "root_view:open_settings_in_new_window",
+                                &args,
+                                ctx,
+                            );
+                        } else {
                             log::warn!("Failed to open settings pane with uri={url}");
                         }
                     }
-                } else {
-                    log::warn!("Failed to open settings pane with uri={url}");
                 }
             }
             UriHost::Home => {
@@ -348,6 +375,26 @@ impl UriHost {
             // Linear deeplink opens a new tab with agent view
             Self::Linear => W::default(),
         }
+    }
+}
+
+fn settings_section_for_simple_subpage(sub_page: &str) -> Option<SettingsSection> {
+    match sub_page {
+        "about" => Some(SettingsSection::About),
+        "appearance" => Some(SettingsSection::Appearance),
+        "code" | "editor_and_code_review" => Some(SettingsSection::Code),
+        "features" => Some(SettingsSection::Features),
+        "keybindings" | "keyboard_shortcuts" => Some(SettingsSection::Keybindings),
+        "warpify" => Some(SettingsSection::Warpify),
+        "warp_drive" | "drive" => Some(SettingsSection::ZapDrive),
+        "cloud_sync" => Some(SettingsSection::CloudSync),
+        "network" => Some(SettingsSection::Network),
+        "warp_agent" => Some(SettingsSection::WarpAgent),
+        "agent_profiles" => Some(SettingsSection::AgentProfiles),
+        "agent_providers" => Some(SettingsSection::AgentProviders),
+        "knowledge" => Some(SettingsSection::Knowledge),
+        "third_party_cli_agents" => Some(SettingsSection::ThirdPartyCLIAgents),
+        _ => None,
     }
 }
 
@@ -1092,3 +1139,7 @@ fn safe_url_log_fields(url: &Url) -> String {
         url.path(),
     )
 }
+
+#[cfg(test)]
+#[path = "mod_tests.rs"]
+mod tests;
