@@ -51,48 +51,6 @@ const LIGHT_MODE_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
     AnsiColor::from_u32(0xF1F1F1FF),
 );
 
-const SOLARIZED_DARK_NORMAL_COLORS: AnsiColors = AnsiColors::new(
-    AnsiColor::from_u32(0x073642FF),
-    AnsiColor::from_u32(0xDC322FFF),
-    AnsiColor::from_u32(0x859900FF),
-    AnsiColor::from_u32(0xB58900FF),
-    AnsiColor::from_u32(0x268BD2FF),
-    AnsiColor::from_u32(0xD33682FF),
-    AnsiColor::from_u32(0x2AA198FF),
-    AnsiColor::from_u32(0xEEE8D5FF),
-);
-const SOLARIZED_DARK_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
-    AnsiColor::from_u32(0x002B36FF),
-    AnsiColor::from_u32(0xCB4B16FF),
-    AnsiColor::from_u32(0x586E75FF),
-    AnsiColor::from_u32(0x657B83FF),
-    AnsiColor::from_u32(0x839496FF),
-    AnsiColor::from_u32(0x6C71C4FF),
-    AnsiColor::from_u32(0x93A1A1FF),
-    AnsiColor::from_u32(0xFDF6E3FF),
-);
-
-const SOLARIZED_LIGHT_NORMAL_COLORS: AnsiColors = AnsiColors::new(
-    AnsiColor::from_u32(0x073642FF),
-    AnsiColor::from_u32(0xDC322FFF),
-    AnsiColor::from_u32(0x859900FF),
-    AnsiColor::from_u32(0xB58900FF),
-    AnsiColor::from_u32(0x268BD2FF),
-    AnsiColor::from_u32(0xD33682FF),
-    AnsiColor::from_u32(0x2AA198FF),
-    AnsiColor::from_u32(0xEEE8D5FF),
-);
-const SOLARIZED_LIGHT_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
-    AnsiColor::from_u32(0x002B36FF),
-    AnsiColor::from_u32(0xCB4B16FF),
-    AnsiColor::from_u32(0x586E75FF),
-    AnsiColor::from_u32(0x657B83FF),
-    AnsiColor::from_u32(0x839496FF),
-    AnsiColor::from_u32(0x6C71C4FF),
-    AnsiColor::from_u32(0x93A1A1FF),
-    AnsiColor::from_u32(0xFDF6E3FF),
-);
-
 const DRACULA_NORMAL_COLORS: AnsiColors = AnsiColors::new(
     AnsiColor::from_u32(0x000000FF),
     AnsiColor::from_u32(0xFF5555FF),
@@ -424,14 +382,6 @@ pub(super) fn dark_mode_colors() -> TerminalColors {
     TerminalColors::new(DARK_MODE_NORMAL_COLORS, DARK_MODE_BRIGHT_COLORS)
 }
 
-pub(super) fn solarized_light_colors() -> TerminalColors {
-    TerminalColors::new(SOLARIZED_LIGHT_NORMAL_COLORS, SOLARIZED_LIGHT_BRIGHT_COLORS)
-}
-
-pub(super) fn solarized_dark_colors() -> TerminalColors {
-    TerminalColors::new(SOLARIZED_DARK_NORMAL_COLORS, SOLARIZED_DARK_BRIGHT_COLORS)
-}
-
 pub(super) fn dracula_colors() -> TerminalColors {
     TerminalColors::new(DRACULA_NORMAL_COLORS, DRACULA_BRIGHT_COLORS)
 }
@@ -507,34 +457,6 @@ pub(super) fn dracula() -> WarpTheme {
     )
 }
 
-pub(super) fn solarized_light() -> WarpTheme {
-    WarpTheme::new(
-        Fill::Solid(ColorU::from_u32(0xFDF6E3FF)),
-        ColorU::from_u32(0x586E75FF),
-        Fill::Solid(ColorU::from_u32(0x66B5A9FF)),
-        None,
-        Some(Details::Lighter),
-        solarized_light_colors(),
-        None,
-        Some("Solarized Light".to_string()),
-        None,
-    )
-}
-
-pub(super) fn solarized_dark() -> WarpTheme {
-    WarpTheme::new(
-        Fill::Solid(ColorU::from_u32(0x002B36FF)),
-        ColorU::from_u32(0xF8F8F2FF),
-        Fill::Solid(ColorU::from_u32(0xCB4B16FF)),
-        None,
-        Some(Details::Darker),
-        solarized_dark_colors(),
-        None,
-        Some("Solarized Dark".to_string()),
-        None,
-    )
-}
-
 pub(super) fn gruvbox_dark() -> WarpTheme {
     WarpTheme::new(
         Fill::Solid(ColorU::from_u32(0x282828FF)),
@@ -600,26 +522,6 @@ pub(super) fn willow_dream() -> WarpTheme {
         dark_mode_colors(),
         None,
         Some("Willow Dream".to_string()),
-        None,
-    )
-}
-
-pub(super) fn fancy_dracula() -> WarpTheme {
-    WarpTheme::new(
-        Fill::VerticalGradient(VerticalGradient::new(
-            ColorU::from_u32(0x252630FF),
-            ColorU::from_u32(0x3D3F4FFF),
-        )),
-        ColorU::white(),
-        Fill::HorizontalGradient(HorizontalGradient::new(
-            ColorU::from_u32(0xBCA1F6FF),
-            ColorU::from_u32(0xA3E7FCFF),
-        )),
-        None,
-        Some(Details::Darker),
-        dracula_colors(),
-        None,
-        Some("Fancy Dracula".to_string()),
         None,
     )
 }

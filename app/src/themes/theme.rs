@@ -51,14 +51,10 @@ pub enum ThemeKind {
     TokyoNight,
     #[schemars(description = "One Dark")]
     OneDark,
-    #[schemars(description = "Fancy Dracula")]
-    FancyDracula,
     #[schemars(description = "Cyber Wave")]
     CyberWave,
     #[schemars(description = "Solar Flare")]
     SolarFlare,
-    #[schemars(description = "Solarized Dark")]
-    SolarizedDark,
     #[schemars(description = "Willow Dream")]
     WillowDream,
     #[schemars(description = "Light")]
@@ -71,8 +67,6 @@ pub enum ThemeKind {
     WezTermClassic,
     #[schemars(description = "VS Code 2026 Dark")]
     VsCode2026Dark,
-    #[schemars(description = "Solarized Light")]
-    SolarizedLight,
     #[schemars(description = "Gruvbox Light")]
     GruvboxLight,
     #[schemars(description = "Marble")]
@@ -104,15 +98,12 @@ impl std::fmt::Display for ThemeKind {
             ThemeKind::Dracula => "Dracula",
             ThemeKind::TokyoNight => "Tokyo Night",
             ThemeKind::OneDark => "One Dark",
-            ThemeKind::SolarizedDark => "Solarized Dark",
-            ThemeKind::SolarizedLight => "Solarized Light",
             ThemeKind::GruvboxDark => "Gruvbox Dark",
             ThemeKind::GruvboxLight => "Gruvbox Light",
             ThemeKind::Leafy => "Leafy",
             ThemeKind::Marble => "Marble",
             ThemeKind::CyberWave => "Cyber Wave",
             ThemeKind::WillowDream => "Willow Dream",
-            ThemeKind::FancyDracula => "Fancy Dracula",
             ThemeKind::SolarFlare => "Solar Flare",
             ThemeKind::Adeberry => "Adeberry",
             ThemeKind::WezTermClassic => "WezTerm Classic",
@@ -280,8 +271,6 @@ impl WarpThemeConfig {
         let theme_map: HashMap<ThemeKind, WarpTheme> = HashMap::from_iter([
             (ThemeKind::Dark, dark_theme()),
             (ThemeKind::Light, light_theme()),
-            (ThemeKind::SolarizedDark, solarized_dark()),
-            (ThemeKind::SolarizedLight, solarized_light()),
             (ThemeKind::Dracula, dracula()),
             (ThemeKind::TokyoNight, tokyo_night()),
             (ThemeKind::OneDark, one_dark()),
@@ -291,7 +280,6 @@ impl WarpThemeConfig {
             (ThemeKind::Marble, marble()),
             (ThemeKind::CyberWave, cyber_wave()),
             (ThemeKind::WillowDream, willow_dream()),
-            (ThemeKind::FancyDracula, fancy_dracula()),
             (ThemeKind::SolarFlare, solar_flare()),
             (ThemeKind::Adeberry, adeberry()),
             (ThemeKind::WezTermClassic, wezterm_classic()),
