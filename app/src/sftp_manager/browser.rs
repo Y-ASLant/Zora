@@ -308,7 +308,8 @@ impl SftpBrowserView {
         let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new("文件管理"));
         let rename_editor = make_editor("Enter new name", ctx);
         let new_folder_editor = make_editor("Folder name", ctx);
-        let search_editor = make_editor("Search files...", ctx);
+        let search_placeholder = crate::t!("sftp-browser-search-placeholder");
+        let search_editor = make_editor(&search_placeholder, ctx);
 
         let mut me = Self {
             node_id,
@@ -1270,9 +1271,11 @@ impl SftpBrowserView {
     /// 渲染连接状态（非连接时）
     fn render_connection_state(&self, appearance: &Appearance) -> Box<dyn Element> {
         let (msg, icon) = match &self.connection {
-            ConnectionState::Connecting => ("Connecting...".to_string(), Icon::Loading),
+            ConnectionState::Connecting => (crate::t!("sftp-browser-connecting"), Icon::Loading),
             ConnectionState::Failed(err) => (err.clone(), Icon::AlertCircle),
-            ConnectionState::Disconnected => ("Disconnected".to_string(), Icon::AlertCircle),
+            ConnectionState::Disconnected => {
+                (crate::t!("sftp-browser-disconnected"), Icon::AlertCircle)
+            }
             ConnectionState::Connected => {
                 return Container::new(Flex::row().finish()).finish();
             }
@@ -1290,7 +1293,7 @@ impl SftpBrowserView {
 
         if filtered_indices.is_empty() {
             let text_el = Text::new_inline(
-                "This folder is empty".to_string(),
+                crate::t!("sftp-browser-empty-folder"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -1682,7 +1685,8 @@ impl SftpBrowserView {
 
     /// 渲染加载中状态
     fn render_loading(&self, appearance: &Appearance) -> Box<dyn Element> {
-        render_centered_status(Icon::Loading, "Loading...", 8.0, appearance)
+        let message = crate::t!("sftp-browser-loading");
+        render_centered_status(Icon::Loading, &message, 8.0, appearance)
     }
 }
 
