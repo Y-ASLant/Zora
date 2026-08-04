@@ -18,6 +18,7 @@ Zap 是一个开放、本地优先的终端,带一等公民的 AI 与 Agent 体�
 - **BYOP 自定义 AI 提供商** —— 任意 OpenAI 兼容端点,以及 OpenAI / Anthropic / Gemini / DeepSeek / Ollama 等原生协议,密钥仅存本地。
 - **第三方 CLI Agent 接入** —— DeepSeek-TUI / Codex CLI / Claude Code / Google Antigravity(`agy`)接入 Block 与通知中心。
 - **内置 SSH 主机管理器** —— 在终端内管理主机、配置与会话,集成 tmux。
+- **内置 SFTP 文件浏览器** —— 浏览和管理远程文件,支持多选、拖拽上传,以及带进度显示和取消能力的文件与目录传输。
 - **可编辑系统提示词** —— 基于 minijinja 模板,客户端实时渲染。
 - **渲染优化** —— Markdown 管线优化;CJK 软换行 caret 与加粗子像素修复。
 - **多语言界面** —— 原生英文 / 简体中文 / 日语,社区可扩展。
