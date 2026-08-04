@@ -93,7 +93,7 @@ fn render_task_action(
         .finish()
     })
     .with_cursor(Cursor::PointingHand)
-    .on_click(move |ctx, _, _| {
+    .on_mouse_down(move |ctx, _, _| {
         ctx.dispatch_typed_action(action.clone());
     })
     .finish();
@@ -353,6 +353,7 @@ mod tests {
     use std::rc::Rc;
 
     use pathfinder_geometry::vector::vec2f;
+    use warpui::elements::{ParentElement, Stack};
     use warpui::platform::WindowStyle;
     use warpui::{
         App, AppContext, Entity, Event, Presenter, SingletonEntity, TypedActionView, View,
@@ -362,6 +363,7 @@ mod tests {
     struct TransferPanelTestView {
         transfers: Vec<TransferTask>,
         close_btn_state: MouseStateHandle,
+        actions: Vec<SftpBrowserAction>,
     }
 
     impl TransferPanelTestView {
@@ -370,6 +372,7 @@ mod tests {
             Self {
                 transfers: vec![make_transfer_task(1)],
                 close_btn_state: MouseStateHandle::default(),
+                actions: Vec::new(),
             }
         }
     }
@@ -383,9 +386,8 @@ mod tests {
 
         /// 处理传输面板派发的测试动作
         fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
-            if matches!(action, SftpBrowserAction::CancelTransfer(_)) {
-                ctx.notify();
-            }
+            self.actions.push(action.clone());
+            ctx.notify();
         }
     }
 
@@ -397,7 +399,13 @@ mod tests {
         /// 渲染测试用传输面板
         fn render(&self, app: &AppContext) -> Box<dyn Element> {
             let appearance = Appearance::as_ref(app);
-            render_transfer_panel(&self.transfers, appearance, self.close_btn_state.clone())
+            Stack::new()
+                .with_child(render_transfer_panel(
+                    &self.transfers,
+                    appearance,
+                    self.close_btn_state.clone(),
+                ))
+                .finish()
         }
     }
 
@@ -408,13 +416,93 @@ mod tests {
 
     /// 创建一个测试用传输任务
     fn make_transfer_task(id: usize) -> TransferTask {
-        TransferTask::new(
+        let mut task = TransferTask::new(
             id,
             PathBuf::from(format!("/remote/file_{id}.txt")),
             PathBuf::from(format!("/local/file_{id}.txt")),
             TransferDirection::Download,
             1024,
-        )
+        );
+        task.state = TransferState::InProgress;
+        task
+    }
+
+    #[test]
+    fn clicking_pause_and_cancel_dispatches_actions() {
+        App::test((), |mut app| async move {
+            initialize_app(&mut app);
+            let (window_id, view) =
+                app.add_window(WindowStyle::NotStealFocus, |_| TransferPanelTestView::new());
+            let root_view_id = app.root_view_id(window_id).expect("测试窗口应包含根视图");
+            let presenter = Rc::new(RefCell::new(Presenter::new(window_id)));
+            let invalidation = WindowInvalidation {
+                updated: HashSet::from([root_view_id]),
+                ..Default::default()
+            };
+
+            app.update({
+                let presenter = presenter.clone();
+                move |ctx| {
+                    presenter.borrow_mut().invalidate(invalidation, ctx);
+                    presenter
+                        .borrow_mut()
+                        .build_scene(vec2f(800., 600.), 1., None, ctx);
+
+                    let pause_bounds = presenter
+                        .borrow()
+                        .position_cache()
+                        .get_position("sftp_btn:transfer_action:1:暂停")
+                        .expect("暂停按钮必须出现在传输行中");
+                    let cancel_bounds = presenter
+                        .borrow()
+                        .position_cache()
+                        .get_position("sftp_btn:transfer_action:1:取消")
+                        .expect("取消按钮必须出现在传输行中");
+
+                    for position in [pause_bounds.origin(), cancel_bounds.origin()] {
+                        ctx.simulate_window_event(
+                            Event::LeftMouseDown {
+                                position: position + vec2f(1., 1.),
+                                modifiers: Default::default(),
+                                click_count: 1,
+                                is_first_mouse: false,
+                            },
+                            window_id,
+                            presenter.clone(),
+                        );
+                        presenter.borrow_mut().invalidate(
+                            WindowInvalidation {
+                                updated: HashSet::from([root_view_id]),
+                                ..Default::default()
+                            },
+                            ctx,
+                        );
+                        presenter
+                            .borrow_mut()
+                            .build_scene(vec2f(800., 600.), 1., None, ctx);
+                        ctx.simulate_window_event(
+                            Event::LeftMouseUp {
+                                position: position + vec2f(1., 1.),
+                                modifiers: Default::default(),
+                            },
+                            window_id,
+                            presenter.clone(),
+                        );
+                    }
+                }
+            });
+
+            view.read(&app, |view, _| {
+                assert!(matches!(
+                    view.actions.first(),
+                    Some(SftpBrowserAction::PauseTransfer(1))
+                ));
+                assert!(matches!(
+                    view.actions.get(1),
+                    Some(SftpBrowserAction::CancelTransfer(1))
+                ));
+            });
+        });
     }
 
     /// 验证点击传输面板背景区域不会影响传输内容展示
