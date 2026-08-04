@@ -63,8 +63,6 @@ pub enum ThemeKind {
     WillowDream,
     #[schemars(description = "Light")]
     Light,
-    #[schemars(description = "Dark City")]
-    DarkCity,
     #[schemars(description = "Gruvbox Dark")]
     GruvboxDark,
     #[schemars(description = "Leafy")]
@@ -75,8 +73,6 @@ pub enum ThemeKind {
     VsCode2026Dark,
     #[schemars(description = "Solarized Light")]
     SolarizedLight,
-    #[schemars(description = "Snowy")]
-    Snowy,
     #[schemars(description = "Gruvbox Light")]
     GruvboxLight,
     #[schemars(description = "Marble")]
@@ -114,8 +110,6 @@ impl std::fmt::Display for ThemeKind {
             ThemeKind::GruvboxLight => "Gruvbox Light",
             ThemeKind::Leafy => "Leafy",
             ThemeKind::Marble => "Marble",
-            ThemeKind::Snowy => "Snowy",
-            ThemeKind::DarkCity => "Dark City",
             ThemeKind::CyberWave => "Cyber Wave",
             ThemeKind::WillowDream => "Willow Dream",
             ThemeKind::FancyDracula => "Fancy Dracula",
@@ -295,8 +289,6 @@ impl WarpThemeConfig {
             (ThemeKind::GruvboxLight, gruvbox_light()),
             (ThemeKind::Leafy, leafy()),
             (ThemeKind::Marble, marble()),
-            (ThemeKind::Snowy, snowy()),
-            (ThemeKind::DarkCity, dark_city()),
             (ThemeKind::CyberWave, cyber_wave()),
             (ThemeKind::WillowDream, willow_dream()),
             (ThemeKind::FancyDracula, fancy_dracula()),

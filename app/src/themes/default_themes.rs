@@ -659,48 +659,6 @@ pub(super) fn marble() -> WarpTheme {
     )
 }
 
-pub(super) fn snowy() -> WarpTheme {
-    WarpTheme::new(
-        Fill::VerticalGradient(VerticalGradient::new(
-            ColorU::from_u32(0xFFFFFFFF),
-            ColorU::from_u32(0xDEE6EBFF),
-        )),
-        ColorU::black(),
-        Fill::Solid(ColorU::from_u32(0x647E90FF)),
-        None,
-        Some(Details::Lighter),
-        light_mode_colors(),
-        Some(Image {
-            source: bundled_or_fetched_asset!("jpg/snowy_bg.jpg"),
-            opacity: 20,
-        }),
-        Some("Snowy".to_string()),
-        None,
-    )
-}
-
-pub(super) fn dark_city() -> WarpTheme {
-    WarpTheme::new(
-        Fill::VerticalGradient(VerticalGradient::new(
-            ColorU::from_u32(0x01181FFF)
-                .blend(&coloru_with_opacity(ColorU::from_u32(0x1A363FFF), 45)),
-            ColorU::from_u32(0x01181FFF)
-                .blend(&coloru_with_opacity(ColorU::from_u32(0x1A4551FF), 45)),
-        )),
-        ColorU::white(),
-        Fill::Solid(ColorU::from_u32(0xE9072DFF)),
-        None,
-        Some(Details::Darker),
-        dark_mode_colors(),
-        Some(Image {
-            source: bundled_or_fetched_asset!("jpg/dark_city_bg.jpg"),
-            opacity: 20,
-        }),
-        Some("Dark City".to_string()),
-        None,
-    )
-}
-
 pub(super) fn solar_flare() -> WarpTheme {
     WarpTheme::new(
         Fill::Solid(ColorU::from_u32(0x1B1C18FF)),
