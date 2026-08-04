@@ -32,23 +32,23 @@ const DARK_MODE_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
 
 const LIGHT_MODE_NORMAL_COLORS: AnsiColors = AnsiColors::new(
     AnsiColor::from_u32(0x212121FF),
-    AnsiColor::from_u32(0xC30771FF),
-    AnsiColor::from_u32(0x10A778FF),
-    AnsiColor::from_u32(0xA89C14FF),
-    AnsiColor::from_u32(0x008EC4FF),
-    AnsiColor::from_u32(0x523C79FF),
-    AnsiColor::from_u32(0x20A5BAFF),
-    AnsiColor::from_u32(0xE0E0E0FF),
+    AnsiColor::from_u32(0xA80000FF),
+    AnsiColor::from_u32(0x006A00FF),
+    AnsiColor::from_u32(0x6A5E00FF),
+    AnsiColor::from_u32(0x0000A8FF),
+    AnsiColor::from_u32(0xA800A8FF),
+    AnsiColor::from_u32(0x006A6AFF),
+    AnsiColor::from_u32(0x555555FF),
 );
 const LIGHT_MODE_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
-    AnsiColor::from_u32(0x212121FF),
-    AnsiColor::from_u32(0xFB007AFF),
-    AnsiColor::from_u32(0x5FD7AFFF),
-    AnsiColor::from_u32(0xF3E430FF),
-    AnsiColor::from_u32(0x20BBFCFF),
-    AnsiColor::from_u32(0x6855DEFF),
-    AnsiColor::from_u32(0x4FB8CCFF),
-    AnsiColor::from_u32(0xF1F1F1FF),
+    AnsiColor::from_u32(0x4A4A4AFF),
+    AnsiColor::from_u32(0xB00000FF),
+    AnsiColor::from_u32(0x007000FF),
+    AnsiColor::from_u32(0x735F00FF),
+    AnsiColor::from_u32(0x0000D0FF),
+    AnsiColor::from_u32(0xB000B0FF),
+    AnsiColor::from_u32(0x007070FF),
+    AnsiColor::from_u32(0x222222FF),
 );
 
 const DRACULA_NORMAL_COLORS: AnsiColors = AnsiColors::new(
@@ -94,23 +94,23 @@ const GRUVBOX_DARK_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
 );
 
 const GRUVBOX_LIGHT_NORMAL_COLORS: AnsiColors = AnsiColors::new(
-    AnsiColor::from_u32(0xFBF1C7FF),
-    AnsiColor::from_u32(0xCC241DFF),
-    AnsiColor::from_u32(0x98971AFF),
-    AnsiColor::from_u32(0xD79921FF),
-    AnsiColor::from_u32(0x458588FF),
-    AnsiColor::from_u32(0xB16286FF),
-    AnsiColor::from_u32(0x689D6AFF),
-    AnsiColor::from_u32(0x7C6F64FF),
-);
-const GRUVBOX_LIGHT_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
-    AnsiColor::from_u32(0x928374FF),
+    AnsiColor::from_u32(0x3C3836FF),
     AnsiColor::from_u32(0x9D0006FF),
-    AnsiColor::from_u32(0x79740EFF),
-    AnsiColor::from_u32(0xB57614FF),
+    AnsiColor::from_u32(0x6B6B0EFF),
+    AnsiColor::from_u32(0x8A6000FF),
     AnsiColor::from_u32(0x076678FF),
     AnsiColor::from_u32(0x8F3F71FF),
-    AnsiColor::from_u32(0x427B58FF),
+    AnsiColor::from_u32(0x286B47FF),
+    AnsiColor::from_u32(0x665C54FF),
+);
+const GRUVBOX_LIGHT_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
+    AnsiColor::from_u32(0x5A524AFF),
+    AnsiColor::from_u32(0xB00000FF),
+    AnsiColor::from_u32(0x6B6B0EFF),
+    AnsiColor::from_u32(0x8A6000FF),
+    AnsiColor::from_u32(0x076678FF),
+    AnsiColor::from_u32(0x8F3F71FF),
+    AnsiColor::from_u32(0x286B47FF),
     AnsiColor::from_u32(0x3C3836FF),
 );
 
@@ -634,3 +634,7 @@ pub(super) fn wezterm_classic() -> WarpTheme {
         None,
     )
 }
+
+#[cfg(test)]
+#[path = "default_themes_tests.rs"]
+mod tests;

@@ -467,14 +467,32 @@ fn is_gl_to_metal_adapter_on_windows_in_parallels(adapter_info: &wgpu::AdapterIn
         && adapter_info.name.to_lowercase().starts_with("parallels")
 }
 
-/// Returns whether or not the provided adapter is an unsupported Intel UHD Mesa driver version for
-/// warpui to render properly. Currently, we limit this to "Intel UHD Graphics 620", but we do have
-/// some suspicion that more Intel UHD devices are affected, e.g. PLAT-599 has a "Intel(R) UHD
-/// Graphics (TGL GT1)" user seeing the exact same issue.
+/// 判断给定适配器是否为 WarpUI 无法稳定渲染的旧版 Mesa Intel 集显。
+/// 已知受影响的适配器包括：
+/// - `Intel(R) HD Graphics 620` (KBL GT2)：闪烁；
+/// - `Intel(R) UHD Graphics (ICL GT1)`：Mesa 21.2.6 上卡在“Starting zsh...”；
+/// - `Intel(R) UHD Graphics (TGL GT1)`：旧版 Mesa 上窗口闪烁；
+/// - `Intel(R) Xe Graphics (TGL GT2)`：Mesa 21.2.6 上窗口冻结并持续出现纹理校验错误。
+///
+/// Mesa 21.3.6 的更新日志包含对应的上游修复：
+/// <https://docs.mesa3d.org/relnotes/21.3.6.html#:~:text=Flickering%20Intel%20Uhd%20620%20Graphics>
 fn is_older_vulkan_intel_uhd_adapter(adapter_info: &wgpu::AdapterInfo) -> bool {
     if adapter_info.backend != wgpu::Backend::Vulkan
         || adapter_info.device_type != wgpu::DeviceType::IntegratedGpu
-        || !adapter_info.name.contains("Intel(R) HD Graphics 620")
+    {
+        return false;
+    }
+
+    let affected_names = [
+        "Intel(R) HD Graphics 620",
+        "Intel(R) UHD Graphics (ICL GT1)",
+        "Intel(R) UHD Graphics (TGL GT1)",
+        "Intel(R) Xe Graphics (TGL GT2)",
+    ];
+
+    if !affected_names
+        .iter()
+        .any(|name| adapter_info.name.contains(name))
     {
         return false;
     }
