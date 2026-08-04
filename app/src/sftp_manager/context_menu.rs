@@ -136,6 +136,9 @@ pub fn render_context_menu(state: &ContextMenuState, appearance: &Appearance) ->
             | SftpBrowserAction::Refresh
             | SftpBrowserAction::SelectEntry(_)
             | SftpBrowserAction::SelectEntryWithModifiers { .. }
+            | SftpBrowserAction::BeginSelectionDrag(_)
+            | SftpBrowserAction::UpdateSelectionDrag(_)
+            | SftpBrowserAction::EndSelectionDrag
             | SftpBrowserAction::UploadFile
             | SftpBrowserAction::UploadDirectory
             | SftpBrowserAction::NewFolder

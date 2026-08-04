@@ -31,6 +31,7 @@ pub struct Hoverable {
     click_handler_with_modifiers: Option<ClickHandlerWithModifiers>,
     mouse_down_handler: Option<ClickHandler>,
     double_click_handler: Option<ClickHandler>,
+    double_click_handler_with_modifiers: Option<ClickHandlerWithModifiers>,
     middle_click_handler: Option<ClickHandler>,
     right_click_handler: Option<ClickHandler>,
     forward_click_handler: Option<ClickHandler>,
@@ -198,6 +199,7 @@ impl Hoverable {
             click_handler_with_modifiers: None,
             mouse_down_handler: None,
             double_click_handler: None,
+            double_click_handler_with_modifiers: None,
             middle_click_handler: None,
             right_click_handler: None,
             forward_click_handler: None,
@@ -275,6 +277,15 @@ impl Hoverable {
         F: 'static + FnMut(&mut EventContext, &AppContext, Vector2F),
     {
         self.double_click_handler = Some(Box::new(callback));
+        self
+    }
+
+    /// 双击时触发，并提供本次点击生效的修饰键状态。
+    pub fn on_double_click_with_modifiers<F>(mut self, callback: F) -> Self
+    where
+        F: 'static + FnMut(&mut EventContext, &AppContext, Vector2F, ModifiersState),
+    {
+        self.double_click_handler_with_modifiers = Some(Box::new(callback));
         self
     }
 
@@ -648,7 +659,9 @@ impl Element for Hoverable {
                 // We mark this as handled if we have a handler waiting to take action on the mouse-up event.
                 if self.click_handler.is_some()
                     || self.click_handler_with_modifiers.is_some()
-                    || (*click_count == 2 && self.double_click_handler.is_some())
+                    || (*click_count == 2
+                        && (self.double_click_handler.is_some()
+                            || self.double_click_handler_with_modifiers.is_some()))
                 {
                     ctx.notify();
                     return true;
@@ -673,14 +686,17 @@ impl Element for Hoverable {
 
                 // The double-clicked handler takes precendence. However, we should still fall back to the single-click handler
                 // on a double-click if there's no double-click handler set.
-                if matches!(click_count, Some(2)) && self.double_click_handler.is_some() {
-                    let handler = self
-                        .double_click_handler
-                        .as_mut()
-                        .expect("handler should exist");
-                    handler(ctx, app, *position);
-                    ctx.notify();
-                    return true;
+                if matches!(click_count, Some(2)) {
+                    if let Some(handler) = self.double_click_handler_with_modifiers.as_mut() {
+                        handler(ctx, app, *position, *modifiers);
+                        ctx.notify();
+                        return true;
+                    }
+                    if let Some(handler) = self.double_click_handler.as_mut() {
+                        handler(ctx, app, *position);
+                        ctx.notify();
+                        return true;
+                    }
                 } else if click_count.is_some() {
                     if let Some(handler) = self.click_handler_with_modifiers.as_mut() {
                         handler(ctx, app, *position, *modifiers);

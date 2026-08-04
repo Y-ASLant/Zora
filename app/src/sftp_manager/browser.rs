@@ -55,6 +55,8 @@ const TOOLBAR_ICON_SIZE: f32 = 16.0;
 const TOOLBAR_SPACING: f32 = 4.0;
 /// 面板内边距
 const PANEL_PADDING: f32 = 8.0;
+/// 鼠标拖拽超过该距离后才进入范围选择，避免普通点击被误判为拖拽。
+const SELECTION_DRAG_THRESHOLD: f32 = 5.0;
 /// SFTP 面板位置 ID（用于 SavePosition 定位右键菜单）
 pub(crate) const SFTP_PANEL_POSITION_ID: &str = "sftp_browser_panel_root";
 
@@ -79,6 +81,12 @@ pub enum SftpBrowserAction {
         ctrl_or_cmd: bool,
         shift: bool,
     },
+    /// 开始文件列表内部的鼠标范围选择
+    BeginSelectionDrag(Vector2F),
+    /// 更新文件列表内部的鼠标范围选择
+    UpdateSelectionDrag(Vector2F),
+    /// 结束文件列表内部的鼠标范围选择
+    EndSelectionDrag,
     /// 打开指定索引的条目（目录则进入，文件则下载）
     OpenEntry(usize),
     /// 删除指定索引的条目
@@ -174,6 +182,10 @@ pub struct SftpBrowserView {
     pub(crate) selected: HashSet<usize>,
     /// Shift 范围选择的锚点
     selection_anchor: Option<usize>,
+    /// 文件列表内部拖拽选择的起点
+    selection_drag_start: Option<(Vector2F, Option<usize>)>,
+    /// 是否已经越过拖拽阈值并正在更新范围选择
+    selection_dragging: bool,
     /// 路径历史记录
     pub(crate) path_history: Vec<PathBuf>,
     /// 历史记录当前位置
@@ -309,6 +321,8 @@ impl SftpBrowserView {
             entries: Vec::new(),
             selected: HashSet::new(),
             selection_anchor: None,
+            selection_drag_start: None,
+            selection_dragging: false,
             path_history: vec![PathBuf::from("/")],
             history_index: 0,
             transfers: Vec::new(),
@@ -789,16 +803,59 @@ impl SftpBrowserView {
         }
     }
 
+    /// 返回当前搜索条件下可见的条目索引。
+    fn filtered_entry_indices(&self) -> Vec<usize> {
+        self.entries
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| {
+                self.search_filter.as_ref().map_or(true, |filter| {
+                    entry.name.to_lowercase().contains(&filter.to_lowercase())
+                })
+            })
+            .map(|(index, _)| index)
+            .collect()
+    }
+
+    /// 根据鼠标位置找到当前可见的文件行。
+    fn row_index_at_position(&self, position: Vector2F, ctx: &ViewContext<Self>) -> Option<usize> {
+        self.filtered_entry_indices().into_iter().find(|index| {
+            let position_id = format!("sftp_row:{index}");
+            ctx.element_position_by_id(&position_id)
+                .is_some_and(|bounds| bounds.contains_point(position))
+        })
+    }
+
+    /// 更新拖拽范围选择，并返回选区是否发生变化。
+    fn update_selection_drag(&mut self, position: Vector2F, ctx: &ViewContext<Self>) -> bool {
+        let Some((start_position, Some(start_index))) = self.selection_drag_start else {
+            return false;
+        };
+        if !self.selection_dragging
+            && (position - start_position).length() <= SELECTION_DRAG_THRESHOLD
+        {
+            return false;
+        }
+        let Some(end_index) = self.row_index_at_position(position, ctx) else {
+            return false;
+        };
+
+        self.selection_dragging = true;
+        self.selection_anchor = Some(start_index);
+        self.selected.clear();
+        self.selected
+            .extend(selection_range(start_index, end_index));
+        true
+    }
+
     /// 根据鼠标修饰键更新文件列表选择状态。
     fn select_entry_with_modifiers(&mut self, index: usize, ctrl_or_cmd: bool, shift: bool) {
         if shift {
             if let Some(anchor) = self.selection_anchor {
-                let start = anchor.min(index);
-                let end = anchor.max(index);
                 if !ctrl_or_cmd {
                     self.selected.clear();
                 }
-                self.selected.extend(start..=end);
+                self.selected.extend(selection_range(anchor, index));
             } else {
                 self.selected.clear();
                 self.selected.insert(index);
@@ -1229,17 +1286,7 @@ impl SftpBrowserView {
         let theme = appearance.theme();
 
         // 过滤条目
-        let filtered_indices: Vec<usize> = self
-            .entries
-            .iter()
-            .enumerate()
-            .filter(|(_, entry)| {
-                self.search_filter.as_ref().map_or(true, |filter| {
-                    entry.name.to_lowercase().contains(&filter.to_lowercase())
-                })
-            })
-            .map(|(i, _)| i)
-            .collect();
+        let filtered_indices = self.filtered_entry_indices();
 
         if filtered_indices.is_empty() {
             let text_el = Text::new_inline(
@@ -1265,6 +1312,22 @@ impl SftpBrowserView {
             &self.row_mouse_handles,
             appearance,
         );
+
+        let rows = EventHandler::new(rows)
+            .with_always_handle()
+            .on_left_mouse_down(|ctx, _, position| {
+                ctx.dispatch_typed_action(SftpBrowserAction::BeginSelectionDrag(position));
+                DispatchEventResult::StopPropagation
+            })
+            .on_mouse_dragged(|ctx, _, position| {
+                ctx.dispatch_typed_action(SftpBrowserAction::UpdateSelectionDrag(position));
+                DispatchEventResult::StopPropagation
+            })
+            .on_left_mouse_up(|ctx, _, _| {
+                ctx.dispatch_typed_action(SftpBrowserAction::EndSelectionDrag);
+                DispatchEventResult::StopPropagation
+            })
+            .finish();
 
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
@@ -1692,6 +1755,10 @@ impl Entity for SftpBrowserView {
     type Event = PaneEvent;
 }
 
+fn selection_range(start: usize, end: usize) -> std::ops::RangeInclusive<usize> {
+    start.min(end)..=start.max(end)
+}
+
 impl TypedActionView for SftpBrowserView {
     type Action = SftpBrowserAction;
 
@@ -1723,8 +1790,33 @@ impl TypedActionView for SftpBrowserView {
                 ctrl_or_cmd,
                 shift,
             } => {
-                self.select_entry_with_modifiers(*index, *ctrl_or_cmd, *shift);
-                ctx.notify();
+                if !self.selection_dragging {
+                    self.select_entry_with_modifiers(*index, *ctrl_or_cmd, *shift);
+                    ctx.notify();
+                }
+            }
+            SftpBrowserAction::BeginSelectionDrag(position) => {
+                self.selection_drag_start =
+                    Some((*position, self.row_index_at_position(*position, ctx)));
+                self.selection_dragging = false;
+            }
+            SftpBrowserAction::UpdateSelectionDrag(position) => {
+                if self.update_selection_drag(*position, ctx) {
+                    ctx.notify();
+                }
+            }
+            SftpBrowserAction::EndSelectionDrag => {
+                if !self.selection_dragging
+                    && self
+                        .selection_drag_start
+                        .is_some_and(|(_, index)| index.is_none())
+                {
+                    self.selected.clear();
+                    self.selection_anchor = None;
+                    ctx.notify();
+                }
+                self.selection_drag_start = None;
+                self.selection_dragging = false;
             }
             SftpBrowserAction::OpenEntry(index) => {
                 let index = *index;
@@ -2406,6 +2498,11 @@ fn make_editor(
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    #[test]
+    fn test_drag_selection_range_is_inclusive_and_order_independent() {
+        assert_eq!(selection_range(5, 2).collect::<Vec<_>>(), vec![2, 3, 4, 5]);
+    }
 
     /// 回归测试：SFTP 阻塞操作必须在 Tokio 运行时上下文中执行。
     #[tokio::test]

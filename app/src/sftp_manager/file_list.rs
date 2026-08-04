@@ -135,7 +135,10 @@ pub fn render_file_row(
             shift: modifiers.shift,
         });
     })
-    .on_double_click(move |ctx, _, _| {
+    .on_double_click_with_modifiers(move |ctx, _, _, modifiers| {
+        if modifiers.alt || modifiers.cmd || modifiers.ctrl || modifiers.func || modifiers.shift {
+            return;
+        }
         ctx.dispatch_typed_action(SftpBrowserAction::OpenEntry(index));
     })
     .on_right_click(move |ctx, _, position| {
