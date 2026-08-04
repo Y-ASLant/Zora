@@ -25,9 +25,6 @@ const BUTTON_PADDING: f32 = 12.;
 const BUTTON_BORDER_RADIUS: f32 = 4.;
 const BORDER_WIDTH: f32 = 1.;
 
-const MODAL_SUBHEADER: &str = "This will permanently delete the theme.";
-const DELETE_BUTTON_TEXT: &str = "Delete theme";
-
 #[derive(Default)]
 struct MouseStateHandles {
     cancel_mouse_state: MouseStateHandle,
@@ -206,15 +203,19 @@ impl View for ThemeDeletionBody {
                 Some(create_hovered_styles),
                 Some(disabled_styles),
             )
-            .with_centered_text_label(DELETE_BUTTON_TEXT.into());
+            .with_centered_text_label(crate::t!("theme-deletion-delete"));
 
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(
                 Container::new(
-                    Text::new_inline(MODAL_SUBHEADER, appearance.ui_font_family(), 14.)
-                        .with_color(appearance.theme().active_ui_text_color().into())
-                        .finish(),
+                    Text::new_inline(
+                        crate::t!("theme-deletion-subheader"),
+                        appearance.ui_font_family(),
+                        14.,
+                    )
+                    .with_color(appearance.theme().active_ui_text_color().into())
+                    .finish(),
                 )
                 .finish(),
             )

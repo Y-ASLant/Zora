@@ -1164,6 +1164,12 @@ settings-code-show-diff-stats = コードレビューボタンに差分統計を
 settings-code-show-diff-stats-desc = コードレビューボタンに追加・削除行数を表示します。
 settings-code-project-explorer = プロジェクトエクスプローラー
 settings-code-project-explorer-desc = 左側ツールパネルに IDE スタイルのプロジェクトエクスプローラー / ファイルツリーを追加します。
+settings-code-show-hidden-files = 隠しファイルを表示
+settings-code-show-hidden-files-desc = プロジェクトエクスプローラーにドットファイルと隠しディレクトリを表示します。
+settings-code-show-line-numbers = 行番号を表示
+settings-code-show-line-numbers-desc = コードエディターのガターに行番号を表示します。
+settings-code-auto-save = 自動保存
+settings-code-auto-save-desc = 入力を停止してから1秒後にファイルの変更を保存します。
 settings-code-global-search = グローバルファイル検索
 settings-code-global-search-desc = 左側ツールパネルにグローバルファイル検索を追加します。
 
@@ -2385,7 +2391,6 @@ slash-cmd-init-desc = AGENTS.md ファイルを生成または更新
 slash-cmd-open-project-rules-desc = プロジェクトルールファイル (AGENTS.md) を開く
 slash-cmd-open-mcp-servers-desc = MCP サーバーを開く
 slash-cmd-open-settings-file-desc = 設定ファイル (TOML) を開く
-slash-cmd-changelog-desc = 最新の changelog を開く
 slash-cmd-open-repo-desc = 別のインデックス済みリポジトリに切り替え
 slash-cmd-open-rules-desc = グローバルおよびプロジェクトのルールをすべて表示
 slash-cmd-new-desc = 新しい会話を開始 (/agent のエイリアス)
@@ -2772,6 +2777,7 @@ workspace-right-panel-minimize = 最小化
 workspace-right-panel-maximize = 最大化
 terminal-pane-new-agent-conversation-title = 新しいエージェント会話
 vertical-tabs-no-tabs-open = 開いているタブはありません
+vertical-tabs-no-tabs-match-search = 検索条件に一致するタブはありません。
 vertical-tabs-untitled-tab = 無題のタブ
 vertical-tabs-view-options-tooltip = 表示オプション
 vertical-tabs-new-session = 新しいセッション
@@ -3112,6 +3118,7 @@ voice-transcription-hold-key = 音声書き起こし (`{ $key }` キーを押し
 
 get-started-welcome-title = Zap へようこそ
 get-started-subtitle = エージェント型開発環境
+theme-creator-modal-header = 画像から新しいテーマを作成
 theme-creator-theme-name = テーマ名
 theme-creator-background-color = 背景色
 theme-creator-image-subheader = 画像 (.png、.jpg) から抽出した色を基にテーマを自動生成します。
@@ -3120,6 +3127,9 @@ theme-creator-selecting-image = 画像を選択中…
 theme-creator-select-new-image = 新しい画像を選択
 theme-creator-create-theme = テーマを作成
 theme-creator-process-image-failed = 選択した画像の処理に失敗しました。別の画像でもう一度お試しください。
+theme-deletion-modal-header = このテーマを削除してもよろしいですか？
+theme-deletion-subheader = この操作を行うとテーマは完全に削除されます。
+theme-deletion-delete = テーマを削除
 theme-chooser-title = テーマ
 theme-chooser-scope-all-windows = すべてのウィンドウ
 theme-chooser-scope-this-window = このウィンドウ
@@ -3159,6 +3169,19 @@ terminal-banner-these-instructions = この手順
 terminal-banner-update-latest-suffix = {" "}に従って最新版に更新してください。
 terminal-banner-pure-unsupported = Pure はまだ Zap で対応していません。代替として対応プロンプトの利用をご検討ください。{"  "}
 terminal-loading-session = セッションを読み込み中…
+terminal-restored-session-conversation = 会話を復元しました
+terminal-restored-session-previous = 前回のセッション
+terminal-restored-session-from = { $label }（{ $timestamp }）
+terminal-restored-session-timestamp = { $month }月{ $day }日（{ $weekday ->
+        [1] 日曜日
+        [2] 月曜日
+        [3] 火曜日
+        [4] 水曜日
+        [5] 木曜日
+        [6] 金曜日
+        [7] 土曜日
+       *[other] 不明な曜日
+    }）{ $hour24 }:{ $minute }
 
 ai-footer-hide-rich-input = リッチ入力を非表示
 ai-footer-choose-environment = 環境を選択
@@ -3588,6 +3611,11 @@ server-file-browser-no-session = 接続済みのリモートサーバーセッ�
 server-file-browser-connection-lost = リモートサーバーへの接続が失われました。SSH セッションを再接続してから、このパネルを更新または再度開いてください。
 server-file-browser-loading = 読み込み中…
 server-file-browser-empty-directory = このディレクトリは空です。
+sftp-browser-search-placeholder = ファイルを検索…
+sftp-browser-empty-folder = このフォルダーは空です
+sftp-browser-loading = 読み込み中…
+sftp-browser-connecting = 接続中…
+sftp-browser-disconnected = 未接続
 server-file-browser-empty-response = リモートサーバーから空の応答が返されました。
 server-file-browser-unsupported-path = このリモートパスの種類はまだサポートされていません。
 server-file-browser-copied-path = パスをコピーしました。

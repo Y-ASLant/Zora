@@ -1658,7 +1658,7 @@ fn render_groups(
         } else {
             return Container::new(
                 Text::new_inline(
-                    "No tabs match your search.",
+                    crate::t!("vertical-tabs-no-tabs-match-search"),
                     appearance.ui_font_family(),
                     12.,
                 )

@@ -3267,7 +3267,7 @@ impl CodeReviewView {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            LocalCodeEditorEvent::FileSaved => {
+            LocalCodeEditorEvent::FileSaved { .. } => {
                 send_telemetry_from_ctx!(CodeReviewTelemetryEvent::FileSaved, ctx);
 
                 ctx.emit(CodeReviewViewEvent::FileSaved {

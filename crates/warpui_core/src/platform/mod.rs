@@ -378,6 +378,11 @@ pub trait FontDB: 'static {
     /// Gets the name of a font family by ID.
     fn load_family_name_from_id(&self, id: FamilyId) -> Option<String>;
 
+    /// Returns the standard weights that are actually present in a font family.
+    fn available_weights(&self, _family_id: FamilyId) -> Vec<crate::fonts::Weight> {
+        vec![]
+    }
+
     /// Determines which font from a family should be used to display text with
     /// the given properties.
     fn select_font(&self, family_id: FamilyId, properties: Properties) -> FontId;

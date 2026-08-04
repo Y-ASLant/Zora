@@ -68,15 +68,15 @@ pub fn model_reasoning_variants(
             vec![]
         }
         // DeepSeek thinking-mode 模型(deepseek-reasoner / v4 / thinking / r1)。
-        // Zap 本地 fork(`lib/rust-genai`)放宽了 adapter_shared.rs 的注入条件,
-        // 让 `reasoning_effort` 顶层字段按 DeepSeek thinking_mode 文档下发。
+        // 官方 genai 通过 extra_body 承载 DeepSeek thinking_mode 的 provider-specific
+        // reasoning_effort 字段,由 chat_stream 在应用层完成注入。
         //
         // Ollama 后端模型 id 任意,保守留空。
         AgentProviderApiType::DeepSeek => {
             if is_deepseek_thinking_model(&id) {
                 // DeepSeek 官方思考深度只有 high / max 两档(low/medium/xhigh
                 // 即便服务端 deserializer 接受也只是同档别名,picker 不暴露冗余项)。
-                // Off 档走"关闭思考":本地 fork genai 已支持 ChatOptions::extra_body,
+                // Off 档走"关闭思考":官方 genai 0.6.5 已支持 ChatOptions::extra_body,
                 // chat_stream 在 DeepSeek+Off 时改发
                 // `extra_body = {"thinking": {"type": "disabled"}}` 顶层合并。
                 vec![R::High, R::Max, R::Off]

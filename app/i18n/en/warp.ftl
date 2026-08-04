@@ -1259,6 +1259,12 @@ settings-code-show-diff-stats = Show diff stats on code review button
 settings-code-show-diff-stats-desc = Show lines added and removed counts on the code review button.
 settings-code-project-explorer = Project explorer
 settings-code-project-explorer-desc = Adds an IDE-style project explorer / file tree to the left side tools panel.
+settings-code-show-hidden-files = Show hidden files
+settings-code-show-hidden-files-desc = Shows dotfiles and hidden directories in the project explorer.
+settings-code-show-line-numbers = Show line numbers
+settings-code-show-line-numbers-desc = Shows line numbers in the code editor gutter.
+settings-code-auto-save = Auto save
+settings-code-auto-save-desc = Saves file changes one second after you stop typing.
 settings-code-global-search = Global file search
 settings-code-global-search-desc = Adds global file search to the left side tools panel.
 
@@ -2514,7 +2520,6 @@ slash-cmd-init-desc = Generate or update an AGENTS.md file
 slash-cmd-open-project-rules-desc = Open the project rules file (AGENTS.md)
 slash-cmd-open-mcp-servers-desc = Open MCP servers
 slash-cmd-open-settings-file-desc = Open settings file (TOML)
-slash-cmd-changelog-desc = Open the latest changelog
 slash-cmd-open-repo-desc = Switch to another indexed repository
 slash-cmd-open-rules-desc = View all of your global and project rules
 slash-cmd-new-desc = Start a new conversation (alias for /agent)
@@ -2906,6 +2911,11 @@ server-file-browser-no-session = No connected remote server session.
 server-file-browser-connection-lost = Connection to the remote server was lost. Reconnect your SSH session, then refresh or reopen this panel.
 server-file-browser-loading = Loading…
 server-file-browser-empty-directory = This directory is empty.
+sftp-browser-search-placeholder = Search files...
+sftp-browser-empty-folder = This folder is empty
+sftp-browser-loading = Loading...
+sftp-browser-connecting = Connecting...
+sftp-browser-disconnected = Disconnected
 server-file-browser-empty-response = Remote server returned an empty response.
 server-file-browser-unsupported-path = This remote path type is not supported yet.
 server-file-browser-copied-path = Path copied.
@@ -2996,6 +3006,7 @@ workspace-right-panel-minimize = Minimize
 workspace-right-panel-maximize = Maximize
 terminal-pane-new-agent-conversation-title = New agent conversation
 vertical-tabs-no-tabs-open = No tabs open
+vertical-tabs-no-tabs-match-search = No tabs match your search.
 vertical-tabs-untitled-tab = Untitled tab
 vertical-tabs-view-options-tooltip = View options
 vertical-tabs-new-session = New session
@@ -3337,6 +3348,7 @@ voice-transcription-hold-key = Voice transcription (hold `{ $key }` key)
 
 get-started-welcome-title = Welcome to Zap
 get-started-subtitle = The Agentic Development Environment
+theme-creator-modal-header = Create new theme from image
 theme-creator-theme-name = Theme name
 theme-creator-background-color = Background color
 theme-creator-image-subheader = Automatically generate a theme based on extracted colors from an image (.png, .jpg).
@@ -3345,6 +3357,9 @@ theme-creator-selecting-image = Selecting image...
 theme-creator-select-new-image = Select a new image
 theme-creator-create-theme = Create theme
 theme-creator-process-image-failed = Failed to process selected image. Please try again with a different image.
+theme-deletion-modal-header = Are you sure you want to delete this theme?
+theme-deletion-subheader = This will permanently delete the theme.
+theme-deletion-delete = Delete theme
 theme-chooser-title = Themes
 theme-chooser-scope-all-windows = All windows
 theme-chooser-scope-this-window = This window
@@ -3384,6 +3399,40 @@ terminal-banner-these-instructions = these instructions
 terminal-banner-update-latest-suffix = {" "}to update to the latest version.
 terminal-banner-pure-unsupported = Pure is not yet supported in Zap. You might consider one of the supported prompts as an alternative.{"  "}
 terminal-loading-session = Loading session...
+terminal-restored-session-conversation = Conversation restored
+terminal-restored-session-previous = Previous session
+terminal-restored-session-from = { $label } from { $timestamp }
+terminal-restored-session-timestamp = { $weekday ->
+        [1] Sun
+        [2] Mon
+        [3] Tue
+        [4] Wed
+        [5] Thu
+        [6] Fri
+        [7] Sat
+       *[other] Unknown weekday
+    } { $month ->
+        [1] Jan
+        [2] Feb
+        [3] Mar
+        [4] Apr
+        [5] May
+        [6] Jun
+        [7] Jul
+        [8] Aug
+        [9] Sep
+        [10] Oct
+        [11] Nov
+        [12] Dec
+       *[other] Unknown month
+    } { $day } at { $hour24 ->
+        [0] { $hour }
+       *[other] { $hour }
+    }:{ $minute } { $period ->
+        [am] AM
+        [pm] PM
+       *[other] AM
+    }
 
 ai-footer-hide-rich-input = Hide Rich Input
 ai-footer-choose-environment = Choose an environment

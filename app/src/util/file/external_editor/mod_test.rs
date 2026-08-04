@@ -286,6 +286,7 @@ fn test_editor_try_from_supported_editors() {
 
     // Test other popular editors
     assert_eq!(Editor::try_from("cursor"), Ok(Editor::Cursor));
+    // Windsurf 从编辑器选择器隐藏，但仍需兼容旧设置解析。
     assert_eq!(Editor::try_from("windsurf"), Ok(Editor::Windsurf));
     assert_eq!(Editor::try_from("clion"), Ok(Editor::CLion));
 

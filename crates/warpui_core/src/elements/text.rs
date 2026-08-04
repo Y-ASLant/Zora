@@ -32,7 +32,7 @@ use std::mem::swap;
 use std::{borrow::Borrow, ops::Range, sync::Arc};
 use string_offset::CharOffset;
 
-pub const DEFAULT_UI_LINE_HEIGHT_RATIO: f32 = 1.2;
+pub const DEFAULT_UI_LINE_HEIGHT_RATIO: f32 = 1.0;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd)]
 pub struct TextSelectionBound {

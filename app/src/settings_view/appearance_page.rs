@@ -61,7 +61,8 @@ use crate::workspace::tab_settings::{
     DirectoryTabColor, PersistVerticalTabsPanelWidth, PreserveActiveTabColor, ShowCodeReviewButton,
     ShowIndicatorsButton, ShowTitleBarSearchBar, ShowVerticalTabPanelInRestoredWindows,
     TabCloseButtonPosition, TabSettings, TabSettingsChangedEvent,
-    UseLatestUserPromptAsConversationTitleInTabNames, UseVerticalTabs, WorkspaceDecorationVisibility,
+    UseLatestUserPromptAsConversationTitleInTabNames, UseVerticalTabs,
+    WorkspaceDecorationVisibility,
 };
 use crate::workspace::WorkspaceAction;
 use crate::{editor::EditorView, themes::theme_chooser::ThemeChooserMode};
@@ -1161,12 +1162,12 @@ impl AppearanceSettingsPageView {
             dropdown
         });
 
-        let font_weight_dropdown = ctx.add_typed_action_view(|ctx| {
+        let selectable_weights = Self::available_font_weights(ctx);
+        let font_weight_dropdown = ctx.add_typed_action_view(move |ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_top_bar_max_width(FONT_WEIGHT_DROPDOWN_WIDTH);
             dropdown.set_menu_width(FONT_WEIGHT_DROPDOWN_WIDTH, ctx);
 
-            let selectable_weights = [Weight::Normal, Weight::Bold];
             let items = selectable_weights
                 .iter()
                 .map(|weight| {
@@ -1177,7 +1178,9 @@ impl AppearanceSettingsPageView {
                 })
                 .collect();
             dropdown.add_items(items, ctx);
-            dropdown.set_selected_by_name(monospace_font_weight.to_string(), ctx);
+            if selectable_weights.contains(&monospace_font_weight) {
+                dropdown.set_selected_by_name(monospace_font_weight.to_string(), ctx);
+            }
             dropdown
         });
 
@@ -2094,33 +2097,39 @@ impl AppearanceSettingsPageView {
     fn set_markdown_heading_scale(&mut self, ctx: &mut ViewContext<Self>) {
         let parsed: [Option<f32>; 6] = {
             let editors = self.markdown_heading_scale_editors();
-            std::array::from_fn(|i| {
-                editors[i]
-                    .as_ref(ctx)
-                    .buffer_text(ctx)
-                    .parse::<f32>()
-                    .ok()
-            })
+            std::array::from_fn(|i| editors[i].as_ref(ctx).buffer_text(ctx).parse::<f32>().ok())
         };
         FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
             let clamp = |v: f32| v.clamp(MARKDOWN_HEADING_SCALE_MIN, MARKDOWN_HEADING_SCALE_MAX);
             if let Some(v) = parsed[0] {
-                report_if_error!(font_settings.markdown_heading_h1_scale.set_value(clamp(v), ctx));
+                report_if_error!(font_settings
+                    .markdown_heading_h1_scale
+                    .set_value(clamp(v), ctx));
             }
             if let Some(v) = parsed[1] {
-                report_if_error!(font_settings.markdown_heading_h2_scale.set_value(clamp(v), ctx));
+                report_if_error!(font_settings
+                    .markdown_heading_h2_scale
+                    .set_value(clamp(v), ctx));
             }
             if let Some(v) = parsed[2] {
-                report_if_error!(font_settings.markdown_heading_h3_scale.set_value(clamp(v), ctx));
+                report_if_error!(font_settings
+                    .markdown_heading_h3_scale
+                    .set_value(clamp(v), ctx));
             }
             if let Some(v) = parsed[3] {
-                report_if_error!(font_settings.markdown_heading_h4_scale.set_value(clamp(v), ctx));
+                report_if_error!(font_settings
+                    .markdown_heading_h4_scale
+                    .set_value(clamp(v), ctx));
             }
             if let Some(v) = parsed[4] {
-                report_if_error!(font_settings.markdown_heading_h5_scale.set_value(clamp(v), ctx));
+                report_if_error!(font_settings
+                    .markdown_heading_h5_scale
+                    .set_value(clamp(v), ctx));
             }
             if let Some(v) = parsed[5] {
-                report_if_error!(font_settings.markdown_heading_h6_scale.set_value(clamp(v), ctx));
+                report_if_error!(font_settings
+                    .markdown_heading_h6_scale
+                    .set_value(clamp(v), ctx));
             }
         });
         // 兜底:对任何 parse 失败、或 parse 成功但 clamp 后等于当前值(set_value 不发事件)的格子,
@@ -2505,7 +2514,42 @@ impl AppearanceSettingsPageView {
             }
         });
 
+        self.update_font_weight_dropdown(ctx);
         ctx.notify();
+    }
+
+    fn available_font_weights(ctx: &mut ViewContext<Self>) -> Vec<Weight> {
+        let family_id = Appearance::as_ref(ctx).monospace_font_family();
+        let available_weights = ctx.font_cache().available_weights(family_id);
+        all::<Weight>()
+            .filter(|weight| available_weights.contains(weight))
+            .collect()
+    }
+
+    fn update_font_weight_dropdown(&mut self, ctx: &mut ViewContext<Self>) {
+        let monospace_font_weight = Appearance::as_ref(ctx).monospace_font_weight();
+        let selectable_weights = Self::available_font_weights(ctx);
+        let selected_weight = selectable_weights
+            .iter()
+            .copied()
+            .find(|weight| *weight == monospace_font_weight)
+            .or_else(|| selectable_weights.first().copied());
+
+        self.font_weight_dropdown.update(ctx, |dropdown, ctx| {
+            let items = selectable_weights
+                .iter()
+                .map(|weight| {
+                    DropdownItem::new(
+                        weight.to_string(),
+                        AppearancePageAction::SetFontWeight(*weight),
+                    )
+                })
+                .collect();
+            dropdown.set_items(items, ctx);
+            if let Some(selected_weight) = selected_weight {
+                dropdown.set_selected_by_name(selected_weight.to_string(), ctx);
+            }
+        });
     }
 
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
@@ -3771,9 +3815,7 @@ impl SettingsWidget for WindowBlurWidget {
         let blur_value = *window_settings.background_blur_radius;
         let label_info = AdditionalInfo {
             mouse_state: self.info_button.clone(),
-            on_click_action: Some(AppearancePageAction::OpenUrl(
-                "".into(),
-            )),
+            on_click_action: Some(AppearancePageAction::OpenUrl("".into())),
             secondary_text: None,
             tooltip_override_text: None,
         };
@@ -4960,7 +5002,9 @@ impl SettingsWidget for MarkdownHeadingScaleWidget {
         // 标题行：标题 + 重置按钮同行
         let title_label = appearance
             .ui_builder()
-            .span(crate::t!("settings-appearance-markdown-heading-scale-label"))
+            .span(crate::t!(
+                "settings-appearance-markdown-heading-scale-label"
+            ))
             .build()
             .finish();
 
@@ -5004,7 +5048,9 @@ impl SettingsWidget for MarkdownHeadingScaleWidget {
         rows.add_child(
             appearance
                 .ui_builder()
-                .span(crate::t!("settings-appearance-markdown-heading-scale-description"))
+                .span(crate::t!(
+                    "settings-appearance-markdown-heading-scale-description"
+                ))
                 .with_style(UiComponentStyles {
                     font_size: Some(appearance.ui_font_overline()),
                     font_color: Some(
@@ -6016,9 +6062,7 @@ impl SettingsWidget for AltScreenPaddingWidget {
             crate::t!("settings-appearance-alt-screen-padding-label"),
             Some(AdditionalInfo {
                 mouse_state: self.additional_info_mouse_state.clone(),
-                on_click_action: Some(AppearancePageAction::OpenUrl(
-                    "".into(),
-                )),
+                on_click_action: Some(AppearancePageAction::OpenUrl("".into())),
                 secondary_text: None,
                 tooltip_override_text: None,
             }),

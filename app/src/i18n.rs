@@ -555,9 +555,9 @@ mod tests {
     fn zh_cn_search_aliases_map_to_english_terms() {
         let aliases = search_aliases_for_locale("zh-CN", "代理模式");
 
-        assert!(aliases.iter().any(|alias| alias == "proxy"));
+        assert!(aliases.iter().flatten().any(|alias| alias == "proxy"));
 
         let aliases = search_aliases_for_locale("zh-CN", "用户名");
-        assert!(aliases.iter().any(|alias| alias == "network"));
+        assert!(aliases.iter().flatten().any(|alias| alias == "network"));
     }
 }

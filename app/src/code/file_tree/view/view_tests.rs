@@ -4,11 +4,13 @@ use repo_metadata::local_model::IndexedRepoState;
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::watcher::DirectoryWatcher;
 use repo_metadata::RepoMetadataModel;
+use settings::Setting;
 use virtual_fs::{Stub, VirtualFS};
 use warp_core::ui::appearance::Appearance;
-use warpui::{platform::WindowStyle, App, ModelHandle};
+use warpui::{platform::WindowStyle, App, ModelHandle, SingletonEntity as _};
 
 use crate::auth::AuthStateProvider;
+use crate::settings::CodeSettings;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::vim_registers::VimRegisters;
@@ -105,6 +107,29 @@ fn build_repo_state_with_unloaded_directory(repo_root: &std::path::Path) -> File
     FileTreeState::new(root, vec![], None)
 }
 
+fn build_repo_state_with_hidden_file(repo_root: &std::path::Path) -> FileTreeState {
+    let root = Entry::Directory(DirectoryEntry {
+        path: std_path(repo_root),
+        children: vec![
+            Entry::File(FileMetadata::new(repo_root.join(".env"), false)),
+            Entry::File(FileMetadata::new(repo_root.join("main.rs"), false)),
+        ],
+        ignored: false,
+        loaded: true,
+    });
+    FileTreeState::new(root, vec![], None)
+}
+
+fn flattened_paths(view: &FileTreeView, root: &std::path::Path) -> Vec<std::path::PathBuf> {
+    view.root_directories
+        .get(&std_path(root))
+        .unwrap()
+        .items
+        .iter()
+        .map(|item| item.path().to_local_path_lossy())
+        .collect()
+}
+
 #[test]
 fn repo_transition_unregisters_lazy_loaded_path() {
     VirtualFS::test("file_tree_repo_transition", |dirs, mut vfs| {
@@ -195,6 +220,59 @@ fn repo_transition_unregisters_lazy_loaded_path() {
                     .unwrap(),
                     ctx
                 ));
+            });
+        });
+    });
+}
+
+#[test]
+fn hidden_files_follow_code_setting() {
+    VirtualFS::test("file_tree_hidden_files", |dirs, mut vfs| {
+        vfs.mkdir("repo/.git/objects").with_files(vec![
+            Stub::FileWithContent("repo/.env", "secret"),
+            Stub::FileWithContent("repo/main.rs", "fn main() {}\n"),
+        ]);
+
+        let repo_root = dirs.tests().join("repo");
+        let canonical_repo_root =
+            warp_util::standardized_path::StandardizedPath::from_local_canonicalized(&repo_root)
+                .unwrap();
+
+        App::test((), |mut app| async move {
+            let (detected_repositories, repository_metadata_model) = initialize_app(&mut app);
+            let (_, file_tree_view) = app.add_window(WindowStyle::NotStealFocus, FileTreeView::new);
+
+            detected_repositories.update(&mut app, |repositories, _ctx| {
+                repositories.insert_test_repo_root(canonical_repo_root.clone());
+            });
+            repository_metadata_model.update(&mut app, |model, ctx| {
+                model.insert_test_state(
+                    canonical_repo_root,
+                    build_repo_state_with_hidden_file(&repo_root),
+                    ctx,
+                );
+            });
+            file_tree_view.update(&mut app, |view, ctx| {
+                view.set_is_active(true, ctx);
+                view.set_root_directories(vec![repo_root.clone()], ctx);
+            });
+
+            file_tree_view.read(&app, |view, _ctx| {
+                assert_eq!(
+                    flattened_paths(view, &repo_root),
+                    vec![repo_root.join("main.rs")]
+                );
+            });
+
+            CodeSettings::handle(&app).update(&mut app, |settings, ctx| {
+                settings.show_hidden_files.set_value(true, ctx).unwrap();
+            });
+
+            file_tree_view.read(&app, |view, _ctx| {
+                assert_eq!(
+                    flattened_paths(view, &repo_root),
+                    vec![repo_root.join(".env"), repo_root.join("main.rs")]
+                );
             });
         });
     });

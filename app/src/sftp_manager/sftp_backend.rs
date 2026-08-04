@@ -1,84 +1,99 @@
-//! SFTP 后端操作抽象层
+//! SFTP 后端适配。
 //!
-//! 定义 SftpBackend trait，将 UI 层与协议层解耦。
-//! LiveSftpBackend 委托给真实 SFTP 连接，InMemorySftpBackend 使用本地文件系统用于测试。
-//! author: logic
-//! date: 2026-05-30
+//! 真实连接和离线测试后端都实现同一个同步 UI 适配接口，底层操作统一委托给
+//! zora_transport 的异步 RemoteFs。
 
-use std::fs;
-use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use dunce;
+use async_trait::async_trait;
 
 use super::sftp_ops::{self, ProgressCallback, SftpOpsError};
 use super::types::{FileEntry, FileEntryType};
 
-/// SFTP 后端操作抽象，用于解耦 UI 层与协议层
+#[async_trait]
 pub trait SftpBackend: Send + Sync {
-    /// 列出目录内容，返回文件条目列表
     fn list_dir(&self, path: &Path) -> Result<Vec<FileEntry>, SftpOpsError>;
-
-    /// 删除远程文件
     fn delete_file(&self, path: &Path) -> Result<(), SftpOpsError>;
-
-    /// 递归删除远程目录
     fn delete_dir_recursive(&self, path: &Path) -> Result<(), SftpOpsError>;
-
-    /// 创建远程目录
     fn create_dir(&self, path: &Path) -> Result<(), SftpOpsError>;
-
-    /// 重命名远程文件或目录
     fn rename(&self, old_path: &Path, new_path: &Path) -> Result<(), SftpOpsError>;
-
-    /// 解析真实路径
     fn realpath(&self, path: &Path) -> Result<PathBuf, SftpOpsError>;
-
-    /// 获取文件/目录详情
     fn stat(&self, path: &Path) -> Result<FileEntry, SftpOpsError>;
-
-    /// 流式上传本地文件到远程
     fn upload_file(
         &self,
         local_path: &Path,
         remote_path: &Path,
         progress_cb: Option<&ProgressCallback>,
         cancel_flag: Option<&AtomicBool>,
+        controller: Option<Arc<zora_transport::TransferController>>,
     ) -> Result<(), SftpOpsError>;
-
-    /// 流式下载远程文件到本地
     fn download_file(
         &self,
         remote_path: &Path,
         local_path: &Path,
         progress_cb: Option<&ProgressCallback>,
         cancel_flag: Option<&AtomicBool>,
+        controller: Option<Arc<zora_transport::TransferController>>,
+    ) -> Result<(), SftpOpsError>;
+    fn upload_directory(
+        &self,
+        local_path: &Path,
+        remote_path: &Path,
+        controller: Option<Arc<zora_transport::TransferController>>,
+    ) -> Result<(), SftpOpsError>;
+    fn download_directory(
+        &self,
+        remote_path: &Path,
+        local_path: &Path,
+        controller: Option<Arc<zora_transport::TransferController>>,
+    ) -> Result<(), SftpOpsError>;
+    async fn upload_file_async(
+        &self,
+        local_path: PathBuf,
+        remote_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError>;
+    async fn download_file_async(
+        &self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError>;
+    async fn upload_directory_async(
+        &self,
+        local_path: PathBuf,
+        remote_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError>;
+    async fn download_directory_async(
+        &self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
     ) -> Result<(), SftpOpsError>;
 }
 
-// ============================================================
-// LiveSftpBackend — 委托给真实 SFTP 连接
-// ============================================================
-
-/// 真实 SFTP 后端，包装 zap_sftp::Sftp
 pub struct LiveSftpBackend {
-    sftp: zap_sftp::Sftp,
+    sftp: zora_transport::Sftp,
 }
 
 impl LiveSftpBackend {
-    /// 从 Sftp 实例创建后端
-    pub fn new(sftp: zap_sftp::Sftp) -> Self {
+    pub fn new(sftp: zora_transport::Sftp) -> Self {
         Self { sftp }
     }
 
-    /// 获取内部 Sftp 引用（用于 connect_to_server 中 realpath 调用）
-    pub fn inner(&self) -> &zap_sftp::Sftp {
+    pub fn inner(&self) -> &zora_transport::Sftp {
         &self.sftp
     }
 }
 
+#[async_trait]
 impl SftpBackend for LiveSftpBackend {
     fn list_dir(&self, path: &Path) -> Result<Vec<FileEntry>, SftpOpsError> {
         sftp_ops::list_dir(&self.sftp, path)
@@ -101,38 +116,11 @@ impl SftpBackend for LiveSftpBackend {
     }
 
     fn realpath(&self, path: &Path) -> Result<PathBuf, SftpOpsError> {
-        self.sftp.realpath(path).map_err(|e| SftpOpsError::Operation(e.to_string()))
+        sftp_ops::realpath(&self.sftp, path)
     }
 
     fn stat(&self, path: &Path) -> Result<FileEntry, SftpOpsError> {
-        let metadata = self.sftp.stat(path)?;
-        let file_type = match metadata.file_type {
-            zap_sftp::types::FileType::Dir => FileEntryType::Directory,
-            zap_sftp::types::FileType::File => FileEntryType::File,
-            zap_sftp::types::FileType::Symlink => FileEntryType::Symlink,
-            zap_sftp::types::FileType::Other => FileEntryType::Other,
-        };
-        let modified = metadata.modified.map(|t| {
-            let datetime: chrono::DateTime<chrono::Local> = t.into();
-            datetime.format("%Y-%m-%d %H:%M").to_string()
-        });
-        let perms = &metadata.permissions;
-        let owner = sftp_ops::bool_to_rwx(perms.owner_read, perms.owner_write, perms.owner_exec);
-        let group = sftp_ops::bool_to_rwx(perms.group_read, perms.group_write, perms.group_exec);
-        let other = sftp_ops::bool_to_rwx(perms.other_read, perms.other_write, perms.other_exec);
-        let permissions = Some(format!("{owner}{group}{other}"));
-        let name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
-        Ok(FileEntry {
-            name,
-            path: path.to_path_buf(),
-            file_type,
-            size: metadata.size,
-            modified,
-            permissions,
-        })
+        sftp_ops::stat(&self.sftp, path)
     }
 
     fn upload_file(
@@ -141,10 +129,24 @@ impl SftpBackend for LiveSftpBackend {
         remote_path: &Path,
         progress_cb: Option<&ProgressCallback>,
         cancel_flag: Option<&AtomicBool>,
+        controller: Option<Arc<zora_transport::TransferController>>,
     ) -> Result<(), SftpOpsError> {
         static NEVER_CANCEL: AtomicBool = AtomicBool::new(false);
-        let flag = cancel_flag.unwrap_or(&NEVER_CANCEL);
-        sftp_ops::upload_file_streaming(&self.sftp, local_path, remote_path, progress_cb, flag)
+        sftp_ops::upload_file_streaming_with_controller(
+            &self.sftp,
+            local_path,
+            remote_path,
+            progress_cb,
+            cancel_flag.unwrap_or(&NEVER_CANCEL),
+            controller.unwrap_or_else(|| {
+                zora_transport::TransferController::new(
+                    0,
+                    zora_transport::TransferDirection::Upload,
+                    local_path.to_path_buf(),
+                    remote_path.to_path_buf(),
+                )
+            }),
+        )
     }
 
     fn download_file(
@@ -153,188 +155,228 @@ impl SftpBackend for LiveSftpBackend {
         local_path: &Path,
         progress_cb: Option<&ProgressCallback>,
         cancel_flag: Option<&AtomicBool>,
+        controller: Option<Arc<zora_transport::TransferController>>,
     ) -> Result<(), SftpOpsError> {
         static NEVER_CANCEL: AtomicBool = AtomicBool::new(false);
-        let flag = cancel_flag.unwrap_or(&NEVER_CANCEL);
-        sftp_ops::download_file_streaming(&self.sftp, remote_path, local_path, progress_cb, flag)
+        sftp_ops::download_file_streaming_with_controller(
+            &self.sftp,
+            remote_path,
+            local_path,
+            progress_cb,
+            cancel_flag.unwrap_or(&NEVER_CANCEL),
+            controller.unwrap_or_else(|| {
+                zora_transport::TransferController::new(
+                    0,
+                    zora_transport::TransferDirection::Download,
+                    remote_path.to_path_buf(),
+                    local_path.to_path_buf(),
+                )
+            }),
+        )
+    }
+
+    fn upload_directory(
+        &self,
+        local_path: &Path,
+        remote_path: &Path,
+        controller: Option<Arc<zora_transport::TransferController>>,
+    ) -> Result<(), SftpOpsError> {
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::upload_directory(
+            &self.sftp,
+            local_path,
+            remote_path,
+            controller,
+        ))?;
+        Ok(())
+    }
+
+    fn download_directory(
+        &self,
+        remote_path: &Path,
+        local_path: &Path,
+        controller: Option<Arc<zora_transport::TransferController>>,
+    ) -> Result<(), SftpOpsError> {
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::download_directory(
+            &self.sftp,
+            remote_path,
+            local_path,
+            controller,
+        ))?;
+        Ok(())
+    }
+
+    async fn upload_file_async(
+        &self,
+        local_path: PathBuf,
+        remote_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        sftp_ops::upload_file_streaming_async(
+            self.sftp.clone(),
+            local_path,
+            remote_path,
+            cancel_flag,
+            controller,
+        )
+        .await
+    }
+
+    async fn download_file_async(
+        &self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        sftp_ops::download_file_streaming_async(
+            self.sftp.clone(),
+            remote_path,
+            local_path,
+            cancel_flag,
+            controller,
+        )
+        .await
+    }
+
+    async fn upload_directory_async(
+        &self,
+        local_path: PathBuf,
+        remote_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        sftp_ops::upload_directory_async(
+            self.sftp.clone(),
+            local_path,
+            remote_path,
+            cancel_flag,
+            controller,
+        )
+        .await
+    }
+
+    async fn download_directory_async(
+        &self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        sftp_ops::download_directory_async(
+            self.sftp.clone(),
+            remote_path,
+            local_path,
+            cancel_flag,
+            controller,
+        )
+        .await
     }
 }
 
-
-// ============================================================
-// InMemorySftpBackend — 基于本地文件系统的测试实现
-// ============================================================
-
-/// 基于内存（本地临时目录）的 SFTP 后端，用于测试
 pub struct InMemorySftpBackend {
-    /// 根目录，模拟远程文件系统的根
     root: PathBuf,
+    remote_fs: zora_transport::LocalRemoteFs,
 }
 
 impl InMemorySftpBackend {
-    /// 创建新的内存后端，使用指定目录作为根
     pub fn new(root: PathBuf) -> Self {
-        Self { root }
+        Self {
+            remote_fs: zora_transport::LocalRemoteFs::new(root.clone()),
+            root,
+        }
     }
 
-    /// 获取根目录路径
     pub fn root(&self) -> &Path {
         &self.root
     }
 
-    /// 将"远程"路径映射到本地绝对路径
-    ///
-    /// 远程路径以 / 开头，映射到 root 下的相对路径。
-    fn to_local(&self, remote_path: &Path) -> PathBuf {
-        let relative = remote_path.strip_prefix("/").unwrap_or(remote_path);
-        self.root.join(relative)
-    }
-
-    /// 将本地路径转换为"远程"路径
-    fn to_remote(&self, local_path: &Path) -> PathBuf {
-        match local_path.strip_prefix(&self.root) {
-            Ok(rel) => {
-                if rel.as_os_str().is_empty() {
-                    PathBuf::from("/")
-                } else {
-                    PathBuf::from("/").join(rel)
-                }
-            }
-            Err(_) => PathBuf::from("/").join(local_path),
-        }
-    }
-
-    /// 从 std::fs::Metadata 构建 FileEntry
-    fn metadata_to_entry(
-        &self,
-        name: String,
-        local_path: &Path,
-        meta: &std::fs::Metadata,
-    ) -> FileEntry {
-        let file_type = if meta.is_symlink() {
-            FileEntryType::Symlink
-        } else if meta.is_dir() {
-            FileEntryType::Directory
-        } else {
-            FileEntryType::File
-        };
-        let modified = meta.modified().ok().map(|t| {
-            let datetime: chrono::DateTime<chrono::Local> = t.into();
-            datetime.format("%Y-%m-%d %H:%M").to_string()
-        });
-        FileEntry {
-            name,
-            path: self.to_remote(local_path),
-            file_type,
-            size: if meta.is_dir() { 0 } else { meta.len() },
-            modified,
-            permissions: None,
-        }
+    fn entry_from_transport(entry: zora_transport::DirEntry) -> FileEntry {
+        entry_from_transport(entry.path, entry.name, entry.metadata)
     }
 }
 
+#[async_trait]
 impl SftpBackend for InMemorySftpBackend {
     fn list_dir(&self, path: &Path) -> Result<Vec<FileEntry>, SftpOpsError> {
-        let local = self.to_local(path);
-        let p = path.display();
-        let entries = fs::read_dir(&local).map_err(|e| {
-            SftpOpsError::Operation(format!("列出目录失败 {p}: {e}"))
-        })?;
-
-        let mut result = Vec::new();
-        for entry in entries {
-            let entry = entry.map_err(|e| {
-                SftpOpsError::Operation(format!("读取目录条目失败: {e}"))
-            })?;
-            let name = entry.file_name().to_string_lossy().to_string();
-            // 过滤 . 和 ..
-            if name == "." || name == ".." {
-                continue;
-            }
-            let meta = fs::symlink_metadata(entry.path()).map_err(|e| {
-                SftpOpsError::Operation(format!("读取元数据失败: {e}"))
-            })?;
-            result.push(self.metadata_to_entry(name, &entry.path(), &meta));
-        }
-
-        Ok(result)
+        Ok(
+            sftp_ops::block_on_transport(zora_transport::RemoteFs::list_dir(
+                &self.remote_fs,
+                path,
+            ))?
+            .into_iter()
+            .map(Self::entry_from_transport)
+            .collect(),
+        )
     }
 
     fn delete_file(&self, path: &Path) -> Result<(), SftpOpsError> {
-        let local = self.to_local(path);
-        let p = path.display();
-        fs::remove_file(&local).map_err(|e| {
-            SftpOpsError::Operation(format!("删除文件失败 {p}: {e}"))
-        })
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::remove_file(&self.remote_fs, path))?;
+        Ok(())
     }
 
     fn delete_dir_recursive(&self, path: &Path) -> Result<(), SftpOpsError> {
-        let local = self.to_local(path);
-        let p = path.display();
-        fs::remove_dir_all(&local).map_err(|e| {
-            SftpOpsError::Operation(format!("递归删除目录失败 {p}: {e}"))
-        })
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::remove_dir_all(
+            &self.remote_fs,
+            path,
+        ))?;
+        Ok(())
     }
 
     fn create_dir(&self, path: &Path) -> Result<(), SftpOpsError> {
-        let local = self.to_local(path);
-        let p = path.display();
-        fs::create_dir(&local).map_err(|e| {
-            SftpOpsError::Operation(format!("创建目录失败 {p}: {e}"))
-        })
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::mkdir(&self.remote_fs, path))?;
+        Ok(())
     }
 
     fn rename(&self, old_path: &Path, new_path: &Path) -> Result<(), SftpOpsError> {
-        let old_local = self.to_local(old_path);
-        let new_local = self.to_local(new_path);
-        fs::rename(&old_local, &new_local).map_err(|e| {
-            SftpOpsError::Operation(format!(
-                "重命名失败 {} -> {}: {e}",
-                old_path.display(),
-                new_path.display()
-            ))
-        })
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::rename(
+            &self.remote_fs,
+            old_path,
+            new_path,
+            zora_transport::RenameOptions::default(),
+        ))?;
+        Ok(())
     }
 
     fn realpath(&self, path: &Path) -> Result<PathBuf, SftpOpsError> {
-        let local = self.to_local(path);
-        let p = path.display();
-        let canonical = dunce::canonicalize(&local).map_err(|e| {
-            SftpOpsError::Operation(format!("解析路径失败 {p}: {e}"))
-        })?;
-        Ok(self.to_remote(&canonical))
+        Ok(sftp_ops::block_on_transport(
+            zora_transport::RemoteFs::realpath(&self.remote_fs, path),
+        )?)
     }
 
     fn stat(&self, path: &Path) -> Result<FileEntry, SftpOpsError> {
-        let local = self.to_local(path);
-        let p = path.display();
-        let meta = fs::symlink_metadata(&local).map_err(|e| {
-            SftpOpsError::Operation(format!("获取文件信息失败 {p}: {e}"))
-        })?;
-        let name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
-        Ok(self.metadata_to_entry(name, &local, &meta))
+        let metadata =
+            sftp_ops::block_on_transport(zora_transport::RemoteFs::stat(&self.remote_fs, path))?;
+        Ok(entry_from_transport(
+            path.to_path_buf(),
+            path.file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            metadata,
+        ))
     }
 
     fn upload_file(
         &self,
         local_path: &Path,
         remote_path: &Path,
-        _progress_cb: Option<&ProgressCallback>,
-        _cancel_flag: Option<&AtomicBool>,
+        progress_cb: Option<&ProgressCallback>,
+        cancel_flag: Option<&AtomicBool>,
+        _controller: Option<Arc<zora_transport::TransferController>>,
     ) -> Result<(), SftpOpsError> {
-        let dest = self.to_local(remote_path);
-        // 确保父目录存在
-        if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent).map_err(|e| {
-                SftpOpsError::LocalIo(format!("创建目录失败: {e}"))
-            })?;
+        if cancel_flag.is_some_and(|flag| flag.load(std::sync::atomic::Ordering::SeqCst)) {
+            return Err(SftpOpsError::Cancelled);
         }
-        fs::copy(local_path, &dest).map_err(|e| {
-            SftpOpsError::LocalIo(format!("上传文件失败: {e}"))
-        })?;
+        let total = std::fs::metadata(local_path)?.len();
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::upload_file(
+            &self.remote_fs,
+            local_path,
+            remote_path,
+            None,
+        ))?;
+        if let Some(progress_cb) = progress_cb {
+            progress_cb(total, total);
+        }
         Ok(())
     }
 
@@ -342,47 +384,167 @@ impl SftpBackend for InMemorySftpBackend {
         &self,
         remote_path: &Path,
         local_path: &Path,
-        _progress_cb: Option<&ProgressCallback>,
-        _cancel_flag: Option<&AtomicBool>,
+        progress_cb: Option<&ProgressCallback>,
+        cancel_flag: Option<&AtomicBool>,
+        _controller: Option<Arc<zora_transport::TransferController>>,
     ) -> Result<(), SftpOpsError> {
-        let src = self.to_local(remote_path);
-        // 确保本地父目录存在
-        if let Some(parent) = local_path.parent() {
-            fs::create_dir_all(parent).map_err(|e| {
-                SftpOpsError::LocalIo(format!("创建目录失败: {e}"))
-            })?;
+        if cancel_flag.is_some_and(|flag| flag.load(std::sync::atomic::Ordering::SeqCst)) {
+            return Err(SftpOpsError::Cancelled);
         }
-        let mut src_file = fs::File::open(&src).map_err(|e| {
-            SftpOpsError::LocalIo(format!("打开远程文件失败: {e}"))
-        })?;
-        let mut dest_file = fs::File::create(local_path).map_err(|e| {
-            SftpOpsError::LocalIo(format!("创建本地文件失败: {e}"))
-        })?;
+        let total = sftp_ops::block_on_transport(zora_transport::RemoteFs::stat(
+            &self.remote_fs,
+            remote_path,
+        ))?
+        .size;
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::download_file(
+            &self.remote_fs,
+            remote_path,
+            local_path,
+            None,
+        ))?;
+        if let Some(progress_cb) = progress_cb {
+            progress_cb(total, total);
+        }
+        Ok(())
+    }
 
-        // 分块复制以模拟流式传输
-        const CHUNK_SIZE: usize = 32 * 1024;
-        let mut buf = vec![0u8; CHUNK_SIZE];
-        loop {
-            let n = src_file.read(&mut buf).map_err(|e| {
-                SftpOpsError::LocalIo(format!("读取失败: {e}"))
-            })?;
-            if n == 0 {
-                break;
-            }
-            dest_file.write_all(&buf[..n]).map_err(|e| {
-                SftpOpsError::LocalIo(format!("写入失败: {e}"))
-            })?;
+    fn upload_directory(
+        &self,
+        local_path: &Path,
+        remote_path: &Path,
+        controller: Option<Arc<zora_transport::TransferController>>,
+    ) -> Result<(), SftpOpsError> {
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::upload_directory(
+            &self.remote_fs,
+            local_path,
+            remote_path,
+            controller,
+        ))?;
+        Ok(())
+    }
+
+    fn download_directory(
+        &self,
+        remote_path: &Path,
+        local_path: &Path,
+        controller: Option<Arc<zora_transport::TransferController>>,
+    ) -> Result<(), SftpOpsError> {
+        sftp_ops::block_on_transport(zora_transport::RemoteFs::download_directory(
+            &self.remote_fs,
+            remote_path,
+            local_path,
+            controller,
+        ))?;
+        Ok(())
+    }
+
+    async fn upload_file_async(
+        &self,
+        local_path: PathBuf,
+        remote_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        if cancel_flag.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(SftpOpsError::Cancelled);
         }
-        dest_file.flush().map_err(|e| {
-            SftpOpsError::LocalIo(format!("刷新失败: {e}"))
-        })?;
+        zora_transport::RemoteFs::upload_file(
+            &self.remote_fs,
+            &local_path,
+            &remote_path,
+            Some(controller),
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn download_file_async(
+        &self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        if cancel_flag.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(SftpOpsError::Cancelled);
+        }
+        zora_transport::RemoteFs::download_file(
+            &self.remote_fs,
+            &remote_path,
+            &local_path,
+            Some(controller),
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn upload_directory_async(
+        &self,
+        local_path: PathBuf,
+        remote_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        if cancel_flag.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(SftpOpsError::Cancelled);
+        }
+        zora_transport::RemoteFs::upload_directory(
+            &self.remote_fs,
+            &local_path,
+            &remote_path,
+            Some(controller),
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn download_directory_async(
+        &self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        cancel_flag: Arc<AtomicBool>,
+        controller: Arc<zora_transport::TransferController>,
+    ) -> Result<(), SftpOpsError> {
+        if cancel_flag.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(SftpOpsError::Cancelled);
+        }
+        zora_transport::RemoteFs::download_directory(
+            &self.remote_fs,
+            &remote_path,
+            &local_path,
+            Some(controller),
+        )
+        .await?;
         Ok(())
     }
 }
 
-/// 创建 Arc<dyn SftpBackend> 的便捷方法
+fn entry_from_transport(
+    path: PathBuf,
+    name: String,
+    metadata: zora_transport::Metadata,
+) -> FileEntry {
+    let file_type = match metadata.file_type {
+        zora_transport::FileType::Dir => FileEntryType::Directory,
+        zora_transport::FileType::File => FileEntryType::File,
+        zora_transport::FileType::Symlink => FileEntryType::Symlink,
+        zora_transport::FileType::Other => FileEntryType::Other,
+    };
+    let modified = metadata.modified.map(|time| {
+        let datetime: chrono::DateTime<chrono::Local> = time.into();
+        datetime.format("%Y-%m-%d %H:%M").to_string()
+    });
+    FileEntry {
+        name,
+        path,
+        file_type,
+        size: metadata.size,
+        modified,
+        permissions: Some(metadata.permissions.to_string()),
+    }
+}
+
 impl InMemorySftpBackend {
-    /// 创建并包装为 Arc<dyn SftpBackend>
     pub fn into_backend(self) -> Arc<dyn SftpBackend> {
         Arc::new(self)
     }

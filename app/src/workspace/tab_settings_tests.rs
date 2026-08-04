@@ -1,6 +1,6 @@
 use super::*;
-use crate::test_util::settings::initialize_settings_for_tests;
 use crate::terminal::resizable_data::DEFAULT_VERTICAL_TABS_PANEL_WIDTH;
+use crate::test_util::settings::initialize_settings_for_tests;
 use settings::Setting;
 use warpui::{App, SingletonEntity};
 

@@ -1126,9 +1126,9 @@ settings-features-outline-codebase-symbols = 为「@」上下文菜单提取代�
 settings-features-show-input-message-bar = 显示终端输入消息行
 settings-features-show-autosuggestion-hint = 显示自动建议快捷键提示
 settings-features-show-autosuggestion-ignore = 显示自动建议忽略按钮
-settings-features-enable-mouse-reporting = 启用鼠标事件上报
-settings-features-enable-scroll-reporting = 启用滚动事件上报
-settings-features-enable-focus-reporting = 启用焦点事件上报
+settings-features-enable-mouse-reporting = 将鼠标事件转发给全屏终端程序
+settings-features-enable-scroll-reporting = 将滚动事件转发给全屏终端程序
+settings-features-enable-focus-reporting = 将焦点变化转发给全屏终端程序
 settings-features-use-audible-bell = 启用响铃
 settings-features-double-click-smart-selection = 双击智能选择
 settings-features-show-help-block-in-new-sessions = 新会话中显示帮助命令块
@@ -1237,6 +1237,12 @@ settings-code-show-diff-stats = 在代码评审按钮上显示差异统计
 settings-code-show-diff-stats-desc = 在代码评审按钮上显示新增与删除行数。
 settings-code-project-explorer = 项目浏览器
 settings-code-project-explorer-desc = 在左侧工具面板添加 IDE 风格的项目浏览器 / 文件树。
+settings-code-show-hidden-files = 显示隐藏文件
+settings-code-show-hidden-files-desc = 在项目浏览器中显示点文件和隐藏目录。
+settings-code-show-line-numbers = 显示行号
+settings-code-show-line-numbers-desc = 在代码编辑器的边栏中显示行号。
+settings-code-auto-save = 自动保存
+settings-code-auto-save-desc = 停止输入一秒后自动保存文件更改。
 settings-code-global-search = 全局文件搜索
 settings-code-global-search-desc = 在左侧工具面板添加全局文件搜索。
 
@@ -2437,7 +2443,6 @@ slash-cmd-init-desc = 生成或更新 AGENTS.md 文件
 slash-cmd-open-project-rules-desc = 打开项目规则文件（AGENTS.md）
 slash-cmd-open-mcp-servers-desc = 打开 MCP 服务器
 slash-cmd-open-settings-file-desc = 打开设置文件（TOML）
-slash-cmd-changelog-desc = 打开最新更新日志
 slash-cmd-open-repo-desc = 切换到另一个已索引的仓库
 slash-cmd-open-rules-desc = 查看你的全部全局规则与项目规则
 slash-cmd-new-desc = 开始新对话（/agent 的别名）
@@ -2820,6 +2825,11 @@ server-file-browser-no-session = 当前没有已连接的远端服务器会话�
 server-file-browser-connection-lost = 与远程服务器的连接已断开。请重新连接 SSH 会话后，刷新或重新打开此面板。
 server-file-browser-loading = 加载中…
 server-file-browser-empty-directory = 此目录为空。
+sftp-browser-search-placeholder = 搜索文件...
+sftp-browser-empty-folder = 此文件夹为空
+sftp-browser-loading = 加载中...
+sftp-browser-connecting = 连接中...
+sftp-browser-disconnected = 已断开连接
 server-file-browser-empty-response = 远端服务器返回了空响应。
 server-file-browser-unsupported-path = 暂不支持此远端路径类型。
 server-file-browser-copied-path = 路径已复制。
@@ -2911,6 +2921,7 @@ workspace-right-panel-maximize = 最大化
 workspace-right-panel-unknown = 未知
 terminal-pane-new-agent-conversation-title = 新建智能体对话
 vertical-tabs-no-tabs-open = 没有打开的标签页
+vertical-tabs-no-tabs-match-search = 没有符合搜索条件的标签页。
 vertical-tabs-untitled-tab = 未命名标签页
 vertical-tabs-view-options-tooltip = 查看选项
 vertical-tabs-new-session = 新建会话
@@ -3225,6 +3236,7 @@ voice-transcription-hold-key = 语音转写（按住 `{ $key }` 键）
 
 get-started-welcome-title = 欢迎使用 Zap
 get-started-subtitle = 智能体开发环境
+theme-creator-modal-header = 从图片创建新主题
 theme-creator-theme-name = 主题名称
 theme-creator-background-color = 背景色
 theme-creator-image-subheader = 根据图片（.png、.jpg）中提取的颜色自动生成主题。
@@ -3233,6 +3245,9 @@ theme-creator-selecting-image = 正在选择图片...
 theme-creator-select-new-image = 选择新图片
 theme-creator-create-theme = 创建主题
 theme-creator-process-image-failed = 无法处理所选图片。请换一张图片后重试。
+theme-deletion-modal-header = 确定要删除此主题吗？
+theme-deletion-subheader = 此操作将永久删除该主题。
+theme-deletion-delete = 删除主题
 theme-chooser-title = 主题
 theme-chooser-scope-all-windows = 所有窗口
 theme-chooser-scope-this-window = 当前窗口
@@ -3272,6 +3287,19 @@ terminal-banner-these-instructions = 这些说明
 terminal-banner-update-latest-suffix = {" "}更新到最新版本。
 terminal-banner-pure-unsupported = Zap 尚不支持 Pure。你可以考虑改用受支持的提示符。{"  "}
 terminal-loading-session = 正在加载会话...
+terminal-restored-session-conversation = 对话已恢复
+terminal-restored-session-previous = 上次会话
+terminal-restored-session-from = { $label }（{ $timestamp }）
+terminal-restored-session-timestamp = { $month }月{ $day }日（{ $weekday ->
+        [1] 星期日
+        [2] 星期一
+        [3] 星期二
+        [4] 星期三
+        [5] 星期四
+        [6] 星期五
+        [7] 星期六
+       *[other] 未知星期
+    }）{ $hour24 }:{ $minute }
 
 ai-footer-hide-rich-input = 隐藏富输入
 ai-footer-choose-environment = 选择环境

@@ -62,6 +62,7 @@ use crate::terminal::model::block::{
 use crate::terminal::model::blocks::{insert_block, TotalIndex};
 use crate::terminal::model::terminal_model::WithinBlock;
 use crate::terminal::view::load_ai_conversation::RestoredAIConversation;
+use crate::terminal::view::use_agent_footer::UseAgentToolbarEvent;
 use crate::test_util::ai_agent_tasks::{
     create_api_subtask, create_api_task, create_message, create_subagent_tool_call_message,
 };
@@ -548,9 +549,7 @@ fn exiting_restored_cli_subagent_agent_view_inserts_entry_card() {
     });
 }
 
-fn assert_exiting_restored_ordinary_agent_view_inserts_entry_card(
-    origin: AgentViewEntryOrigin,
-) {
+fn assert_exiting_restored_ordinary_agent_view_inserts_entry_card(origin: AgentViewEntryOrigin) {
     App::test((), move |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         FeatureFlag::AgentView.set_enabled(true);
@@ -604,10 +603,8 @@ fn skips_cli_subagent_view_restore_without_matching_ai_metadata() {
 
         let block_id = BlockId::from("cli-block-1".to_string());
         let task_id = TaskId::new("cli-task-1".to_string());
-        let conversation = build_restored_conversation_with_cli_subagent_for_test(
-            block_id.clone(),
-            task_id,
-        );
+        let conversation =
+            build_restored_conversation_with_cli_subagent_for_test(block_id.clone(), task_id);
         let mut serialized_blocks =
             serialized_blocks_for_restored_cli_subagent_for_test(&conversation);
         clear_ai_metadata_for_serialized_blocks_for_test(&mut serialized_blocks);
@@ -668,7 +665,9 @@ fn finished_cli_subagent_keeps_read_only_card_when_metadata_matches() {
         initialize_app_for_terminal_view(&mut app);
         // FinishedSubagent 会触发 sidecar 持久化，需要 GlobalResourceHandlesProvider。
         let global_resource_handles = crate::GlobalResourceHandles::mock(&mut app);
-        app.add_singleton_model(|_| crate::GlobalResourceHandlesProvider::new(global_resource_handles));
+        app.add_singleton_model(|_| {
+            crate::GlobalResourceHandlesProvider::new(global_resource_handles)
+        });
 
         // 先恢复一个带 CLI subagent 的历史会话，建立带匹配 metadata 的 command block
         // 和一个 RestoredReadOnly 视图，模拟 SSH 会话在 agent view 里展开后的状态。
@@ -5625,4 +5624,22 @@ fn onekey_empty_candidates_with_empty_query_returns_empty_ordered() {
     let candidates: Vec<(&str, &str)> = vec![];
     let result = filter_and_sort_onekey_candidates(candidates.iter().copied(), "");
     assert_eq!(rows_indices(result), Vec::<usize>::new());
+}
+
+#[test]
+fn selecting_use_agent_from_warpify_footer_focuses_input() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let terminal = add_window_with_terminal(&mut app, None);
+        let editor = terminal.read(&app, |view, ctx| view.input().as_ref(ctx).editor().clone());
+
+        terminal.update(&mut app, |view, ctx| {
+            ctx.focus_self();
+            view.use_agent_footer.update(ctx, |_, ctx| {
+                ctx.emit(UseAgentToolbarEvent::UseAgent);
+            });
+        });
+
+        assert!(editor.read(&app, |editor, _| editor.is_focused()));
+    })
 }

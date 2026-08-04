@@ -1,6 +1,8 @@
-use super::{get_input_key, text_fallback_event_for_unconverted_key};
+use super::{get_input_key, text_fallback_event_for_unconverted_key, us_qwerty_fallback_for_chord};
 use winit::event::ElementState;
-use winit::keyboard::{Key::Character, ModifiersState, SmolStr};
+use winit::keyboard::{
+    Key::Character, KeyCode, ModifiersState, NativeKeyCode, PhysicalKey, SmolStr,
+};
 
 #[test]
 fn test_get_input_key() {
@@ -48,6 +50,59 @@ fn test_get_input_key() {
             }
         }
     }
+}
+
+#[test]
+fn us_qwerty_fallback_maps_letters() {
+    for (code, expected) in [
+        (KeyCode::KeyA, "a"),
+        (KeyCode::KeyC, "c"),
+        (KeyCode::KeyV, "v"),
+        (KeyCode::KeyZ, "z"),
+    ] {
+        for shift in [false, true] {
+            assert_eq!(
+                us_qwerty_fallback_for_chord(&PhysicalKey::Code(code), shift),
+                Some(expected),
+                "expected {code:?} -> {expected} (shift={shift})",
+            );
+        }
+    }
+}
+
+#[test]
+fn us_qwerty_fallback_maps_shifted_punctuation() {
+    for (code, expected) in [
+        (KeyCode::Digit1, "!"),
+        (KeyCode::Minus, "_"),
+        (KeyCode::BracketLeft, "{"),
+        (KeyCode::Slash, "?"),
+    ] {
+        assert_eq!(
+            us_qwerty_fallback_for_chord(&PhysicalKey::Code(code), true),
+            Some(expected),
+            "expected {code:?} + shift -> {expected}",
+        );
+    }
+}
+
+#[test]
+fn us_qwerty_fallback_skips_non_shortcut_keys() {
+    for code in [
+        KeyCode::F1,
+        KeyCode::AltLeft,
+        KeyCode::Enter,
+        KeyCode::ArrowUp,
+    ] {
+        assert_eq!(
+            us_qwerty_fallback_for_chord(&PhysicalKey::Code(code), false),
+            None,
+            "{code:?} should not have a chord fallback",
+        );
+    }
+
+    let unidentified = PhysicalKey::Unidentified(NativeKeyCode::Unidentified);
+    assert_eq!(us_qwerty_fallback_for_chord(&unidentified, false), None);
 }
 
 #[test]

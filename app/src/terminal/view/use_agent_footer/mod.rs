@@ -134,9 +134,7 @@ fn rich_input_submit_strategy(agent: CLIAgent) -> RichInputSubmitStrategy {
         | CLIAgent::Pi
         | CLIAgent::Goose
         | CLIAgent::Omp
-        | CLIAgent::Unknown => {
-            RichInputSubmitStrategy::Inline
-        }
+        | CLIAgent::Unknown => RichInputSubmitStrategy::Inline,
     }
 }
 
@@ -268,6 +266,9 @@ impl TerminalView {
             UseAgentToolbarEvent::UseAgent => {
                 self.hide_use_agent_footer_in_blocklist(ctx);
                 self.handle_action(&TerminalAction::SetInputModeAgent, ctx);
+                self.input.update(ctx, |input, ctx| {
+                    input.focus_input_box(ctx);
+                });
             }
         }
     }

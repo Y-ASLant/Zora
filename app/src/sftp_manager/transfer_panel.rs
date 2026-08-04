@@ -6,14 +6,15 @@
 
 use warp_core::ui::appearance::Appearance;
 use warpui::elements::{
-    Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable,
-    MainAxisSize, MainAxisAlignment, MouseStateHandle, ParentElement, Radius, SavePosition, Shrinkable, Text,
+    ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, SavePosition,
+    Shrinkable, Text,
 };
 use warpui::platform::Cursor;
 use warpui::Element;
 
 use crate::sftp_manager::browser::SftpBrowserAction;
-use crate::sftp_manager::types::{TransferDirection, TransferState, TransferTask};
+use crate::sftp_manager::types::{format_size, TransferDirection, TransferState, TransferTask};
 use crate::ui_components::icons::Icon;
 
 /// 进度条高度
@@ -52,6 +53,10 @@ fn render_state_label(state: &TransferState, appearance: &Appearance) -> Box<dyn
             theme.sub_text_color(theme.background()),
         ),
         TransferState::InProgress => (String::from("传输中"), theme.accent()),
+        TransferState::Paused => (
+            String::from("已暂停"),
+            theme.sub_text_color(theme.background()),
+        ),
         TransferState::Completed => (String::from("已完成"), theme.ui_green_color().into()),
         TransferState::Failed(_) => (String::from("失败"), theme.ui_error_color().into()),
         TransferState::Cancelled => (
@@ -63,6 +68,36 @@ fn render_state_label(state: &TransferState, appearance: &Appearance) -> Box<dyn
     Text::new_inline(label, ui_font, ui_font_size)
         .with_color(color.into())
         .finish()
+}
+
+fn render_task_action(
+    label: &str,
+    task_id: usize,
+    action: SftpBrowserAction,
+    appearance: &Appearance,
+) -> Box<dyn Element> {
+    let label = label.to_string();
+    let font = appearance.ui_font_family();
+    let size = appearance.ui_font_size() * 0.8;
+    let text_color = appearance
+        .theme()
+        .sub_text_color(appearance.theme().background());
+    let position_id = format!("sftp_btn:transfer_action:{task_id}:{label}");
+    let element = Hoverable::new(Default::default(), move |_| {
+        Container::new(
+            Text::new_inline(label.clone(), font, size)
+                .with_color(text_color.into())
+                .finish(),
+        )
+        .with_uniform_padding(2.0)
+        .finish()
+    })
+    .with_cursor(Cursor::PointingHand)
+    .on_mouse_down(move |ctx, _, _| {
+        ctx.dispatch_typed_action(action.clone());
+    })
+    .finish();
+    SavePosition::new(element, &position_id).finish()
 }
 
 /// 渲染进度条
@@ -147,29 +182,47 @@ fn render_transfer_row(task: &TransferTask, appearance: &Appearance) -> Box<dyn 
         .with_child(Shrinkable::new(1.0, name_el).finish())
         .with_child(state_el);
 
-    // 传输中的任务显示取消按钮
-    if matches!(task.state, TransferState::InProgress) {
-        let task_id = task.id;
-        let icon_color = appearance
-            .theme()
-            .sub_text_color(appearance.theme().background());
-        let position_id = format!("sftp_btn:cancel_transfer:{task_id}");
-
-        let cancel_el = Hoverable::new(Default::default(), move |_| {
-            let icon_el = ConstrainedBox::new(Icon::X.to_warpui_icon(icon_color).finish())
-                .with_width(12.0)
-                .with_height(12.0)
-                .finish();
-            Container::new(icon_el).with_uniform_padding(2.0).finish()
-        })
-        .with_cursor(Cursor::PointingHand)
-        .on_click(move |ctx, _, _| {
-            ctx.dispatch_typed_action(SftpBrowserAction::CancelTransfer(task_id));
-        })
-        .finish();
-
-        let positioned = SavePosition::new(cancel_el, &position_id).finish();
-        top_row = top_row.with_child(Clipped::new(positioned).finish());
+    let task_id = task.id;
+    match &task.state {
+        TransferState::InProgress => {
+            top_row = top_row
+                .with_child(render_task_action(
+                    "暂停",
+                    task_id,
+                    SftpBrowserAction::PauseTransfer(task_id),
+                    appearance,
+                ))
+                .with_child(render_task_action(
+                    "取消",
+                    task_id,
+                    SftpBrowserAction::CancelTransfer(task_id),
+                    appearance,
+                ));
+        }
+        TransferState::Paused => {
+            top_row = top_row
+                .with_child(render_task_action(
+                    "恢复",
+                    task_id,
+                    SftpBrowserAction::ResumeTransfer(task_id),
+                    appearance,
+                ))
+                .with_child(render_task_action(
+                    "取消",
+                    task_id,
+                    SftpBrowserAction::CancelTransfer(task_id),
+                    appearance,
+                ));
+        }
+        TransferState::Failed(_) | TransferState::Cancelled => {
+            top_row = top_row.with_child(render_task_action(
+                "重试",
+                task_id,
+                SftpBrowserAction::RetryTransfer(task_id),
+                appearance,
+            ));
+        }
+        TransferState::Pending | TransferState::Completed => {}
     }
 
     let mut col = Flex::column()
@@ -178,9 +231,38 @@ fn render_transfer_row(task: &TransferTask, appearance: &Appearance) -> Box<dyn 
         .with_child(top_row.finish());
 
     // 进度条（仅传输中显示）
-    if matches!(task.state, TransferState::InProgress) {
+    if matches!(
+        task.state,
+        TransferState::InProgress | TransferState::Paused
+    ) {
         let bar = render_progress_bar(task.progress_percent(), appearance);
         col.add_child(bar);
+        let mut stats = format!(
+            "{} / {} · {}/s",
+            format_size(task.transferred),
+            format_size(task.total_size),
+            format_size(task.speed_bytes_per_second),
+        );
+        if task.total_files != 1 {
+            stats = format!(
+                "{stats} · {} / {} 个文件",
+                task.completed_files, task.total_files,
+            );
+        }
+        col.add_child(
+            Text::new_inline(
+                stats,
+                appearance.ui_font_family(),
+                appearance.ui_font_size() * 0.8,
+            )
+            .with_color(
+                appearance
+                    .theme()
+                    .sub_text_color(appearance.theme().background())
+                    .into(),
+            )
+            .finish(),
+        );
     }
 
     Container::new(col.finish())
@@ -271,6 +353,7 @@ mod tests {
     use std::rc::Rc;
 
     use pathfinder_geometry::vector::vec2f;
+    use warpui::elements::{ParentElement, Stack};
     use warpui::platform::WindowStyle;
     use warpui::{
         App, AppContext, Entity, Event, Presenter, SingletonEntity, TypedActionView, View,
@@ -280,6 +363,7 @@ mod tests {
     struct TransferPanelTestView {
         transfers: Vec<TransferTask>,
         close_btn_state: MouseStateHandle,
+        actions: Vec<SftpBrowserAction>,
     }
 
     impl TransferPanelTestView {
@@ -288,6 +372,7 @@ mod tests {
             Self {
                 transfers: vec![make_transfer_task(1)],
                 close_btn_state: MouseStateHandle::default(),
+                actions: Vec::new(),
             }
         }
     }
@@ -301,9 +386,8 @@ mod tests {
 
         /// 处理传输面板派发的测试动作
         fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
-            if matches!(action, SftpBrowserAction::CancelTransfer(_)) {
-                ctx.notify();
-            }
+            self.actions.push(action.clone());
+            ctx.notify();
         }
     }
 
@@ -315,7 +399,13 @@ mod tests {
         /// 渲染测试用传输面板
         fn render(&self, app: &AppContext) -> Box<dyn Element> {
             let appearance = Appearance::as_ref(app);
-            render_transfer_panel(&self.transfers, appearance, self.close_btn_state.clone())
+            Stack::new()
+                .with_child(render_transfer_panel(
+                    &self.transfers,
+                    appearance,
+                    self.close_btn_state.clone(),
+                ))
+                .finish()
         }
     }
 
@@ -326,13 +416,93 @@ mod tests {
 
     /// 创建一个测试用传输任务
     fn make_transfer_task(id: usize) -> TransferTask {
-        TransferTask::new(
+        let mut task = TransferTask::new(
             id,
             PathBuf::from(format!("/remote/file_{id}.txt")),
             PathBuf::from(format!("/local/file_{id}.txt")),
             TransferDirection::Download,
             1024,
-        )
+        );
+        task.state = TransferState::InProgress;
+        task
+    }
+
+    #[test]
+    fn clicking_pause_and_cancel_dispatches_actions() {
+        App::test((), |mut app| async move {
+            initialize_app(&mut app);
+            let (window_id, view) =
+                app.add_window(WindowStyle::NotStealFocus, |_| TransferPanelTestView::new());
+            let root_view_id = app.root_view_id(window_id).expect("测试窗口应包含根视图");
+            let presenter = Rc::new(RefCell::new(Presenter::new(window_id)));
+            let invalidation = WindowInvalidation {
+                updated: HashSet::from([root_view_id]),
+                ..Default::default()
+            };
+
+            app.update({
+                let presenter = presenter.clone();
+                move |ctx| {
+                    presenter.borrow_mut().invalidate(invalidation, ctx);
+                    presenter
+                        .borrow_mut()
+                        .build_scene(vec2f(800., 600.), 1., None, ctx);
+
+                    let pause_bounds = presenter
+                        .borrow()
+                        .position_cache()
+                        .get_position("sftp_btn:transfer_action:1:暂停")
+                        .expect("暂停按钮必须出现在传输行中");
+                    let cancel_bounds = presenter
+                        .borrow()
+                        .position_cache()
+                        .get_position("sftp_btn:transfer_action:1:取消")
+                        .expect("取消按钮必须出现在传输行中");
+
+                    for position in [pause_bounds.origin(), cancel_bounds.origin()] {
+                        ctx.simulate_window_event(
+                            Event::LeftMouseDown {
+                                position: position + vec2f(1., 1.),
+                                modifiers: Default::default(),
+                                click_count: 1,
+                                is_first_mouse: false,
+                            },
+                            window_id,
+                            presenter.clone(),
+                        );
+                        presenter.borrow_mut().invalidate(
+                            WindowInvalidation {
+                                updated: HashSet::from([root_view_id]),
+                                ..Default::default()
+                            },
+                            ctx,
+                        );
+                        presenter
+                            .borrow_mut()
+                            .build_scene(vec2f(800., 600.), 1., None, ctx);
+                        ctx.simulate_window_event(
+                            Event::LeftMouseUp {
+                                position: position + vec2f(1., 1.),
+                                modifiers: Default::default(),
+                            },
+                            window_id,
+                            presenter.clone(),
+                        );
+                    }
+                }
+            });
+
+            view.read(&app, |view, _| {
+                assert!(matches!(
+                    view.actions.first(),
+                    Some(SftpBrowserAction::PauseTransfer(1))
+                ));
+                assert!(matches!(
+                    view.actions.get(1),
+                    Some(SftpBrowserAction::CancelTransfer(1))
+                ));
+            });
+        });
     }
 
     /// 验证点击传输面板背景区域不会影响传输内容展示

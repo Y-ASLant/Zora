@@ -4,8 +4,8 @@
 //! date: 2026-05-26
 
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 /// 文件条目类型（UI 层）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,6 +45,7 @@ pub enum TransferDirection {
 pub enum TransferState {
     Pending,
     InProgress,
+    Paused,
     Completed,
     Failed(String),
     Cancelled,
@@ -69,6 +70,16 @@ pub struct TransferTask {
     pub state: TransferState,
     /// 取消标志
     pub cancel_flag: Arc<AtomicBool>,
+    /// transport 层传输控制器
+    pub controller: Arc<zora_transport::TransferController>,
+    /// 最近一次计算出的传输速度
+    pub speed_bytes_per_second: u64,
+    /// 目录任务的文件总数
+    pub total_files: u64,
+    /// 目录任务已完成文件数
+    pub completed_files: u64,
+    /// 已经重试的次数
+    pub retry_count: u32,
 }
 
 impl TransferTask {
@@ -82,13 +93,26 @@ impl TransferTask {
     ) -> Self {
         Self {
             id,
-            source_path,
-            target_path,
+            source_path: source_path.clone(),
+            target_path: target_path.clone(),
             direction,
             total_size,
             transferred: 0,
             state: TransferState::Pending,
             cancel_flag: Arc::new(AtomicBool::new(false)),
+            controller: zora_transport::TransferController::new(
+                id as u64,
+                match direction {
+                    TransferDirection::Upload => zora_transport::TransferDirection::Upload,
+                    TransferDirection::Download => zora_transport::TransferDirection::Download,
+                },
+                source_path.clone(),
+                target_path.clone(),
+            ),
+            speed_bytes_per_second: 0,
+            total_files: 1,
+            completed_files: 0,
+            retry_count: 0,
         }
     }
 
@@ -104,11 +128,55 @@ impl TransferTask {
     /// 取消传输
     pub fn cancel(&self) {
         self.cancel_flag.store(true, Ordering::SeqCst);
+        self.controller.cancel();
+    }
+
+    pub fn cancel_for_ui(&mut self) {
+        self.cancel();
+        self.state = TransferState::Cancelled;
     }
 
     /// 检查是否已取消
     pub fn is_cancelled(&self) -> bool {
         self.cancel_flag.load(Ordering::SeqCst)
+    }
+
+    pub fn pause(&mut self) {
+        self.controller.pause();
+        self.state = TransferState::Paused;
+    }
+
+    pub fn resume(&mut self) {
+        self.controller.resume();
+        self.state = TransferState::InProgress;
+    }
+
+    pub fn retry(&mut self) {
+        self.cancel_flag.store(false, Ordering::SeqCst);
+        self.controller.reset_for_retry();
+        self.retry_count = self.retry_count.saturating_add(1);
+        self.transferred = 0;
+        self.speed_bytes_per_second = 0;
+        self.state = TransferState::Pending;
+    }
+
+    pub fn sync_from_controller(&mut self) {
+        let snapshot = self.controller.snapshot();
+        self.transferred = snapshot.transferred_bytes;
+        self.total_size = snapshot.total_bytes.max(self.total_size);
+        self.speed_bytes_per_second = snapshot.speed_bytes_per_second;
+        self.total_files = snapshot.total_files;
+        self.completed_files = snapshot.completed_files;
+        self.state = match snapshot.status {
+            zora_transport::TransferStatus::Pending => TransferState::Pending,
+            zora_transport::TransferStatus::Running => TransferState::InProgress,
+            zora_transport::TransferStatus::Paused => TransferState::Paused,
+            zora_transport::TransferStatus::Completed => TransferState::Completed,
+            zora_transport::TransferStatus::Failed => {
+                TransferState::Failed(snapshot.error.unwrap_or_else(|| "传输失败".to_string()))
+            }
+            zora_transport::TransferStatus::Cancelled => TransferState::Cancelled,
+        };
     }
 }
 
@@ -137,7 +205,9 @@ pub enum Dialog {
         file_size: u64,
         direction: TransferDirection,
     },
-    FileDetails { entry: FileEntry },
+    FileDetails {
+        entry: FileEntry,
+    },
     /// 关闭传输面板确认（有活跃传输时）
     CloseTransferPanelConfirm,
 }
@@ -283,7 +353,7 @@ mod tests {
     /// 测试 TransferTask 取消操作
     #[test]
     fn test_transfer_task_cancel() {
-        let task = TransferTask::new(
+        let mut task = TransferTask::new(
             1,
             PathBuf::from("/a"),
             PathBuf::from("/b"),
@@ -291,8 +361,9 @@ mod tests {
             100,
         );
         assert!(!task.is_cancelled());
-        task.cancel();
+        task.cancel_for_ui();
         assert!(task.is_cancelled());
+        assert!(matches!(task.state, TransferState::Cancelled));
     }
 
     /// 测试 TransferTask 取消标志共享
@@ -400,7 +471,10 @@ mod tests {
     #[test]
     fn test_transfer_state_variants() {
         assert!(matches!(TransferState::Pending, TransferState::Pending));
-        assert!(matches!(TransferState::InProgress, TransferState::InProgress));
+        assert!(matches!(
+            TransferState::InProgress,
+            TransferState::InProgress
+        ));
         assert!(matches!(TransferState::Completed, TransferState::Completed));
         assert!(matches!(TransferState::Cancelled, TransferState::Cancelled));
         let failed = TransferState::Failed("io error".into());
@@ -559,7 +633,10 @@ mod tests {
     /// 测试 Dialog::DeleteConfirm 空路径列表
     #[test]
     fn test_dialog_delete_confirm_empty_paths() {
-        let dialog = Dialog::DeleteConfirm { paths: vec![], is_dirs: vec![] };
+        let dialog = Dialog::DeleteConfirm {
+            paths: vec![],
+            is_dirs: vec![],
+        };
         assert!(matches!(dialog, Dialog::DeleteConfirm { .. }));
     }
 

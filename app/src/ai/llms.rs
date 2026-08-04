@@ -306,7 +306,6 @@ pub struct AvailableLLMs {
     /// The Zap "default" LLM.
     default_id: LLMId,
     choices: Vec<LLMInfo>,
-
 }
 
 impl AvailableLLMs {

@@ -1,4 +1,4 @@
-//! BYOP 模式下 chat completion + tool calling 适配层(基于 genai 0.5.3)。
+//! BYOP 模式下 chat completion + tool calling 适配层(基于官方 genai 0.6.5)。
 //!
 //! 把 `RequestParams` 翻译为 genai `ChatRequest`,通过 `Client::exec_chat_stream`
 //! 调用用户配置的 provider,响应翻译回 `warp_multi_agent_api::ResponseEvent`,
@@ -46,6 +46,7 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use instant::Instant;
+use reqwest_013::header::{HeaderMap, HeaderName, HeaderValue};
 use serde_json::{json, Value};
 use uuid::Uuid;
 use warp_multi_agent_api as api;
@@ -56,7 +57,7 @@ use genai::chat::{
     ChatStreamEvent, ContentPart, MessageContent, Tool as GenaiTool, ToolCall, ToolResponse,
 };
 use genai::resolver::{AuthData, Endpoint, ServiceTargetResolver};
-use genai::{Client, ModelIden, ServiceTarget, WebConfig};
+use genai::{Client, ModelIden, ServiceTarget};
 use http_client::current_proxy_config;
 
 use crate::ai::agent::api::{RequestParams, ResponseStream};
@@ -110,7 +111,7 @@ mod byop_stream_wait_tests {
 
     #[test]
     fn pending_provider_future_times_out() {
-        let (_, cancellation_rx) = futures::channel::oneshot::channel();
+        let (_cancellation_tx, cancellation_rx) = futures::channel::oneshot::channel();
         let mut cancellation_rx = futures::FutureExt::fuse(cancellation_rx);
         let outcome = warpui::r#async::block_on(wait_for_byop_future(
             futures::future::pending::<()>(),
@@ -1744,26 +1745,7 @@ fn build_chat_request(
     // 这里统一兜底:末尾若是 assistant,追加一条隐式 user 消息让上游继续。
     ensure_ends_with_user(&mut messages);
 
-    let mut tools_array = build_tools_array(params);
-
-    // Anthropic 路径:给 tools 数组**最后一个 tool**打 1h cache_control breakpoint,
-    // 使整个 tools 段成为长 TTL 的静态前缀(对齐 Zed
-    // `crates/anthropic/src/completion.rs::254-258`)。
-    //
-    // 处理顺序 `tools → system → messages`,长 TTL 必须在短 TTL 之前。本路径下:
-    // - tools 末尾 1h(此处)
-    // - system 1h(`apply_caching_anthropic` 给 ChatRole::System message)
-    // - messages 尾部 5m(`apply_caching_anthropic` 给 last 2 non-system)
-    //
-    // tools 段在 session 内变化最少(切 web_search / plan_mode / LRC 才变),命中率
-    // 极高,1h 写入 2× base 摊到多次复用,等效近 0 — 同时挡住外部反代在 system
-    // 上注入 5m 引发的 1h-after-5m 排序错误(让 tools 1h 这一个 breakpoint 接管
-    // 整个 tools+system 静态前缀)。
-    if matches!(api_type, AgentProviderApiType::Anthropic) {
-        if let Some(last_tool) = tools_array.last_mut() {
-            last_tool.cache_control = Some(CacheControl::Ephemeral1h);
-        }
-    }
+    let tools_array = build_tools_array(params);
 
     // 出站消息文本透传给 `serde_json` 处理 JSON escape,不再做激进的字符级
     // sanitize(参考 zed `into_anthropic` / opencode `provider/transform.ts`,
@@ -1944,12 +1926,11 @@ fn log_chat_request_details(
                 .unwrap_or(0);
             log::info!(
                 "[byop-diag] request tool[{idx}]: name={} desc_len={} schema_len={} \
-                 strict={:?} cache_control={:?}",
+                 strict={:?}",
                 tool.name.as_str(),
                 tool.description.as_deref().map(str::len).unwrap_or(0),
                 schema_len,
                 tool.strict,
-                tool.cache_control,
             );
         }
     }
@@ -2149,30 +2130,25 @@ fn log_chat_request_details(
 /// 行为与 opencode 给 lastContent.providerOptions.anthropic.cacheControl 一致。
 ///
 /// **TTL 选择(修订自 P0-4,对齐 Zed `crates/anthropic/src/completion.rs:219-274`)**:
-/// 静态前缀 system 用 1h;会话尾部 last 2 non-system 用 5m;同时 `build_chat_request`
-/// 在 Anthropic 路径给 tools 末尾打 1h(genai Tool struct 已加 cache_control 字段)。
+/// 静态前缀 system 用 1h;会话尾部 last 2 non-system 用 5m。
 ///
 /// **混合策略动机**:
 /// - 旧策略"全部 1h"无法和外部 5m breakpoint 共存。BYOP 反代 / 上游网关在更早
-///   位置(tools/system)注入默认 5m 时,Anthropic 排序约束会拒绝随后的 1h:
+///   位置(system)注入默认 5m 时,Anthropic 排序约束会拒绝随后的 1h:
 ///   `a ttl='1h' cache_control block must not come after a ttl='5m'`,触发 400。
-/// - 新策略:长 TTL 全部前置(tools / system 1h),短 TTL 落在序列尾(messages 5m),
-///   严格符合 Anthropic 处理顺序 `tools → system → messages`,外部如果在 tools/
-///   system 上多塞 5m 也只会变成"两个 5m 在前 + tail 5m",不再触发 1h-after-5m。
+/// - 新策略:长 TTL 放在 system 前缀,短 TTL 落在序列尾(messages 5m),减少
+///   外部代理添加 cache breakpoint 时的 TTL 排序冲突。
 ///
 /// **成本影响**:
-/// - tools/system 是 session 内的静态前缀,1h 写入 2× base 摊到整个 session 内多次
-///   命中,等效近 0(对比"全 1h"反复重写 tail 的总成本明显下降)。
+/// - system 是 session 内的静态前缀,1h 写入成本可摊到整个 session 内多次命中。
 /// - messages 尾部每轮变,5m 写入 1.25× base,5min 内下一轮命中即免费续期,不会
 ///   反复重写,且无需提交 1h 的高额一次性写入。
 ///
 /// **TTL 排序约束**:Anthropic API 要求长 TTL 的 breakpoint 必须排在短 TTL 之前
 /// (`https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
 ///  #mixing-different-ttls`)。本函数把 system 标 1h、非 system 末尾标 5m,顺序
-///  天然 system(1h) → messages(5m) 合规;`build_chat_request` 给 tools 末尾打 1h
-///  也在 system 之前,整体顺序 tools(1h) → system(1h) → messages(5m) 仍合规。
-/// genai 在 `into_anthropic_request_parts` 内会按顺序检查,违反时 warn(见
-/// `lib/rust-genai/src/adapter/adapters/anthropic/adapter_impl.rs`)。
+///  天然 system(1h) → messages(5m) 合规。
+/// genai Anthropic adapter 会按顺序检查,违反时 warn。
 fn apply_caching_anthropic(messages: &mut Vec<ChatMessage>) {
     let n = messages.len();
     if n == 0 {
@@ -3004,6 +2980,8 @@ pub(super) fn build_client(
     api_type: AgentProviderApiType,
     base_url: &str,
     api_key: String,
+    model_id: &str,
+    extra_headers: &[(String, String)],
 ) -> Client {
     let endpoint_url = normalize_endpoint_url(api_type, base_url);
     log::info!("[byop] build_client: api_type={api_type:?} endpoint_url={endpoint_url}");
@@ -3043,54 +3021,90 @@ pub(super) fn build_client(
     // 明文,流式语义被破坏成 ~K 字节 burst,体感"几百毫秒一卡"。zed/opencode
     // 用 native fetch / std HTTP 不主动协商 gzip on SSE,所以同代理无问题。
     //
-    // 这里显式构造 `WebConfig` 即使 genai default 已经 `gzip=false`(fork 修改)。
+    // 这里显式构造 reqwest 0.13 client,保持 BYOP 的 gzip、超时和代理策略。
     //
     // User-Agent 动态绑定当前应用名(取自 `ChannelState::app_id().application_name()`,
     // 由入口 bin 注册:`bin/oss.rs` → "Zap";其它 channel 自带各自名称)。
     // 这样上游服务能识别请求来自哪个分支构建,后续若改名也会自动跟随。
-    let mut headers = reqwest::header::HeaderMap::new();
+    let mut headers = HeaderMap::new();
     if let Ok(value) = build_user_agent_header() {
-        headers.insert(reqwest::header::USER_AGENT, value);
+        headers.insert(reqwest_013::header::USER_AGENT, value);
     }
-    let mut web_config = WebConfig {
-        timeout: Some(BYOP_REQUEST_TIMEOUT),
-        connect_timeout: Some(BYOP_CONNECT_TIMEOUT),
+    if effective_adapter_kind_for(api_type, model_id, base_url) == AdapterKind::Anthropic
+        && anthropic_model_supports_1m_context(model_id)
+    {
+        headers.insert(
+            HeaderName::from_static("anthropic-beta"),
+            HeaderValue::from_static("context-1m-2025-08-07"),
+        );
+    }
+    for (name, value) in extra_headers {
+        let Ok(name) = HeaderName::from_bytes(name.as_bytes()) else {
+            log::warn!("[byop] 忽略无效请求头名称: {name:?}");
+            continue;
+        };
+        let Ok(value) = HeaderValue::from_str(value) else {
+            log::warn!("[byop] 忽略无效请求头值: {name}: {value:?}");
+            continue;
+        };
+        headers.insert(name, value);
+    }
+    let mut client_builder = reqwest_013::Client::builder()
+        .timeout(BYOP_REQUEST_TIMEOUT)
+        .connect_timeout(BYOP_CONNECT_TIMEOUT)
         // 应用层 idle timer 会先返回带上下文的错误; reqwest 再提供更长的底层兜底。
-        read_timeout: Some(BYOP_HTTP_READ_TIMEOUT),
-        gzip: false,
-        default_headers: Some(headers),
-        ..WebConfig::default()
-    };
+        .read_timeout(BYOP_HTTP_READ_TIMEOUT)
+        // BYOP SSE 不主动协商 gzip,避免部分代理缓冲压缩后的事件流。
+        .gzip(false)
+        .tcp_nodelay(true)
+        .default_headers(headers)
+        .pool_max_idle_per_host(4)
+        .http2_keep_alive_interval(Some(Duration::from_secs(20)))
+        .http2_keep_alive_timeout(Duration::from_secs(10))
+        .http2_keep_alive_while_idle(true)
+        .http2_adaptive_window(true);
     let proxy_cfg = current_proxy_config();
     match proxy_cfg.mode {
         http_client::ProxyMode::Off => {
             // 完全禁用代理（含系统代理和环境变量），与
             // http_client::Client::new() 的 Off 行为对齐。
-            web_config.no_proxy = true;
+            client_builder = client_builder.no_proxy();
         }
         http_client::ProxyMode::System => {
             // 跟随系统/环境变量代理（reqwest 默认行为）。
-            // WebConfig 不设 proxy → reqwest 读 macOS SystemConfiguration
-            // 或环境变量 HTTP_PROXY / HTTPS_PROXY。
+            // 不显式设置 proxy → reqwest 读取系统或环境变量代理。
         }
         http_client::ProxyMode::Custom => {
             if !proxy_cfg.url.is_empty() {
-                if let Err(err) = web_config.set_proxy_settings(
-                    &proxy_cfg.url,
-                    &proxy_cfg.username,
-                    &proxy_cfg.password,
-                    &proxy_cfg.no_proxy,
-                ) {
-                    log::warn!(
-                        "[byop] proxy URL '{}' 无效,跳过代理配置: {err}",
-                        proxy_cfg.url
-                    );
+                match reqwest_013::Proxy::all(&proxy_cfg.url) {
+                    Ok(mut proxy) => {
+                        if !proxy_cfg.username.is_empty() || !proxy_cfg.password.is_empty() {
+                            proxy = proxy.basic_auth(&proxy_cfg.username, &proxy_cfg.password);
+                        }
+                        if !proxy_cfg.no_proxy.trim().is_empty() {
+                            if let Some(no_proxy) =
+                                reqwest_013::NoProxy::from_string(proxy_cfg.no_proxy.trim())
+                            {
+                                proxy = proxy.no_proxy(Some(no_proxy));
+                            }
+                        }
+                        client_builder = client_builder.proxy(proxy);
+                    }
+                    Err(err) => {
+                        log::warn!(
+                            "[byop] proxy URL '{}' 无效,跳过代理配置: {err}",
+                            proxy_cfg.url
+                        );
+                    }
                 }
             }
         }
     }
+    let reqwest_client = client_builder
+        .build()
+        .expect("Failed to build BYOP reqwest client");
     Client::builder()
-        .with_web_config(web_config)
+        .with_reqwest(reqwest_client)
         .with_service_target_resolver(resolver)
         .build()
 }
@@ -3101,8 +3115,7 @@ pub(super) fn build_client(
 ///
 /// 应用名一律从 `ChannelState::app_id().application_name()` 取,确保与入口 bin
 /// 注册的 `AppId` 一致(`bin/oss.rs` 注册 "Zap")。
-fn build_user_agent_header(
-) -> Result<reqwest::header::HeaderValue, reqwest::header::InvalidHeaderValue> {
+fn build_user_agent_header() -> Result<HeaderValue, reqwest_013::header::InvalidHeaderValue> {
     let app_name = warp_core::channel::ChannelState::app_id()
         .application_name()
         .to_owned();
@@ -3110,7 +3123,26 @@ fn build_user_agent_header(
         Some(v) if !v.is_empty() => format!("{app_name}/{v}"),
         _ => app_name,
     };
-    reqwest::header::HeaderValue::from_str(&ua)
+    HeaderValue::from_str(&ua)
+}
+
+fn anthropic_model_supports_1m_context(model_name: &str) -> bool {
+    let model_name = model_name.to_ascii_lowercase();
+    model_name.contains("sonnet") || is_opus_at_least(&model_name, 4, 6)
+}
+
+fn is_opus_at_least(model_name: &str, target_major: u32, target_minor: u32) -> bool {
+    let Some(version) = model_name.split("claude-opus-").nth(1) else {
+        return false;
+    };
+    let mut parts = version.split('-');
+    let Some(major) = parts.next().and_then(|part| part.parse::<u32>().ok()) else {
+        return false;
+    };
+    let Some(minor) = parts.next().and_then(|part| part.parse::<u32>().ok()) else {
+        return false;
+    };
+    (major, minor) >= (target_major, target_minor)
 }
 
 /// 判定是否给 DashScope(阿里云百炼,OpenAI 兼容路径)注入 `enable_thinking: true`。
@@ -3248,13 +3280,11 @@ fn build_chat_options(
     // - **Off + Anthropic / Gemini**:**完全跳过 `with_reasoning_effort`**,等同
     //   Auto + 模型名无 thinking 后缀。genai adapter 走 `(model, None)` 推断分支,
     //   不调 `insert_anthropic_reasoning` / `thinkingConfig`,不发 thinking 字段。
-    //   ★ 这正好绕开 vendor genai `claude-opus-4-6` / `claude-sonnet-4-6`
+    //   ★ 这正好绕开 genai `claude-opus-4-6` / `claude-sonnet-4-6`
     //   `support_adaptive` 强行注入 `thinking:{type:adaptive}` 的 bug
-    //   (`lib/rust-genai/src/adapter/adapters/anthropic/adapter_impl.rs:121-135`
     //   不读 effort 是否为 `None`)。
     // - **Off + DeepSeek**:服务端 `thinking_mode` 默认开启(deepseek-v4-flash 等),
-    //   需要显式 `extra_body.thinking.type=disabled` 才能关闭。Zap 本地 fork
-    //   的 genai 已支持 `ChatOptions::extra_body` 顶层合并。
+    //   需要显式 `extra_body.thinking.type=disabled` 才能关闭。
     // - **Off + OpenAI / OpenAiResp**:走 `reasoning_effort: "none"` 路径
     //   (GPT-5 / codex 接受 `none` 档;o-series 由能力表过滤)。
     // - **非 Off + 模型不支持 reasoning**:跳过,避免给 claude-3-5-haiku / gpt-4o /
@@ -3296,7 +3326,15 @@ fn build_chat_options(
                     log::info!(
                         "[byop] reasoning_effort injected: model={model_id} setting={effort_setting:?}"
                     );
-                    opts = opts.with_reasoning_effort(effort);
+                    if api_type == AgentProviderApiType::DeepSeek {
+                        if let Some(keyword) = effort.as_keyword() {
+                            opts = opts.with_extra_body(json!({
+                                "reasoning_effort": keyword
+                            }));
+                        }
+                    } else {
+                        opts = opts.with_reasoning_effort(effort);
+                    }
                 } else {
                     log::info!(
                         "[byop] reasoning_effort SKIPPED: model={model_id} not in capability list \
@@ -3443,6 +3481,7 @@ pub async fn generate_byop_output(
         .as_ref()
         .map(|t| t.as_str().to_string())
         .unwrap_or_default();
+    let client = build_client(api_type, &base_url, api_key, &model_id, &extra_headers);
     let chat_opts = build_chat_options(
         api_type,
         &base_url,
@@ -3455,7 +3494,6 @@ pub async fn generate_byop_output(
             Some(conversation_id.as_str())
         },
     );
-    let client = build_client(api_type, &base_url, api_key);
     let request_id = Uuid::new_v4().to_string();
     let mcp_context = params.mcp_context.clone();
     let tool_names_for_extract = available_tool_names(&params);
@@ -5677,7 +5715,7 @@ mod build_chat_options_off_tests {
     }
 
     /// claude-sonnet-4-6(`SUPPORT_ADAPTTIVE_THINK_MODELS` 命中)+ Off 必须**完全
-    /// 不传** `reasoning_effort`,否则 vendor genai adapter 会无条件插入
+    /// 不传** `reasoning_effort`,否则 genai adapter 会无条件插入
     /// `thinking:{type:adaptive}`(`adapter_impl.rs:121-135`)。
     #[test]
     fn anthropic_sonnet_4_6_off_skips_reasoning_effort() {
@@ -5754,12 +5792,18 @@ mod build_chat_options_off_tests {
         );
     }
 
-    /// DeepSeek + High 走 reasoning_effort 顶层字段。
+    /// DeepSeek + High 通过官方 genai 的 extra_body 发送 reasoning_effort。
     #[test]
     fn deepseek_high_injects_reasoning_effort() {
         let o = opts(AgentProviderApiType::DeepSeek, "deepseek-reasoner", R::High);
-        assert!(matches!(o.reasoning_effort, Some(GE::High)));
-        assert!(o.extra_body.is_none());
+        assert!(o.reasoning_effort.is_none());
+        assert_eq!(
+            o.extra_body
+                .as_ref()
+                .and_then(|body| body.get("reasoning_effort"))
+                .and_then(serde_json::Value::as_str),
+            Some("high")
+        );
     }
 
     /// OpenAI(GPT-5)+ Off:走 reasoning_effort=none(GPT-5 接受 `none` 档)。

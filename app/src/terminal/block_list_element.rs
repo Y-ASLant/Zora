@@ -36,6 +36,7 @@ use warpui::platform::Cursor;
 use warpui::text::SelectionType;
 
 use crate::terminal::shared_session::protocol::{ParticipantId, Selection};
+use chrono::{Datelike, Timelike};
 use pathfinder_color::ColorU;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -3448,16 +3449,35 @@ impl Element for BlockListElement {
                     // we want to show different text in the separator if this is an individual conversation
                     // restored from the command palette
                     let banner_intro_text = if is_historical_conversation_restoration {
-                        "Conversation restored".to_string()
+                        crate::t!("terminal-restored-session-conversation")
                     } else {
-                        "Previous session".to_string()
+                        crate::t!("terminal-restored-session-previous")
                     };
 
                     let separator_text =
                         if let Some(ts) = (*model).block_list().restored_session_ts() {
-                            format!(
-                                "{banner_intro_text} from {}",
-                                ts.format("%a %b %-d at %-I:%M %p")
+                            let hour24 = ts.hour();
+                            let (hour, period) = match hour24 {
+                                0 => (12, "am"),
+                                1..=11 => (hour24, "am"),
+                                12 => (12, "pm"),
+                                13..=23 => (hour24 - 12, "pm"),
+                                24.. => unreachable!("a clock hour cannot be greater than 23"),
+                            };
+                            let timestamp = crate::t!(
+                                "terminal-restored-session-timestamp",
+                                weekday = ts.weekday().number_from_sunday(),
+                                month = ts.month(),
+                                day = ts.day(),
+                                hour = hour,
+                                hour24 = hour24,
+                                minute = ts.format("%M").to_string(),
+                                period = period,
+                            );
+                            crate::t!(
+                                "terminal-restored-session-from",
+                                label = banner_intro_text,
+                                timestamp = timestamp,
                             )
                         } else {
                             banner_intro_text

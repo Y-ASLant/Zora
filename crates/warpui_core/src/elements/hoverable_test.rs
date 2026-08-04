@@ -12,7 +12,7 @@ use crate::{
 };
 use pathfinder_geometry::vector::vec2f;
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     rc::Rc,
 };
@@ -708,5 +708,99 @@ fn test_unpainted_hoverable_receives_click_events_without_panic() {
             };
             hoverable.dispatch_event(&DispatchedEvent::from(mouse_up), &mut event_ctx, ctx);
         });
+    });
+}
+
+struct ModifierDoubleClickView {
+    received_ctrl: Rc<Cell<bool>>,
+    received_shift: Rc<Cell<bool>>,
+}
+
+impl Entity for ModifierDoubleClickView {
+    type Event = ();
+}
+
+impl crate::core::View for ModifierDoubleClickView {
+    fn ui_name() -> &'static str {
+        "modifier_double_click_test_view"
+    }
+
+    fn render(&self, _: &AppContext) -> Box<dyn Element> {
+        let received_ctrl = self.received_ctrl.clone();
+        let received_shift = self.received_shift.clone();
+        Hoverable::new(MouseStateHandle::default(), |_| {
+            ConstrainedBox::new(Rect::new().finish())
+                .with_height(100.)
+                .with_width(100.)
+                .finish()
+        })
+        .on_double_click_with_modifiers(move |_, _, _, modifiers| {
+            received_ctrl.set(modifiers.ctrl);
+            received_shift.set(modifiers.shift);
+        })
+        .finish()
+    }
+}
+
+impl TypedActionView for ModifierDoubleClickView {
+    type Action = ();
+}
+
+#[test]
+fn test_modifier_aware_double_click_receives_modifiers() {
+    App::test((), |mut app| async move {
+        let received_ctrl = Rc::new(Cell::new(false));
+        let received_shift = Rc::new(Cell::new(false));
+        let received_ctrl_for_view = received_ctrl.clone();
+        let received_shift_for_view = received_shift.clone();
+        let (window_id, _) = app.add_window(WindowStyle::NotStealFocus, move |_| {
+            ModifierDoubleClickView {
+                received_ctrl: received_ctrl_for_view,
+                received_shift: received_shift_for_view,
+            }
+        });
+        let mut presenter = Presenter::new(window_id);
+        let root_view_id = app.root_view_id(window_id).unwrap();
+
+        app.update(move |ctx| {
+            let mut updated = HashSet::new();
+            updated.insert(root_view_id);
+            presenter.invalidate(
+                WindowInvalidation {
+                    updated,
+                    ..Default::default()
+                },
+                ctx,
+            );
+            presenter.build_scene(vec2f(100., 100.), 1., None, ctx);
+            let presenter = Rc::new(RefCell::new(presenter));
+            let modifiers = crate::event::ModifiersState {
+                ctrl: true,
+                shift: true,
+                ..Default::default()
+            };
+
+            ctx.simulate_window_event(
+                Event::LeftMouseDown {
+                    position: vec2f(10., 10.),
+                    modifiers,
+                    click_count: 2,
+                    is_first_mouse: false,
+                },
+                window_id,
+                presenter.clone(),
+            );
+            ctx.simulate_window_event(
+                Event::LeftMouseUp {
+                    position: vec2f(10., 10.),
+                    modifiers,
+                },
+                window_id,
+                presenter,
+            );
+        });
+
+        assert!(received_ctrl.get());
+        assert!(received_shift.get());
     });
 }

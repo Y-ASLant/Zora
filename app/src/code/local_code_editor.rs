@@ -10,6 +10,7 @@ use std::{
     ops::Range,
     path::{Path, PathBuf},
     rc::Rc,
+    time::Duration,
 };
 
 use pathfinder_geometry::vector::Vector2F;
@@ -48,7 +49,8 @@ use crate::{
         global_buffer_model::{BufferState, GlobalBufferModel},
         SaveOutcome,
     },
-    settings::AISettings,
+    debounce::debounce,
+    settings::{AISettings, CodeSettings},
     terminal::TerminalView,
     util::sync::Condition,
 };
@@ -65,6 +67,8 @@ const DROP_SHADOW_COLOR: ColorU = ColorU {
     b: 0,
     a: 48,
 };
+
+const AUTO_SAVE_DEBOUNCE_PERIOD: Duration = Duration::from_millis(1000);
 
 use super::diff_viewer::DiffViewer;
 use super::editor::{
@@ -89,7 +93,9 @@ pub enum LocalCodeEditorEvent {
     FailedToLoad {
         error: Rc<FileLoadError>,
     },
-    FileSaved,
+    FileSaved {
+        auto_saved: bool,
+    },
     FailedToSave {
         error: Rc<FileSaveError>,
     },
@@ -190,6 +196,8 @@ pub struct LocalCodeEditorView {
     /// `set_pending_scroll` is called before the file content has finished loading
     /// (e.g., in the GlobalBuffer path where content loads asynchronously).
     pending_scroll_on_load: Option<ScrollPosition>,
+    auto_save_debounce_tx: async_channel::Sender<()>,
+    auto_save_in_flight: bool,
 }
 
 impl LocalCodeEditorView {
@@ -210,6 +218,10 @@ impl LocalCodeEditorView {
                 if origin.from_user() {
                     me.was_edited = true;
                     ctx.emit(LocalCodeEditorEvent::UserEdited);
+
+                    if me.diff_type.is_none() && *CodeSettings::as_ref(ctx).auto_save {
+                        let _ = me.auto_save_debounce_tx.try_send(());
+                    }
                 }
             }
             CodeEditorEvent::VimEscapeInNormalMode => {
@@ -257,6 +269,12 @@ impl LocalCodeEditorView {
         });
 
         let is_new_file = matches!(diff_type, Some(DiffType::Create { .. }));
+        let (auto_save_debounce_tx, auto_save_debounce_rx) = async_channel::unbounded();
+        ctx.spawn_stream_local(
+            debounce(AUTO_SAVE_DEBOUNCE_PERIOD, auto_save_debounce_rx),
+            |me, (), ctx| me.auto_save_after_delay(ctx),
+            |_, _| {},
+        );
 
         let model = Self {
             editor,
@@ -272,6 +290,8 @@ impl LocalCodeEditorView {
             default_directory: None,
             footer: None,
             pending_scroll_on_load: None,
+            auto_save_debounce_tx,
+            auto_save_in_flight: false,
         };
 
         if let Some(display_mode) = display_mode {
@@ -333,11 +353,28 @@ impl LocalCodeEditorView {
         };
 
         if let Err(err) = result {
+            self.auto_save_in_flight = false;
             log::error!("Failed to save file: {err:?}");
             ctx.emit(LocalCodeEditorEvent::FailedToSave {
                 error: Rc::new(err),
             });
         }
+    }
+
+    fn auto_save_after_delay(&mut self, ctx: &mut ViewContext<Self>) {
+        if !*CodeSettings::as_ref(ctx).auto_save
+            || self.diff_type.is_some()
+            || !self.has_unsaved_changes(ctx)
+        {
+            return;
+        }
+
+        let Some(file_id) = self.file_id() else {
+            return;
+        };
+
+        self.auto_save_in_flight = true;
+        self.perform_save(file_id, ctx);
     }
 
     pub fn is_new_file(&self) -> bool {
@@ -580,9 +617,11 @@ impl LocalCodeEditorView {
                     }
                 }
                 GlobalBufferModelEvent::FileSaved { .. } => {
-                    ctx.emit(LocalCodeEditorEvent::FileSaved);
+                    let auto_saved = std::mem::take(&mut me.auto_save_in_flight);
+                    ctx.emit(LocalCodeEditorEvent::FileSaved { auto_saved });
                 }
                 GlobalBufferModelEvent::FailedToSave { error, .. } => {
+                    me.auto_save_in_flight = false;
                     me.base_content_version = GlobalBufferModel::as_ref(ctx).base_version(file_id);
                     ctx.emit(LocalCodeEditorEvent::FailedToSave {
                         error: error.clone(),

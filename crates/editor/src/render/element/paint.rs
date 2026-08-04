@@ -27,6 +27,7 @@ use string_offset::CharOffset;
 use vim::vim::VimMode;
 
 const DEFAULT_BLOCK_CURSOR_WIDTH: f32 = 8.;
+const MIN_UNDERLINE_CURSOR_HEIGHT_PX: f32 = 1.;
 
 /// Cursor display types for vim mode support.
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -293,10 +294,14 @@ impl<'a, 'b> RenderContext<'a, 'b> {
         let (font_size, block_width) = cursor_data.unzip();
         let height = size.y();
 
-        let cursor_size = match cursor_display_type {
-            CursorDisplayType::Bar => size,
-            CursorDisplayType::Block => vec2f(block_width, height),
-            CursorDisplayType::Underline => vec2f(block_width, height - font_size),
+        let (cursor_size, cursor_origin_offset_y) = match cursor_display_type {
+            CursorDisplayType::Bar => (size, 0.),
+            CursorDisplayType::Block => (vec2f(block_width, height), 0.),
+            CursorDisplayType::Underline => {
+                let (origin_offset_y, underline_height) =
+                    underline_cursor_geometry(height, font_size);
+                (vec2f(block_width, underline_height), origin_offset_y)
+            }
         };
 
         let cursor_origin = match cursor_display_type {
@@ -307,7 +312,7 @@ impl<'a, 'b> RenderContext<'a, 'b> {
             }
             CursorDisplayType::Block => self.content_to_screen(content_position),
             CursorDisplayType::Underline => {
-                self.content_to_screen(content_position) + vec2f(0., font_size)
+                self.content_to_screen(content_position) + vec2f(0., cursor_origin_offset_y)
             }
         };
 
@@ -341,5 +346,36 @@ impl<'a, 'b> RenderContext<'a, 'b> {
     pub fn is_visible(&self, rect: RectF) -> bool {
         let origin = Point::from_vec2f(rect.origin(), self.paint.scene.z_index());
         self.paint.scene.visible_rect(origin, rect.size()).is_some()
+    }
+}
+
+fn underline_cursor_geometry(height: f32, font_size: f32) -> (f32, f32) {
+    let underline_height = (height - font_size).max(MIN_UNDERLINE_CURSOR_HEIGHT_PX);
+    let underline_origin_y = (height - underline_height).max(0.);
+    (underline_origin_y, underline_height)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::underline_cursor_geometry;
+
+    const FLOAT_TOLERANCE: f32 = 1e-4;
+
+    #[test]
+    fn underline_cursor_is_drawn_at_the_bottom_of_the_cursor_area() {
+        let (origin_y, height) = underline_cursor_geometry(16.8, 14.);
+
+        assert!((origin_y - 14.).abs() < FLOAT_TOLERANCE);
+        assert!((height - 2.8).abs() < FLOAT_TOLERANCE);
+        assert!((origin_y + height - 16.8).abs() < FLOAT_TOLERANCE);
+    }
+
+    #[test]
+    fn underline_cursor_keeps_a_visible_thickness_with_compact_line_height() {
+        let (origin_y, height) = underline_cursor_geometry(10., 14.);
+
+        assert!((origin_y - 9.).abs() < FLOAT_TOLERANCE);
+        assert!((height - 1.).abs() < FLOAT_TOLERANCE);
+        assert!((origin_y + height - 10.).abs() < FLOAT_TOLERANCE);
     }
 }
