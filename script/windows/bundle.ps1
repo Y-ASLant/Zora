@@ -235,8 +235,8 @@ if (-not ($CargoFeatureList -contains 'standalone')) {
 }
 
 Write-Output 'Building Zora installer'
-# Inno Setup `AppId` 决定注册表 Uninstall 条目与升级跟踪键。OSS 使用新应用标识 `dev.warp.zora`,
-# 避免留在默认的 `warp-terminal-oss` 上。其他 channel 走 .iss 里的默认
+# Inno Setup `AppId` 决定注册表 Uninstall 条目与升级跟踪键。OSS 使用独立的
+# `dev.warp.zora`,不会与旧 Zap 安装共享升级链。其他 channel 走 .iss 里的默认
 # `warp-terminal-{ReleaseChannel}`。
 if ("$CHANNEL" -eq 'oss') {
     $INNO_APP_ID = 'dev.warp.zora'

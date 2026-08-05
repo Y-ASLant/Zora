@@ -34,15 +34,24 @@
   ((ReleaseChannel == "integration") ? "Integration" : \
   ((ReleaseChannel == "oss") ? "Oss" : \
   "Unknown")))))
-#define AppMutexName "dev.warp.zora" + ChannelPascalCase + "_SingleInstance"
+; 必须与 single_instance_manager.rs 中当前 channel 的 Mutex 命名保持一致。
+#if ReleaseChannel == "oss"
+  #define AppMutexName "Local\dev.warp.zora" + ChannelPascalCase + "_SingleInstance"
+#else
+  #define AppMutexName "Local\Zap" + ChannelPascalCase + "_SingleInstance"
+#endif
 
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
-; bundle.ps1 会为 OSS 传入 `InnoAppId=dev.warp.zora`,其他 channel 走默认的 `warp-terminal-{ReleaseChannel}`。
+; bundle.ps1 会为 OSS 传入独立的 `InnoAppId=dev.warp.zora`,不会升级旧 Zap 安装。
 #ifndef InnoAppId
+#if ReleaseChannel == "oss"
+  #define InnoAppId "dev.warp.zora"
+#else
   #define InnoAppId "warp-terminal-" + ReleaseChannel
+#endif
 #endif
 AppId={#InnoAppId}
 AppName={#MyAppName}
