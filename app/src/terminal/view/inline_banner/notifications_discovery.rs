@@ -78,7 +78,7 @@ pub fn render_inline_notifications_discovery_banner(
         NotificationsMode::Dismissed => (crate::t!("notifications-banner-dismissed-title"), vec![]),
         NotificationsMode::Disabled => (crate::t!("notifications-banner-disabled-title"), vec![]),
         NotificationsMode::Unset => (
-            trigger.discovery_banner_copy().to_owned(),
+            trigger.discovery_banner_copy(),
             vec![
                 learn_more_button,
                 InlineBannerTextButton {

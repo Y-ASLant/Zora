@@ -786,19 +786,19 @@ pub enum NotificationsTrigger {
 }
 
 impl NotificationsTrigger {
-    pub fn discovery_banner_copy(&self) -> &'static str {
+    pub fn discovery_banner_copy(&self) -> String {
         match self {
             NotificationsTrigger::LongRunningCommand(..) => {
-                "Zora can notify you when long-running commands finish."
+                crate::t!("notifications-banner-discovery-long-running-command")
             }
             NotificationsTrigger::AgentTaskCompleted(..) => {
-                "Zora can notify you when an agent finishes responding."
+                crate::t!("notifications-banner-discovery-agent-task-completed")
             }
             NotificationsTrigger::NeedsAttention => {
-                "Zora can notify you when a command or agent needs your attention."
+                crate::t!("notifications-banner-discovery-needs-attention")
             }
             NotificationsTrigger::PasswordPrompt => {
-                "Zora can notify you when you're prompted to enter a password."
+                crate::t!("notifications-banner-discovery-password-prompt")
             }
         }
     }
@@ -8547,7 +8547,7 @@ impl TerminalView {
 
         let a11y_content = AccessibilityContent::new(
             trigger.discovery_banner_copy(),
-            "You can enable notifications through the command palette.",
+            crate::t!("notifications-banner-discovery-a11y-description"),
             WarpA11yRole::TextRole,
         );
         ctx.emit_a11y_content(a11y_content);
