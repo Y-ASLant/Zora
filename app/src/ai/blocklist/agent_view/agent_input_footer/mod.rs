@@ -489,7 +489,10 @@ impl AgentInputFooter {
                 #[cfg(not(target_family = "wasm"))]
                 if let CLIAgentSessionsModelEvent::Started { .. } = event {
                     if let Some(agent) = me.cli_agent(ctx) {
-                        let label = format!("Enable {} notifications", agent.display_name());
+                        let label = crate::t!(
+                            "ai-footer-enable-agent-notifications",
+                            agent = agent.display_name()
+                        );
                         me.install_plugin_button.update(ctx, |button, ctx| {
                             button.set_label(label, ctx);
                         });
@@ -954,11 +957,7 @@ impl AgentInputFooter {
         let window_id = ctx.window_id();
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
             toast_stack.add_ephemeral_toast(
-                DismissibleToast::error(
-                    "Could not automatically install plugin. \
-                     Please click the chip again for manual installation steps."
-                        .to_owned(),
-                ),
+                DismissibleToast::error(crate::t!("ai-footer-plugin-auto-install-failed")),
                 window_id,
                 ctx,
             );
@@ -1047,7 +1046,7 @@ impl AgentInputFooter {
                 else {
                     return Err((
                         PluginInstallError {
-                            message: "No plugin manager available".to_owned(),
+                            message: crate::t!("ai-footer-no-plugin-manager"),
                             log: String::new(),
                         },
                         None,
@@ -1129,7 +1128,6 @@ impl AgentInputFooter {
             .cli_agent(ctx)
             .and_then(plugin_manager_for)
             .map(|m| m.install_success_message())
-            .map(ToOwned::to_owned)
             .unwrap_or_else(|| crate::t!("ai-footer-plugin-installed-restart-session"));
         self.handle_plugin_operation(
             crate::t!("ai-footer-installing-warp-plugin"),
@@ -1147,7 +1145,6 @@ impl AgentInputFooter {
             .cli_agent(ctx)
             .and_then(plugin_manager_for)
             .map(|m| m.update_success_message())
-            .map(ToOwned::to_owned)
             .unwrap_or_else(|| crate::t!("ai-footer-plugin-updated-restart-session"));
         self.handle_plugin_operation(
             crate::t!("ai-footer-updating-warp-plugin"),

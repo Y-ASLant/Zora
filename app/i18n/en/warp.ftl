@@ -290,6 +290,7 @@ ai-rule-edit-rule = Edit rule
 ai-rule-delete-rule = Delete rule
 ai-aws-refresh-credentials = Refresh AWS Credentials
 ai-footer-enable-notifications = Enable notifications
+ai-footer-enable-agent-notifications = Enable { $agent } notifications
 ai-footer-enable-notifications-tooltip = Install the Warp plugin to enable rich agent notifications within Zap
 ai-footer-notifications-setup-instructions = Notifications setup instructions
 ai-footer-install-plugin-instructions-tooltip = View instructions to install the Warp plugin
@@ -3147,6 +3148,17 @@ auth-logout-unsaved-files-warning = You have { $count } unsaved { $count ->
     }.
 
 # CLI agent plugin instructions
+cli-agent-plugin-command-failed = '{ $command }' failed
+cli-agent-plugin-command-run-failed = Failed to run '{ $command }'
+cli-agent-plugin-auto-install-not-supported = Auto-install is not supported for this agent
+cli-agent-plugin-auto-update-not-supported = Auto-update is not supported for this agent
+cli-agent-plugin-default-install-success = Zap plugin installed. Please restart the session to activate.
+cli-agent-plugin-default-update-success = Zap plugin updated. Please restart the session to activate.
+cli-agent-plugin-update-no-effect = Plugin update did not take effect
+cli-agent-plugin-claude-install-success = Zap plugin installed. Please run /reload-plugins to activate.
+cli-agent-plugin-claude-update-success = Zap plugin updated. Please run /reload-plugins to activate.
+cli-agent-plugin-gemini-install-success = Zap plugin installed. Please restart Gemini CLI to activate.
+cli-agent-plugin-gemini-update-success = Zap plugin updated. Please restart Gemini CLI to activate.
 cli-agent-plugin-run-on-remote = Be sure to run these commands on your remote machine.
 cli-agent-plugin-codex-install-title = Enable Zap Notifications for Codex
 cli-agent-plugin-codex-install-subtitle = Update Codex to the latest version, then enable in-focus notifications so Zap can display them while you work.
@@ -3450,6 +3462,8 @@ ai-footer-failed-install-warp-plugin = Failed to install Warp plugin
 ai-footer-plugin-updated-restart-session = Warp plugin updated. Please restart the session to activate.
 ai-footer-updating-warp-plugin = Updating Warp plugin...
 ai-footer-failed-update-warp-plugin = Failed to update Warp plugin
+ai-footer-plugin-auto-install-failed = Could not automatically install plugin. Please click the chip again for manual installation steps.
+ai-footer-no-plugin-manager = No plugin manager available
 voice-input-limit-reached = Voice input limit reached
 voice-input-transcription-failed = Failed to transcribe voice input
 ai-toolbar-context-chip = Context Chip
