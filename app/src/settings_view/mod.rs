@@ -1047,11 +1047,16 @@ impl SettingsView {
         let cloud_sync_page_handle =
             ctx.add_typed_action_view(cloud_sync_page::CloudSyncPageView::new);
 
-        let font_family = Appearance::as_ref(ctx).ui_font_family();
         let search_editor = ctx.add_typed_action_view(|ctx| {
+            let appearance = Appearance::as_ref(ctx);
             let options = SingleLineEditorOptions {
                 text: TextOptions {
-                    font_family_override: Some(font_family),
+                    font_family_override: Some(appearance.ui_font_family()),
+                    text_colors_override: Some(TextColors {
+                        default_color: appearance.theme().active_ui_text_color(),
+                        disabled_color: appearance.theme().disabled_ui_text_color(),
+                        hint_color: appearance.theme().nonactive_ui_text_color(),
+                    }),
                     ..Default::default()
                 },
                 // We want "up" and "down" to cycle settings pages.

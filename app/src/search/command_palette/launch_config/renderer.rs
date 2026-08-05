@@ -53,17 +53,18 @@ impl LaunchConfig {
     }
 
     fn default_pill_styles(appearance: &Appearance) -> UiComponentStyles {
+        let pill_background = appearance.theme().surface_2();
         UiComponentStyles {
             font_family_id: Some(appearance.ui_font_family()),
             font_size: Some(appearance.monospace_font_size()),
             font_color: Some(
                 appearance
                     .theme()
-                    .hint_text_color(appearance.theme().background())
+                    .hint_text_color(pill_background)
                     .into_solid(),
             ),
             border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.))),
-            background: Some(appearance.theme().background().into()),
+            background: Some(pill_background.into()),
             height: Some(24.),
             padding: Some(Coords::default().left(6.).right(6.)),
             margin: Some(Coords::default().left(3.)),

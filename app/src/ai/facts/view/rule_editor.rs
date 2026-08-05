@@ -8,7 +8,7 @@ use crate::editor::{
 use crate::server::ids::SyncId;
 use crate::ui_components::buttons::icon_button;
 use crate::view_components::action_button::{ActionButton, DangerSecondaryTheme, PrimaryTheme};
-use warp_core::ui::{appearance::Appearance, theme::color::internal_colors};
+use warp_core::ui::appearance::Appearance;
 use warp_editor::editor::NavigationKey;
 use warpui::elements::{Clipped, ConstrainedBox};
 use warpui::{
@@ -284,9 +284,7 @@ impl RuleEditorView {
     fn render_name_editor(&self, appearance: &Appearance) -> Box<dyn Element> {
         Container::new(Clipped::new(ChildView::new(&self.name_editor).finish()).finish())
             .with_background(appearance.theme().surface_2())
-            .with_border(
-                Border::all(1.).with_border_color(internal_colors::neutral_4(appearance.theme())),
-            )
+            .with_border(Border::all(1.).with_border_color(appearance.theme().outline().into()))
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
             .with_margin_bottom(style::ITEM_BOTTOM_MARGIN)
             .with_horizontal_padding(style::EDITOR_HORIZONTAL_PADDING)
@@ -310,9 +308,7 @@ impl RuleEditorView {
                 .finish(),
             )
             .with_background(appearance.theme().surface_2())
-            .with_border(
-                Border::all(1.).with_border_color(internal_colors::neutral_4(appearance.theme())),
-            )
+            .with_border(Border::all(1.).with_border_color(appearance.theme().outline().into()))
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
             .with_margin_bottom(style::ITEM_BOTTOM_MARGIN)
             .with_padding_left(style::EDITOR_HORIZONTAL_PADDING)

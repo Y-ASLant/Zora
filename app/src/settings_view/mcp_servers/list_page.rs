@@ -60,12 +60,12 @@ use strum::IntoEnumIterator;
 use uuid::Uuid;
 use warp_core::features::FeatureFlag;
 use warp_core::send_telemetry_from_ctx;
-use warp_core::ui::{appearance::AppearanceEvent, theme::color::internal_colors, Icon};
+use warp_core::ui::Icon;
 use warpui::{
     elements::{
-        Align, Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-        Expanded, Fill, Flex, FormattedTextElement, HighlightedHyperlink, MainAxisAlignment,
-        MainAxisSize, ParentElement, Radius, Text,
+        Align, Border, ChildView, ConstrainedBox, Container, CrossAxisAlignment, Expanded, Flex,
+        FormattedTextElement, HighlightedHyperlink, MainAxisAlignment, MainAxisSize, ParentElement,
+        Text,
     },
     ui_components::{
         components::{Coords, UiComponent, UiComponentStyles},
@@ -157,28 +157,6 @@ impl MCPServersListPageView {
             }
         });
 
-        let appearance = Appearance::handle(ctx);
-        ctx.subscribe_to_model(&appearance, move |me, _, event, ctx| {
-            if let AppearanceEvent::ThemeChanged = event {
-                let appearance = Appearance::as_ref(ctx);
-                let search_bar_styles = UiComponentStyles {
-                    background: Some(internal_colors::neutral_2(appearance.theme()).into()),
-                    border_color: Some(internal_colors::neutral_4(appearance.theme()).into()),
-                    border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.))),
-                    padding: Some(Coords {
-                        top: 8.,
-                        bottom: 8.,
-                        left: 12.,
-                        right: 12.,
-                    }),
-                    ..Default::default()
-                };
-                me.search_bar.update(ctx, |search_bar, _| {
-                    search_bar.with_style(search_bar_styles)
-                });
-            }
-        });
-
         let update_modal_body = ctx.add_typed_action_view(|_ctx| UpdateModalBody::new());
         ctx.subscribe_to_view(&update_modal_body, |me, _, event, ctx| {
             me.handle_update_modal_body_event(event, ctx);
@@ -203,6 +181,7 @@ impl MCPServersListPageView {
             });
         }
 
+        let appearance = Appearance::handle(ctx);
         let search_editor_text = TextOptions::ui_text(None, appearance.as_ref(ctx));
         let search_editor = {
             let options = SingleLineEditorOptions {
@@ -1052,8 +1031,8 @@ impl MCPServersListPageView {
             .check(is_enabled)
             .with_disabled(!is_any_ai_enabled)
             .with_disabled_styles(UiComponentStyles {
-                background: Some(Fill::Solid(internal_colors::neutral_4(appearance.theme()))),
-                foreground: Some(Fill::Solid(internal_colors::neutral_5(appearance.theme()))),
+                background: Some(appearance.theme().surface_3().into()),
+                foreground: Some(appearance.theme().disabled_ui_text_color().into()),
                 ..Default::default()
             })
             .build()
@@ -1430,9 +1409,7 @@ impl MCPServersListPageView {
             .with_height(style::EMPTY_STATE_HEIGHT)
             .finish(),
         )
-        .with_border(
-            Border::all(1.).with_border_color(internal_colors::neutral_2(appearance.theme())),
-        )
+        .with_border(Border::all(1.).with_border_color(appearance.theme().outline().into()))
         .with_margin_bottom(style::SECTION_MARGIN)
         .finish()
     }

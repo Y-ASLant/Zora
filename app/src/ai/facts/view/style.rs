@@ -1,6 +1,5 @@
-use warp_core::ui::{appearance::Appearance, theme::color::internal_colors};
+use warp_core::ui::appearance::Appearance;
 use warpui::{
-    elements::{CornerRadius, Radius},
     fonts::Weight,
     ui_components::components::{Coords, UiComponentStyles},
 };
@@ -29,21 +28,6 @@ pub const SECTION_MARGIN: f32 = 16.;
 pub const PANE_PADDING: f32 = 16.;
 pub const PANE_WIDTH: f32 = 800.;
 pub const ZERO_STATE_HEIGHT: f32 = 643.;
-
-pub fn search_bar(appearance: &Appearance) -> UiComponentStyles {
-    UiComponentStyles {
-        background: Some(internal_colors::neutral_2(appearance.theme()).into()),
-        border_color: Some(internal_colors::neutral_4(appearance.theme()).into()),
-        border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.))),
-        padding: Some(Coords {
-            top: 8.,
-            bottom: 8.,
-            left: 12.,
-            right: 12.,
-        }),
-        ..Default::default()
-    }
-}
 
 pub fn header_text() -> UiComponentStyles {
     UiComponentStyles {
@@ -76,7 +60,7 @@ pub fn fact_row_subtext(appearance: &Appearance) -> UiComponentStyles {
         font_color: Some(
             appearance
                 .theme()
-                .sub_text_color(appearance.theme().background())
+                .sub_text_color(appearance.theme().surface_1())
                 .into(),
         ),
         ..Default::default()
@@ -89,7 +73,7 @@ pub fn fact_row_text(appearance: &Appearance) -> UiComponentStyles {
         font_color: Some(
             appearance
                 .theme()
-                .main_text_color(appearance.theme().background())
+                .main_text_color(appearance.theme().surface_1())
                 .into(),
         ),
         ..Default::default()
@@ -102,7 +86,7 @@ pub fn fact_project_based_row_text(appearance: &Appearance) -> UiComponentStyles
         font_color: Some(
             appearance
                 .theme()
-                .sub_text_color(appearance.theme().background())
+                .sub_text_color(appearance.theme().surface_1())
                 .into(),
         ),
         ..Default::default()

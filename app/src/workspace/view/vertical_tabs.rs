@@ -1439,7 +1439,7 @@ fn render_new_tab_button(
         if is_active {
             container = container.with_background(internal_colors::fg_overlay_3(theme));
         } else if hover_state.is_hovered() {
-            container = container.with_background(internal_colors::neutral_1(theme));
+            container = container.with_background(theme.surface_2());
         }
         container.finish()
     })
@@ -2221,11 +2221,11 @@ fn render_group_action_buttons(
         .with_child(close_button)
         .finish();
 
-    let belt_border_color = internal_colors::neutral_4(theme);
+    let belt_border_color = theme.outline();
     let belt = Hoverable::new(action_buttons_mouse_state, move |_| {
         Container::new(button_row)
-            .with_background(ThemeFill::Solid(internal_colors::neutral_3(theme)))
-            .with_border(Border::all(1.).with_border_fill(ThemeFill::Solid(belt_border_color)))
+            .with_background(theme.surface_3())
+            .with_border(Border::all(1.).with_border_fill(belt_border_color))
             .with_padding(Padding::uniform(GROUP_ACTION_BUTTON_PADDING))
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
             .finish()
@@ -4796,7 +4796,7 @@ pub(super) fn render_settings_popup(
         ConstrainedBox::new(
             Container::new(popup_col.finish())
                 .with_vertical_padding(8.)
-                .with_background(internal_colors::neutral_1(theme))
+                .with_background(theme.surface_1())
                 .with_border(Border::all(1.).with_border_fill(internal_colors::fg_overlay_1(theme)))
                 .with_corner_radius(CornerRadius::with_all(Radius::Pixels(
                     SETTINGS_POPUP_CORNER_RADIUS,

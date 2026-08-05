@@ -21003,11 +21003,7 @@ impl View for Workspace {
             );
             stack.add_child(workspace.finish());
         } else {
-            stack.add_child(
-                workspace
-                    .with_background(theme.surface_2().with_opacity(background_opacity))
-                    .finish(),
-            );
+            stack.add_child(workspace.with_background(theme.surface_2()).finish());
         }
 
         let input_position_id = self

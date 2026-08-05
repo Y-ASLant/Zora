@@ -508,8 +508,7 @@ impl LaunchConfigSaveModal {
                 .finish();
         Container::new(editor)
             .with_uniform_padding(SIDE_PADDING)
-            // TODO theme should be agnostic of different UI elements / features
-            .with_background(appearance.theme().background())
+            .with_background(appearance.theme().surface_2())
             .finish()
     }
 

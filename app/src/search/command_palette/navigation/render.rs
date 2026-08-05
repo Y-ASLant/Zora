@@ -102,6 +102,7 @@ fn render_current_session_pill(
     command_context: CommandContext,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
+    let pill_background = appearance.theme().surface_2();
     let current_session_pill = appearance
         .ui_builder()
         .span(crate::t!("common-current"))
@@ -112,7 +113,7 @@ fn render_current_session_pill(
             font_color: Some(
                 appearance
                     .theme()
-                    .main_text_color(appearance.theme().background())
+                    .main_text_color(pill_background)
                     .into_solid(),
             ),
             ..Default::default()
@@ -122,7 +123,7 @@ fn render_current_session_pill(
         .with_padding_right(5.)
         .with_margin_left(10.)
         .with_margin_right(8.)
-        .with_background_color(appearance.theme().background().into_solid())
+        .with_background_color(pill_background.into_solid())
         .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
         .finish();
 

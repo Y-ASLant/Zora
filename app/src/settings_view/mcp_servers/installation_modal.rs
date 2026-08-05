@@ -28,10 +28,7 @@ use warpui::{SingletonEntity, ViewContext};
 
 use crate::ai::mcp::{TemplatableMCPServer, TemplatableMCPServerManager, TemplateVariable};
 
-use crate::ui_components::{
-    avatar::{Avatar, AvatarContent},
-    blended_colors,
-};
+use crate::ui_components::avatar::{Avatar, AvatarContent};
 use warpui::elements::{CornerRadius, Padding, Radius};
 
 use warp_core::ui::{
@@ -239,12 +236,14 @@ impl InstallationModalBody {
                 border_radius: Some(CornerRadius::with_all(Radius::Percentage(50.))),
                 font_family_id: Some(appearance.ui_font_family()),
                 font_weight: Some(Weight::Bold),
-                background: Some(appearance.theme().background().into()),
+                background: Some(appearance.theme().surface_2().into()),
                 font_size: Some(20.),
-                font_color: Some(blended_colors::text_main(
-                    appearance.theme(),
-                    appearance.theme().background(),
-                )),
+                font_color: Some(
+                    appearance
+                        .theme()
+                        .main_text_color(appearance.theme().surface_2())
+                        .into_solid(),
+                ),
                 ..Default::default()
             },
         )
@@ -386,9 +385,7 @@ impl InstallationModalBody {
                                     .text_input(editor.clone())
                                     .with_style(UiComponentStyles {
                                         padding: Some(INSTALLATION_MODAL_BUTTON_PADDING),
-                                        background: Some(
-                                            blended_colors::neutral_2(appearance.theme()).into(),
-                                        ),
+                                        background: Some(appearance.theme().surface_2().into()),
                                         ..Default::default()
                                     })
                                     .build()

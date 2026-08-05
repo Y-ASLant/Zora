@@ -246,7 +246,10 @@ impl Switch {
             // render a circle behind the thumb with the border color.
             if let Some(border_size) = self.hover_border_size {
                 if !is_disabled && state.is_mouse_over_element() {
-                    let mut hover_background = *TRACK_COLOR;
+                    let mut hover_background = styles
+                        .background
+                        .unwrap_or(Fill::Solid(*TRACK_COLOR))
+                        .start_color();
                     hover_background.a = 100;
 
                     let hover_size = thumb_height + border_size;

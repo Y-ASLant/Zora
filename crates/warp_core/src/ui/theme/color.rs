@@ -12,8 +12,9 @@ use super::{AnsiColor, AnsiColorIdentifier, Fill, TerminalColors, WarpTheme};
 
 use crate::ui::color::{
     blend::Blend,
+    coloru_with_opacity,
     contrast::{pick_best_foreground_color, MinimumAllowedContrast},
-    Opacity,
+    Opacity, OPAQUE,
 };
 use getset::Getters;
 use serde::{Deserialize, Serialize};
@@ -103,6 +104,16 @@ impl WarpTheme {
         self.background
     }
 
+    /// 窗口内容使用的背景色，会跟随窗口透明度一起绘制。
+    pub fn ui_background(&self) -> Fill {
+        self.apply_ui_background_opacity(self.background)
+    }
+
+    /// 将主题 UI 表面应用当前窗口透明度。
+    pub fn apply_ui_background_opacity(&self, fill: Fill) -> Fill {
+        fill.with_opacity(self.ui_background_opacity())
+    }
+
     pub fn terminal_colors(&self) -> &TerminalColors {
         &self.terminal_colors
     }
@@ -112,12 +123,16 @@ impl WarpTheme {
     /// Doesn't allow gradients because these surfaces will often be too small
     /// for the gradients to look appealing.
     pub fn surface_3(&self) -> Fill {
-        if let Some(ref ui) = self.ui_colors {
+        let fill = if let Some(ref ui) = self.ui_colors {
             if let Some(color) = ui.surface_3 {
-                return Fill::Solid(color);
+                Fill::Solid(color)
+            } else {
+                Fill::Solid(neutral_3(self))
             }
-        }
-        Fill::Solid(neutral_3(self))
+        } else {
+            Fill::Solid(neutral_3(self))
+        };
+        self.apply_ui_background_opacity(fill)
     }
 
     /// Background color for UI elements that need to stand out from the main
@@ -125,12 +140,16 @@ impl WarpTheme {
     /// Doesn't allow gradients because these surfaces will often be too small
     /// for the gradients to look appealing.
     pub fn surface_2(&self) -> Fill {
-        if let Some(ref ui) = self.ui_colors {
+        let fill = if let Some(ref ui) = self.ui_colors {
             if let Some(color) = ui.surface_2 {
-                return Fill::Solid(color);
+                Fill::Solid(color)
+            } else {
+                Fill::Solid(neutral_2(self))
             }
-        }
-        Fill::Solid(neutral_2(self))
+        } else {
+            Fill::Solid(neutral_2(self))
+        };
+        self.apply_ui_background_opacity(fill)
     }
 
     /// Background color for UI elements that need to stand out from the main
@@ -138,12 +157,16 @@ impl WarpTheme {
     /// Doesn't allow gradients because these surfaces will often be too small
     /// for the gradients to look appealing.
     pub fn surface_1(&self) -> Fill {
-        if let Some(ref ui) = self.ui_colors {
+        let fill = if let Some(ref ui) = self.ui_colors {
             if let Some(color) = ui.surface_1 {
-                return Fill::Solid(color);
+                Fill::Solid(color)
+            } else {
+                Fill::Solid(neutral_1(self))
             }
-        }
-        Fill::Solid(neutral_1(self))
+        } else {
+            Fill::Solid(neutral_1(self))
+        };
+        self.apply_ui_background_opacity(fill)
     }
 
     pub fn cursor(&self) -> Fill {
@@ -177,8 +200,10 @@ impl WarpTheme {
 
     // text colors
     pub fn font_color(&self, background: impl Into<ColorU>) -> Fill {
+        let background = background.into();
+        let opaque_background = ColorU::new(background.r, background.g, background.b, OPAQUE);
         Fill::Solid(pick_best_foreground_color(
-            background.into(),
+            opaque_background,
             self.background().into(),
             self.foreground().into(),
             MinimumAllowedContrast::Text,
@@ -248,19 +273,23 @@ impl WarpTheme {
 impl WarpTheme {
     pub fn foreground_button_color(&self) -> Fill {
         let details = self.details();
-        self.background.blend(
-            &self
-                .foreground()
-                .with_opacity(details.foreground_button_opacity),
+        self.apply_ui_background_opacity(
+            self.background.blend(
+                &self
+                    .foreground()
+                    .with_opacity(details.foreground_button_opacity),
+            ),
         )
     }
 
     pub fn accent_button_color(&self) -> Fill {
         let details = self.details();
-        self.accent.blend(
-            &self
-                .foreground()
-                .with_opacity(details.accent_button_opacity),
+        self.apply_ui_background_opacity(
+            self.accent.blend(
+                &self
+                    .foreground()
+                    .with_opacity(details.accent_button_opacity),
+            ),
         )
     }
 
@@ -385,17 +414,20 @@ impl WarpTheme {
     }
 
     pub fn subshell_background(&self) -> Fill {
-        Fill::Solid(neutral_4(self))
+        self.apply_ui_background_opacity(Fill::Solid(neutral_4(self)))
     }
 
     pub fn block_banner_background(&self) -> Fill {
-        Fill::Solid(neutral_3(self))
+        self.apply_ui_background_opacity(Fill::Solid(neutral_3(self)))
     }
 
     /// Background color for tooltips.
     /// Uses neutral_6 for better contrast with text.
     pub fn tooltip_background(&self) -> ColorU {
-        internal_colors::neutral_6(self)
+        coloru_with_opacity(
+            internal_colors::neutral_6(self),
+            self.ui_background_opacity(),
+        )
     }
 }
 

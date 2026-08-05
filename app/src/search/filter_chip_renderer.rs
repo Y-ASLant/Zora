@@ -1,6 +1,5 @@
 use crate::appearance::Appearance;
 use crate::search::QueryFilter;
-use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
     ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable, Icon,
     MouseStateHandle, ParentElement, Radius, Text,
@@ -52,24 +51,22 @@ impl FilterChipRenderer for QueryFilter {
         Hoverable::new(mouse_state_handle, |mouse_state| {
             let font_size = appearance.monospace_font_size() + 2.;
             let icon_size = font_size + self.icon_size_offset();
+            let background = if mouse_state.is_hovered() {
+                theme.accent_overlay()
+            } else {
+                theme.surface_3()
+            };
+            let text_color = theme.main_text_color(background).into_solid();
+            let sub_text_color = theme.sub_text_color(background).into_solid();
 
             let mut flex = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
             if let Some(icon_name) = self.icon_svg_path() {
                 flex.add_child(
                     Container::new(
-                        ConstrainedBox::new(
-                            Icon::new(
-                                icon_name,
-                                appearance
-                                    .theme()
-                                    .sub_text_color(appearance.theme().surface_2())
-                                    .into_solid(),
-                            )
+                        ConstrainedBox::new(Icon::new(icon_name, sub_text_color).finish())
+                            .with_width(icon_size)
+                            .with_height(icon_size)
                             .finish(),
-                        )
-                        .with_width(icon_size)
-                        .with_height(icon_size)
-                        .finish(),
                     )
                     .with_margin_top(self.icon_margin_top())
                     .with_margin_right(8.)
@@ -79,12 +76,7 @@ impl FilterChipRenderer for QueryFilter {
 
             flex.add_child(
                 Text::new_inline(self.display_name(), appearance.ui_font_family(), font_size)
-                    .with_color(
-                        appearance
-                            .theme()
-                            .main_text_color(appearance.theme().surface_2())
-                            .into_solid(),
-                    )
+                    .with_color(text_color)
                     .finish(),
             );
 
@@ -93,11 +85,7 @@ impl FilterChipRenderer for QueryFilter {
                 .with_padding_bottom(8.)
                 .with_padding_left(10.)
                 .with_padding_right(10.)
-                .with_background(if mouse_state.is_hovered() {
-                    theme.accent_overlay()
-                } else {
-                    internal_colors::neutral_3(theme).into()
-                })
+                .with_background(background)
                 .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
                 .finish()
         })

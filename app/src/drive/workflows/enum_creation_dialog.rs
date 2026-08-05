@@ -652,7 +652,7 @@ impl EnumCreationDialog {
                             .collect(),
                         self.enum_type_handles.enum_type_state_handle.clone(),
                         Some(0),
-                        Some(appearance.theme().background()),
+                        Some(appearance.theme().surface_1()),
                         Some(appearance.theme().surface_2()),
                         Some(appearance.theme().surface_3()),
                         appearance.ui_font_size(),
@@ -704,8 +704,8 @@ impl EnumCreationDialog {
                             )
                             .finish(),
                             SCROLLBAR_WIDTH,
-                            theme.disabled_text_color(theme.background()).into(),
-                            theme.main_text_color(theme.background()).into(),
+                            theme.disabled_text_color(theme.surface_2()).into(),
+                            theme.main_text_color(theme.surface_2()).into(),
                             Fill::None,
                         )
                         .finish(),

@@ -168,7 +168,7 @@ impl ObjectNamingDialog {
             .with_padding_bottom(INPUT_PADDING_VERTICAL)
             .with_padding_left(INPUT_PADDING_HORIZONTAL)
             .with_padding_right(INPUT_PADDING_HORIZONTAL)
-            .with_background(appearance.theme().background())
+            .with_background(appearance.theme().surface_2())
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(BORDER_RADIUS_SMALL)))
             .with_border(Border::all(BORDER_WIDTH).with_border_fill(appearance.theme().outline()))
             .finish()
@@ -205,7 +205,7 @@ impl ObjectNamingDialog {
             font_color: Some(
                 appearance
                     .theme()
-                    .disabled_text_color(appearance.theme().background())
+                    .disabled_text_color(appearance.theme().surface_3())
                     .into(),
             ),
             ..primary_button_styles

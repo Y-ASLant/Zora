@@ -606,6 +606,15 @@ pub struct WarpTheme {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     ui_colors: Option<self::ui_colors::UiColors>,
+
+    #[serde(skip, default = "default_ui_background_opacity")]
+    ui_background_opacity: Opacity,
+}
+
+const DEFAULT_UI_BACKGROUND_OPACITY: Opacity = 100;
+
+fn default_ui_background_opacity() -> Opacity {
+    DEFAULT_UI_BACKGROUND_OPACITY
 }
 
 impl WarpTheme {
@@ -631,6 +640,7 @@ impl WarpTheme {
             background_image,
             name,
             ui_colors,
+            ui_background_opacity: DEFAULT_UI_BACKGROUND_OPACITY,
         }
     }
 
@@ -661,6 +671,14 @@ impl WarpTheme {
     /// 获取 UI 颜色覆盖，如果未设置返回 None。
     pub fn ui_colors(&self) -> Option<&self::ui_colors::UiColors> {
         self.ui_colors.as_ref()
+    }
+
+    pub fn ui_background_opacity(&self) -> Opacity {
+        self.ui_background_opacity
+    }
+
+    pub fn set_ui_background_opacity(&mut self, opacity: Opacity) {
+        self.ui_background_opacity = opacity;
     }
 }
 

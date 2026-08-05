@@ -3797,8 +3797,8 @@ fn render_ai_feature_switch(
         .check(is_setting_enabled)
         .with_disabled(!is_setting_toggleable)
         .with_disabled_styles(UiComponentStyles {
-            background: Some(Fill::Solid(internal_colors::neutral_4(appearance.theme()))),
-            foreground: Some(Fill::Solid(internal_colors::neutral_5(appearance.theme()))),
+            background: Some(appearance.theme().surface_3().into()),
+            foreground: Some(appearance.theme().disabled_ui_text_color().into()),
             ..Default::default()
         })
         .build()
@@ -6521,9 +6521,9 @@ impl CLIAgentWidget {
             Fill::Solid(pathfinder_color::ColorU::transparent_black())
         };
         let text_color = if is_enabled && is_clickable {
-            internal_colors::text_main(theme, theme.background().into_solid())
+            theme.main_text_color(background).into_solid()
         } else {
-            internal_colors::text_sub(theme, theme.background().into_solid())
+            theme.sub_text_color(background).into_solid()
         };
         let icon_color = warp_core::ui::theme::Fill::Solid(text_color);
         let ui_font_family = appearance.ui_font_family();

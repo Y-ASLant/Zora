@@ -1,8 +1,6 @@
-use crate::ui_components::blended_colors;
 use crate::{appearance::Appearance, themes::theme::Fill, ui_components::icons};
 use pathfinder_geometry::vector::vec2f;
 use warpui::{
-    color::ColorU,
     elements::{
         Align, Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius,
         CrossAxisAlignment, Dismiss, Element, Flex, MouseStateHandle, OffsetPositioning,
@@ -425,7 +423,7 @@ impl<T: View> View for Modal<T> {
 
         let mut modal = ConstrainedBox::new(
             Container::new(contents)
-                .with_background(blended_colors::neutral_2(appearance.theme()))
+                .with_background(appearance.theme().surface_2())
                 .with_corner_radius(self.modal_styles.border_radius.unwrap_or_default())
                 .with_border(
                     Border::all(self.modal_styles.border_width.unwrap())
@@ -450,7 +448,7 @@ impl<T: View> View for Modal<T> {
         stack.add_positioned_child(modal, self.offset_positioning.clone());
 
         Container::new(Align::new(stack.finish()).finish())
-            .with_background_color(ColorU::new(0, 0, 0, self.background_opacity))
+            .with_background(Fill::black().with_opacity(self.background_opacity))
             .with_corner_radius(app.windows().window_corner_radius())
             .finish()
     }

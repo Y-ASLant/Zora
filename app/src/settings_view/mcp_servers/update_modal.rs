@@ -11,7 +11,6 @@ use uuid::Uuid;
 use warp_core::ui::color::coloru_with_opacity;
 use warp_core::ui::external_product_icon::ExternalProductIcon;
 use warp_core::ui::icons::Icon;
-use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{Align, Empty, Padding, Shrinkable};
 use warpui::fonts::{Properties, Weight};
 use warpui::ui_components::button::ButtonVariant;
@@ -100,12 +99,14 @@ impl UpdateModalBody {
                 border_radius: Some(CornerRadius::with_all(Radius::Percentage(50.))),
                 font_family_id: Some(appearance.ui_font_family()),
                 font_weight: Some(Weight::Bold),
-                background: Some(appearance.theme().background().into()),
+                background: Some(appearance.theme().surface_2().into()),
                 font_size: Some(20.),
-                font_color: Some(blended_colors::text_main(
-                    appearance.theme(),
-                    appearance.theme().background(),
-                )),
+                font_color: Some(
+                    appearance
+                        .theme()
+                        .main_text_color(appearance.theme().surface_2())
+                        .into_solid(),
+                ),
                 ..Default::default()
             },
         )
@@ -284,19 +285,19 @@ impl UpdateModalBody {
         let background_color = if is_selected {
             theme.accent().with_opacity(5)
         } else {
-            blended_colors::neutral_2(theme).into()
+            theme.surface_2()
         };
 
         let border_color = if is_selected {
             theme.accent().into()
         } else {
-            internal_colors::neutral_4(theme)
+            theme.outline()
         };
 
         let option_container = Container::new(row)
             .with_uniform_padding(12.)
             .with_background(background_color)
-            .with_border(Border::all(1.).with_border_color(border_color))
+            .with_border(Border::all(1.).with_border_color(border_color.into()))
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(6.)))
             .finish();
 

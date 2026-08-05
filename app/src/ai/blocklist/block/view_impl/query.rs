@@ -2,7 +2,7 @@
 //!
 //! Queries are not rendered in blocks corresponding to requested command or requested action responses.
 
-use warp_core::{features::FeatureFlag, ui::theme::color::internal_colors};
+use warp_core::features::FeatureFlag;
 use warpui::{
     elements::{
         Container, CornerRadius, Flex, MainAxisAlignment, MainAxisSize, ParentElement, Radius,
@@ -21,7 +21,7 @@ use crate::ai::blocklist::AttachmentType;
 use crate::appearance::Appearance;
 use crate::{
     ai::blocklist::block::{DetectedLinksState, SecretRedactionState},
-    ui_components::{blended_colors, icons::Icon},
+    ui_components::icons::Icon,
 };
 use pathfinder_color::ColorU;
 
@@ -134,7 +134,8 @@ fn render_context_references(
     appearance: &Appearance,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
-    let chip_color = blended_colors::text_sub(theme, theme.background());
+    let chip_background = theme.surface_2();
+    let chip_color = theme.sub_text_color(chip_background).into_solid();
     let chips = context_references.iter().map(|reference| {
         let label = reference
             .label
@@ -153,9 +154,9 @@ fn render_context_references(
                 font_family_id: Some(appearance.ui_font_family()),
                 font_size: Some(appearance.monospace_font_size()),
                 font_color: Some(chip_color),
-                background: Some(internal_colors::neutral_2(theme).into()),
+                background: Some(chip_background.into()),
                 border_width: Some(1.),
-                border_color: Some(internal_colors::neutral_4(theme).into()),
+                border_color: Some(theme.outline().into()),
                 border_radius: Some(CornerRadius::with_all(Radius::Pixels(5.))),
                 ..Default::default()
             },
@@ -201,19 +202,26 @@ fn render_attachments(
                 }),
                 font_family_id: Some(appearance.ui_font_family()),
                 font_size: Some(appearance.monospace_font_size()),
-                font_color: Some(blended_colors::text_sub(
-                    appearance.theme(),
-                    appearance.theme().background(),
-                )),
+                font_color: Some(
+                    appearance
+                        .theme()
+                        .sub_text_color(appearance.theme().surface_2())
+                        .into_solid(),
+                ),
+                background: Some(appearance.theme().surface_2().into()),
                 border_width: Some(1.),
-                border_color: Some(internal_colors::neutral_4(appearance.theme()).into()),
+                border_color: Some(appearance.theme().outline().into()),
                 border_radius: Some(CornerRadius::with_all(Radius::Pixels(5.))),
                 ..Default::default()
             },
         )
-        .with_icon(icon.to_warpui_icon(
-            blended_colors::text_sub(appearance.theme(), appearance.theme().background()).into(),
-        ))
+        .with_icon(
+            icon.to_warpui_icon(
+                appearance
+                    .theme()
+                    .sub_text_color(appearance.theme().surface_2()),
+            ),
+        )
         .build()
         .finish()
     });

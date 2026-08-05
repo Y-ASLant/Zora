@@ -400,21 +400,12 @@ pub fn render_full_pane_width_ai_button(
     action: AISettingsPageAction,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
-    let (text_color, bg, icon_bg) = if is_any_ai_enabled {
-        (
-            appearance
-                .theme()
-                .main_text_color(appearance.theme().background())
-                .into(),
-            internal_colors::neutral_3(appearance.theme()),
-            appearance.theme().background(),
-        )
+    let (text_color, bg) = if is_any_ai_enabled {
+        let bg = appearance.theme().surface_3();
+        (appearance.theme().main_text_color(bg).into_solid(), bg)
     } else {
-        (
-            appearance.theme().disabled_ui_text_color().into(),
-            internal_colors::neutral_2(appearance.theme()),
-            appearance.theme().disabled_ui_text_color(),
-        )
+        let bg = appearance.theme().surface_2();
+        (appearance.theme().disabled_ui_text_color().into_solid(), bg)
     };
 
     let mut button = Hoverable::new(mouse_state, |_| {
@@ -442,7 +433,7 @@ pub fn render_full_pane_width_ai_button(
                 .with_child(
                     ConstrainedBox::new(
                         Icon::ChevronRight
-                            .to_warpui_icon(appearance.theme().main_text_color(icon_bg))
+                            .to_warpui_icon(appearance.theme().main_text_color(bg))
                             .finish(),
                     )
                     .with_width(16.)
@@ -452,9 +443,7 @@ pub fn render_full_pane_width_ai_button(
                 .finish(),
         )
         .with_background(bg)
-        .with_border(
-            Border::new(1.).with_border_fill(internal_colors::neutral_4(appearance.theme())),
-        )
+        .with_border(Border::new(1.).with_border_fill(appearance.theme().outline()))
         .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
         .with_horizontal_padding(16.)
         .with_vertical_padding(11.)

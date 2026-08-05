@@ -20,7 +20,7 @@ use warpui::ui_components::radio_buttons::{
     RadioButtonItem, RadioButtonLayout, RadioButtonStateHandle, RadioButtons,
 };
 use warpui::ui_components::slider::{Slider, SliderStateHandle};
-use warpui::ui_components::switch::{Switch, SwitchStateHandle, TRACK_COLOR};
+use warpui::ui_components::switch::{Switch, SwitchStateHandle};
 use warpui::ui_components::text::WrappableText;
 use warpui::ui_components::toggle_menu::{
     ToggleMenu, ToggleMenuCallback, ToggleMenuItem, ToggleMenuStateHandle,
@@ -128,7 +128,7 @@ impl UiBuilder {
             }),
             border_width: Some(1.),
             border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.))),
-            background: Some(self.warp_theme.background().into()),
+            background: Some(self.warp_theme.ui_background().into()),
             border_color: Some(self.warp_theme.foreground().with_opacity(20).into()),
             font_color: None,
             ..Default::default()
@@ -137,7 +137,7 @@ impl UiBuilder {
 
     fn default_progress_bar_styles(&self) -> UiComponentStyles {
         UiComponentStyles {
-            background: Some(self.warp_theme.background().into()),
+            background: Some(self.warp_theme.ui_background().into()),
             foreground: Some(self.warp_theme.accent().into()),
             width: Some(70.),
             height: Some(2.),
@@ -197,12 +197,7 @@ impl UiBuilder {
                 self.warp_theme.foreground().with_opacity(0),
             ),
             ButtonVariant::Basic => (
-                self.warp_theme.background().blend(
-                    &self
-                        .warp_theme
-                        .foreground()
-                        .with_opacity(*details.foreground_button_opacity()),
-                ),
+                self.warp_theme.foreground_button_color(),
                 self.warp_theme.foreground().with_opacity(0),
             ),
             ButtonVariant::Secondary => {
@@ -266,9 +261,10 @@ impl UiBuilder {
             ),
             ButtonVariant::Basic => (
                 self.warp_theme
-                    .background()
-                    .blend(&self.warp_theme.foreground().with_opacity(
-                        details.foreground_button_opacity() + details.button_hover_opacity(),
+                    .apply_ui_background_opacity(self.warp_theme.background().blend(
+                        &self.warp_theme.foreground().with_opacity(
+                            details.foreground_button_opacity() + details.button_hover_opacity(),
+                        ),
                     )),
                 self.warp_theme.foreground().with_opacity(20),
             ),
@@ -317,9 +313,11 @@ impl UiBuilder {
                 Fill::black().with_opacity(30),
             ),
             ButtonVariant::Basic => (
-                self.warp_theme
-                    .background()
-                    .blend(&Fill::black().with_opacity(*details.button_click_opacity())),
+                self.warp_theme.apply_ui_background_opacity(
+                    self.warp_theme
+                        .background()
+                        .blend(&Fill::black().with_opacity(*details.button_click_opacity())),
+                ),
                 Fill::black().with_opacity(30),
             ),
             ButtonVariant::Secondary => (self.warp_theme.surface_3(), self.warp_theme.outline()),
@@ -655,7 +653,7 @@ impl UiBuilder {
         Switch::new(
             mouse_state,
             switch_margin_styles.merge(self.base_styles(
-                Some(Fill::Solid(*TRACK_COLOR)),
+                Some(self.warp_theme.surface_3()),
                 Fill::white(),
                 self.warp_theme.main_text_color(self.warp_theme.surface_2()),
             )),

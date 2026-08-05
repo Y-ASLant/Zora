@@ -14,7 +14,8 @@ use crate::{
 };
 use crate::{
     editor::{
-        Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
+        Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextColors,
+        TextOptions,
     },
     keyboard::UserDefinedKeybinding,
 };
@@ -544,6 +545,11 @@ impl KeybindingsView {
             let options = SingleLineEditorOptions {
                 text: TextOptions {
                     font_size_override: Some(appearance.ui_font_size()),
+                    text_colors_override: Some(TextColors {
+                        default_color: appearance.theme().active_ui_text_color(),
+                        disabled_color: appearance.theme().disabled_ui_text_color(),
+                        hint_color: appearance.theme().nonactive_ui_text_color(),
+                    }),
                     ..Default::default()
                 },
                 propagate_and_no_op_vertical_navigation_keys:

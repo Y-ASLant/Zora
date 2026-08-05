@@ -8,6 +8,7 @@ use warpui::{
 };
 
 use super::{builder::UiBuilder, theme::WarpTheme};
+use crate::ui::color::Opacity;
 
 /// The standard font size to use for headers (e.g.: in dialogs).
 const HEADER_FONT_SIZE: f32 = 18.;
@@ -140,6 +141,18 @@ impl Appearance {
         }
     }
 
+    pub fn with_ui_background_opacity(mut self, opacity: Opacity) -> Self {
+        self.theme.set_ui_background_opacity(opacity);
+        self.ui_builder = UiBuilder::new(
+            self.theme.clone(),
+            self.ui_font_family,
+            self.ui_font_size,
+            DEFAULT_COMMAND_PALETTE_FONT_SIZE,
+            self.line_height_ratio,
+        );
+        self
+    }
+
     #[cfg(feature = "test-util")]
     pub fn mock() -> Self {
         use warpui::color::ColorU;
@@ -187,7 +200,9 @@ impl Appearance {
     }
 
     pub fn set_theme(&mut self, new_theme: WarpTheme, ctx: &mut ModelContext<Self>) {
+        let ui_background_opacity = self.theme.ui_background_opacity();
         self.theme = new_theme;
+        self.theme.set_ui_background_opacity(ui_background_opacity);
         self.ui_builder = UiBuilder::new(
             self.theme.clone(),
             self.ui_font_family,
@@ -204,6 +219,46 @@ impl Appearance {
 
         // Notify listeners that appearance-related configuration
         // has changed.
+        ctx.notify();
+    }
+
+    pub fn set_ui_background_opacity(&mut self, opacity: Opacity, ctx: &mut ModelContext<Self>) {
+        if self.theme.ui_background_opacity() == opacity
+            && self
+                .theme_overrides
+                .values()
+                .all(|theme| theme.ui_background_opacity() == opacity)
+        {
+            return;
+        }
+
+        self.theme.set_ui_background_opacity(opacity);
+        self.ui_builder = UiBuilder::new(
+            self.theme.clone(),
+            self.ui_font_family,
+            self.ui_font_size(),
+            DEFAULT_COMMAND_PALETTE_FONT_SIZE,
+            self.line_height_ratio,
+        );
+
+        let ui_font_family = self.ui_font_family;
+        let ui_font_size = self.ui_font_size();
+        let line_height_ratio = self.line_height_ratio;
+        for (window_id, theme) in &mut self.theme_overrides {
+            theme.set_ui_background_opacity(opacity);
+            if let Some(ui_builder) = self.ui_builder_overrides.get_mut(window_id) {
+                *ui_builder = UiBuilder::new(
+                    theme.clone(),
+                    ui_font_family,
+                    ui_font_size,
+                    DEFAULT_COMMAND_PALETTE_FONT_SIZE,
+                    line_height_ratio,
+                );
+            }
+        }
+
+        ctx.invalidate_all_views();
+        ctx.emit(AppearanceEvent::ThemeChanged);
         ctx.notify();
     }
 
@@ -398,9 +453,10 @@ impl Appearance {
     pub fn set_window_theme(
         &mut self,
         window_id: WindowId,
-        theme: WarpTheme,
+        mut theme: WarpTheme,
         ctx: &mut ModelContext<Self>,
     ) {
+        theme.set_ui_background_opacity(self.theme.ui_background_opacity());
         let ui_builder = UiBuilder::new(
             theme.clone(),
             self.ui_font_family,
