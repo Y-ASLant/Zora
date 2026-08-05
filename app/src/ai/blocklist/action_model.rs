@@ -892,7 +892,7 @@ impl BlocklistAIActionModel {
     /// (内部走 `is_user_initiated=true` 路径,绕过 `NeedsConfirmation` 检查),
     /// 而不是默认的 `try_to_execute_available_actions`(`is_user_initiated=false`)。
     ///
-    /// 用途:Zap BYOP 路径下 LRC tag-in 场景 — 用户主动 SetInputModeAgent 把
+    /// 用途:Zora BYOP 路径下 LRC tag-in 场景 — 用户主动 SetInputModeAgent 把
     /// 控制权交给 agent,但 alt-screen 全屏下看不到 RequestedCommand 的 Accept 按钮,
     /// controller 检测到 LRC 状态后用本方法绕开手动确认死锁。
     pub(super) fn queue_actions_with_options(
@@ -988,7 +988,7 @@ impl BlocklistAIActionModel {
             }
         }
         if auto_accept && !auto_accept_ids.is_empty() {
-            // Zap:LRC tag-in 自动授权路径。Bypass 默认的
+            // Zora:LRC tag-in 自动授权路径。Bypass 默认的
             // try_to_execute_available_actions(is_user_initiated=false),
             // 直接对每个刚 push 的 action 调用 execute_action(等价用户 Accept)。
             log::info!(

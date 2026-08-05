@@ -93,7 +93,7 @@ pub struct RequestParams {
     pub cli_agent_model: LLMId,
     pub computer_use_model: LLMId,
     pub is_memory_enabled: bool,
-    /// Zap BYOP 专用:用户在 设置 → Agents → Rules 创建的全局 Rules
+    /// Zora BYOP 专用:用户在 设置 → Agents → Rules 创建的全局 Rules
     /// (`AIFact::Memory`)的快照,在 `new()` 中从 `ObjectStoreModel` 一次性拉取
     /// 后随请求 plumb 到 `chat_stream::build_chat_request` → `prompt_renderer`,
     /// 由 `partials/user_rules.j2` 渲染进 system prompt。
@@ -116,22 +116,22 @@ pub struct RequestParams {
     pub ask_user_question_enabled: bool,
     pub research_agent_enabled: bool,
     pub supported_tools_override: Option<Vec<warp_multi_agent_api::ToolType>>,
-    /// Zap BYOP 专用:本地会话 id,只用于 request-readiness 诊断日志。
+    /// Zora BYOP 专用:本地会话 id,只用于 request-readiness 诊断日志。
     pub byop_conversation_id: Option<AIConversationId>,
-    /// Zap BYOP 专用:单次请求内的非持久诊断关联 id。
+    /// Zora BYOP 专用:单次请求内的非持久诊断关联 id。
     pub byop_readiness_attempt_id: Option<String>,
     /// The conversation ID of the parent agent that spawned this child agent, if any.
     pub parent_agent_id: Option<String>,
     /// The display name for this agent (e.g. "Agent 1"), assigned by the orchestrator.
     pub agent_name: Option<String>,
-    /// Zap BYOP 专用:发起本请求时,关联的 LRC(Long Running Command)block id。
+    /// Zora BYOP 专用:发起本请求时,关联的 LRC(Long Running Command)block id。
     /// tag-in 首轮和已进入 agent control 的 CLI subagent 后续轮都会填充,用于
     /// 让 BYOP prompt / tools 继续绑定到当前 PTY,避免模型另起 shell 操作同一个 TUI。
     pub lrc_command_id: Option<String>,
-    /// Zap BYOP 专用:LRC 当前快照。`UserQuery.running_command` 只覆盖用户输入轮,
+    /// Zora BYOP 专用:LRC 当前快照。`UserQuery.running_command` 只覆盖用户输入轮,
     /// auto-resume / tool result 后续轮需要通过这里继续携带最新 PTY 内容。
     pub lrc_running_command: Option<RunningCommand>,
-    /// Zap BYOP 本地会话压缩 sidecar 快照(controller 把 conversation.compaction_state.clone() 塞进来)。
+    /// Zora BYOP 本地会话压缩 sidecar 快照(controller 把 conversation.compaction_state.clone() 塞进来)。
     /// `chat_stream::build_chat_request` 据此:
     ///   1. 过滤 [`crate::ai::byop_compaction::state::CompactionState::hidden_message_ids`] 里的 messages
     ///   2. 在被隐去区间的位置插入"摘要 user/assistant 对"
@@ -140,12 +140,12 @@ pub struct RequestParams {
     ///
     /// 默认 `None` = 兼容路径(无压缩)。
     pub compaction_state: Option<crate::ai::byop_compaction::state::CompactionState>,
-    /// Zap BYOP repair sidecar 快照。serializer 只读使用,不在请求构造中反序列化持久化 JSON。
+    /// Zora BYOP repair sidecar 快照。serializer 只读使用,不在请求构造中反序列化持久化 JSON。
     pub byop_repair_state: crate::ai::byop_readiness::RepairStateStatus,
-    /// Zap BYOP 专用:本轮是否需要模拟上游 CreateTask 流程来升级 optimistic CLI subtask。
+    /// Zora BYOP 专用:本轮是否需要模拟上游 CreateTask 流程来升级 optimistic CLI subtask。
     /// 只有用户刚 tag-in 的首轮需要;已存在 CLI subagent 的后续轮只复用 task,不能重复 spawn。
     pub lrc_should_spawn_subagent: bool,
-    /// Zap BYOP 专用:本轮响应应该写入的 task。普通对话是 root task;
+    /// Zora BYOP 专用:本轮响应应该写入的 task。普通对话是 root task;
     /// CLI subagent 后续轮则是对应 subtask。
     pub byop_target_task_id: Option<String>,
 }
@@ -254,7 +254,7 @@ impl RequestParams {
         let is_memory_enabled = ai_settings.is_memory_enabled(app);
         let warp_drive_context_enabled = ai_settings.is_warp_drive_context_enabled(app);
 
-        // Zap BYOP 修复 Issue #116:gate 在 `is_memory_enabled`,具体收集逻辑
+        // Zora BYOP 修复 Issue #116:gate 在 `is_memory_enabled`,具体收集逻辑
         // 抽到 `collect_user_rules` 纯函数,只接 `&ObjectStoreModel` 入参以便测试,
         // 不依赖完整 AppContext singleton 集合。
         let user_rules = if is_memory_enabled {

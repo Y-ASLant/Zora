@@ -442,7 +442,7 @@ fn test_not_eager_baton_grab_different_editor() {
 }
 
 /// Test to make sure we do not eagerly enter edit mode when another editor took the baton
-/// while Zap was closed.
+/// while Zora was closed.
 #[test]
 fn test_baton_grab_editor_changed_offline() {
     App::test((), |mut app| async move {
@@ -553,7 +553,7 @@ fn test_close_unmodified() {
         initialize_app(&mut app);
         initial_load(&mut app, vec![]).await;
 
-        // Zap(Wave 4):SyncQueue 整删,原 stop_dequeueing + assert queue 长度不适用。
+        // Zora(Wave 4):SyncQueue 整删,原 stop_dequeueing + assert queue 长度不适用。
 
         let cloud_notebook = mock_stored_notebook("Test", "Some text");
         let notebook_id = cloud_notebook.id;
@@ -575,7 +575,7 @@ fn test_close_unmodified() {
                 .expect("Notebook should exist");
             assert!(!object.metadata().has_pending_content_changes());
 
-            // Zap(Wave 4):SyncQueue 整删,原 `sync_queue.is_empty()` 断言不适用。
+            // Zora(Wave 4):SyncQueue 整删,原 `sync_queue.is_empty()` 断言不适用。
         })
     });
 }

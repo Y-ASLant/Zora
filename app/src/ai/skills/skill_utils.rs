@@ -24,7 +24,7 @@ use crate::warp_managed_paths_watcher::warp_managed_skill_dirs;
 /// 优先级规则(同名 skill 多份时):
 ///
 /// 1. **provider rank 小者胜**:依 [`SKILL_PROVIDER_DEFINITIONS`] 顺序(index 0 = 最高优先级),
-///    例如 `Agents > Zap > Claude > …`。
+///    例如 `Agents > Zora > Claude > …`。
 /// 2. **同 rank 时 reference 路径短者胜**:取为稳定 tiebreak。
 ///
 /// 该实现覆盖了三种场景:

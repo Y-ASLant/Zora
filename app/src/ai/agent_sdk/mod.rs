@@ -73,7 +73,7 @@ fn maybe_warn_team_api_key(ctx: &AppContext) {
     );
 }
 
-/// Run a Zap CLI command.
+/// Run a Zora CLI command.
 pub fn run(
     ctx: &mut AppContext,
     command: CliCommand,
@@ -177,7 +177,7 @@ fn run_agent(
             Ok(())
         }
         AgentCommand::Profile(sub) => profiles::run(ctx, global_options, sub),
-        AgentCommand::List(_) => Err(anyhow::anyhow!("Agent skill listing is disabled in Zap")),
+        AgentCommand::List(_) => Err(anyhow::anyhow!("Agent skill listing is disabled in Zora")),
     }
 }
 
@@ -306,7 +306,7 @@ impl AgentDriverRunner {
         // Ensure we've synced team state before starting the driver.
         Self::refresh_team_metadata(&foreground).await?;
 
-        // Wait for Zap Drive to sync before building the task config, since
+        // Wait for Zora Drive to sync before building the task config, since
         // prompt resolution (SavedPrompt -> workflow lookup) depends on it.
         if foreground
             .spawn(|_, ctx| common::refresh_warp_drive(ctx))
@@ -498,7 +498,7 @@ impl AgentDriverRunner {
 
     /// Creates local driver task state for a new agent run.
     ///
-    /// Zap 本地运行不会创建远端 ambient-agent task 记录。
+    /// Zora 本地运行不会创建远端 ambient-agent task 记录。
     /// driver 保持 `task_id` 为 `None`,下游会自然跳过远端任务分支。
     async fn initialize_new_task(
         driver_options: &mut AgentDriverOptions,
@@ -577,15 +577,15 @@ fn launch_command(
     let auth_state = AuthStateProvider::handle(ctx).as_ref(ctx).get();
     if !auth_state.is_logged_in() {
         return Err(anyhow::anyhow!(
-            "No local user is available. Restart Zap and try again."
+            "No local user is available. Restart Zora and try again."
         ));
     }
 
     dispatch_command(ctx, command, global_options)
 }
 
-/// Check if we're running within Zap (for example, if this is an invocation of the Zap CLI
-/// within a Zap terminal session).
+/// Check if we're running within Zora (for example, if this is an invocation of the Zora CLI
+/// within a Zora terminal session).
 pub fn is_running_in_warp() -> bool {
     std::env::var("TERM_PROGRAM")
         .map(|v| v == "WarpTerminal")
@@ -604,7 +604,7 @@ fn report_fatal_error(err: anyhow::Error, ctx: &mut AppContext) {
         if let Ok(path) = log_file_path() {
             let _ = write!(
                 message,
-                "\n\nFor more information, check Zap logs at {}",
+                "\n\nFor more information, check Zora logs at {}",
                 path.display()
             );
         }

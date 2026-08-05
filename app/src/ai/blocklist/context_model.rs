@@ -664,7 +664,7 @@ impl BlocklistAIContextModel {
     /// If false, excludes these user-specific contexts but includes everything else.
     pub fn pending_context(&self, app: &AppContext, is_user_query: bool) -> Vec<AIAgentContext> {
         let pwd = self.current_pwd();
-        // Zap:原会查 RepoOutlines 判断当前 pwd 下仓库是否已建索引,以便
+        // Zora:原会查 RepoOutlines 判断当前 pwd 下仓库是否已建索引,以便
         // 可选择“使用代码库语义搜索”作为上下文。现 outline 已下线,总是为 false。
         let is_pwd_indexed = false;
 
@@ -763,7 +763,7 @@ impl BlocklistAIContextModel {
                 }
             }
 
-            // Zap P0/P1: 把 PendingFile 同步读入并以 AIAgentContext::File 推进 context。
+            // Zora P0/P1: 把 PendingFile 同步读入并以 AIAgentContext::File 推进 context。
             // - text-like (UTF-8 解析成功) → StringContent → 走 user_context.rs::render_file
             //   渲染成 <file> XML 块(BYOP)/ api::input_context::File(warp-own)
             // - binary (PDF / 音频 / 其它) → BinaryContent → 走 BYOP user_context Binary

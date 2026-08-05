@@ -156,7 +156,7 @@ define_settings_group!(InputSettings,
         // 控制 Agent 视图零状态(zero-state)中的快捷键提示是否展示:
         // 1) zero_state_block 中 "ctrl+shift+enter 开始新对话 / /model 切换模型 / esc 返回终端" 三行;
         // 2) Agent message bar 底部 "? 查看帮助 / / 查看命令 / 打开对话 / 进入代码评审" 四项。
-        // 关闭后,用户可在「设置 → Zap 智能体 → AI 输入」中重新开启。
+        // 关闭后,用户可在「设置 → Zora 智能体 → AI 输入」中重新开启。
         show_agent_zero_state_hints: ShowAgentZeroStateHints {
             type: bool,
             default: true,
@@ -213,7 +213,7 @@ impl InputSettings {
         };
 
         // PS1 input is only valid when honor_ps1 is active. If the user has PS1 selected
-        // but the shell has not signalled PS1 support, fall back to Zap input.
+        // but the shell has not signalled PS1 support, fall back to Zora input.
         let is_ps1_enabled = *SessionSettings::as_ref(app).honor_ps1
             && computed_input_type_value == InputBoxType::Classic;
         if is_ps1_enabled {

@@ -1,4 +1,4 @@
-//! Shimmering Zap loading text - renders Zap logo with shimmering text for loading states.
+//! Shimmering Zora loading text - renders Zora logo with shimmering text for loading states.
 
 use warp_core::ui::appearance::Appearance;
 use warpui::elements::shimmering_text::{
@@ -7,10 +7,10 @@ use warpui::elements::shimmering_text::{
 use warpui::elements::{Element, Flex, ParentElement, Text};
 use warpui::{AppContext, SingletonEntity};
 
-/// Zap icon glyph character
+/// Zora icon glyph character
 const WARP_GLYPH: &str = "\u{E500}";
 
-/// Creates a shimmering text element with the Zap glyph.
+/// Creates a shimmering text element with the Zora glyph.
 pub fn shimmering_warp_loading_text(
     text: impl Into<String>,
     font_size: f32,

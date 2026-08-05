@@ -132,6 +132,10 @@ impl SettingsWidget for AboutPageWidget {
         "about warp version automatic updates auto update 自动更新 检查更新 新版本"
     }
 
+    fn center_vertically(&self) -> bool {
+        true
+    }
+
     fn render(
         &self,
         _view: &AboutPageView,
@@ -140,7 +144,7 @@ impl SettingsWidget for AboutPageWidget {
     ) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
 
-        // 始终用纯图标 logo,品牌名以独立文本 "Zap" 呈现,不再依赖带 "warp" 字样的 svg
+        // 始终用纯图标 logo,品牌名以独立文本 "Zora" 呈现,不再依赖带 "warp" 字样的 svg
         let image_path = "bundled/svg/warp-logo-light.svg";
 
         // GIT_RELEASE_TAG 注入 → 显示 tag;否则进入 Dev 开发模式
@@ -186,7 +190,7 @@ impl SettingsWidget for AboutPageWidget {
                 .with_max_width(350.)
                 .finish(),
             )
-            .with_child(ui_builder.span("Zap").build().with_margin_top(12.).finish())
+            .with_child(ui_builder.span("Zora").build().with_margin_top(12.).finish())
             .with_child(version_row.finish());
 
         // 更新状态区域:显示当前是否有新版本,并提供"检查更新"或"前往 GitHub 下载"链接。

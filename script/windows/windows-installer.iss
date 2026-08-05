@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 #include "environment.iss"
 
-#define MyAppPublisher "Zap"
+#define MyAppPublisher "Zora"
 #define MyAppURL "https://zap.zerx.dev/"
 #ifndef MyAppName
   #define MyAppName "WarpDev"
@@ -17,7 +17,7 @@
   #define ReleaseChannel "dev"
 #endif
 #ifndef AppUserModelId
-  ; 默认跟随官方 channel 的 `dev.warp.*` 命名;OSS 在 bundle.ps1 里会覆盖为 `dev.zap.Zap`。
+  ; 默认跟随官方 channel 的 `dev.warp.*` 命名;OSS 在 bundle.ps1 里会覆盖为 `dev.warp.zora`。
   #define AppUserModelId "dev.warp." + MyAppName
 #endif
 #ifndef TargetProfileDir
@@ -34,13 +34,13 @@
   ((ReleaseChannel == "integration") ? "Integration" : \
   ((ReleaseChannel == "oss") ? "Oss" : \
   "Unknown")))))
-#define AppMutexName "Local\Zap" + ChannelPascalCase + "_SingleInstance"
+#define AppMutexName "dev.warp.zora" + ChannelPascalCase + "_SingleInstance"
 
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
-; bundle.ps1 会为 OSS 传入 `InnoAppId=zap-oss`,其他 channel 走默认的 `warp-terminal-{ReleaseChannel}`。
+; bundle.ps1 会为 OSS 传入 `InnoAppId=dev.warp.zora`,其他 channel 走默认的 `warp-terminal-{ReleaseChannel}`。
 #ifndef InnoAppId
   #define InnoAppId "warp-terminal-" + ReleaseChannel
 #endif
@@ -69,14 +69,14 @@ WizardSmallImageFile="installer-images\warp-logo.bmp"
 WizardImageFile="installer-images\warp-banner.bmp"
 SetupIconFile="..\..\app\channels\{#ReleaseChannel}\icon\padded\icon.ico"
 UninstallDisplayIcon="{app}\icon.ico"
-; Force close previous Zap if it hasn't shut down yet.
+; Force close previous Zora if it hasn't shut down yet.
 ; In the update flow we already warn the user if they have something running and make them confirm
-; before running this installer. Therefore, we are good to force close Zap without fear of losing
+; before running this installer. Therefore, we are good to force close Zora without fear of losing
 ; unsaved work.
 ; VSCode does something similar:
 ; https://github.com/microsoft/vscode/blob/aac9914f93551f894b8df1e4680bd847e7636be3/build/win32/code.iss#L41
 CloseApplications=force
-; For manual installs: if Zap is running, show a dialog prompting the user to close it
+; For manual installs: if Zora is running, show a dialog prompting the user to close it
 ; before Setup proceeds. Returned empty for background updates so the check is skipped.
 AppMutex={code:GetAppMutex}
 SetupMutex={#AppMutexName}Setup
@@ -121,33 +121,33 @@ Source: "{#AssetsDir}\{#Arch}\dxil.dll"; DestDir: "{app}"
 Source: "{#TargetProfileDir}\resources\*"; DestDir: "{app}\resources"; Flags: ignoreversion recursesubdirs
 
 [Registry]
-Root: HKCU; Subkey: "SOFTWARE\Zap.dev\{#MyAppName}"; Flags: uninsdeletekey
-; cleanup "Open Zap Here" registry entries
+Root: HKCU; Subkey: "dev.warp.zora\{#MyAppName}"; Flags: uninsdeletekey
+; cleanup "Open Zora Here" registry entries
 Root: HKA; Subkey: "Software\Classes\Directory\shell\{#MyAppName}"; Flags: deletekey
 Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\{#MyAppName}"; Flags: deletekey
-; Add "Open Zap in new tab" to directory context menu
+; Add "Open Zora in new tab" to directory context menu
 Root: HKA; Subkey: "Software\Classes\Directory\shell\{#MyAppName}Tab"; ValueType: string; ValueName: ""; ValueData: "Open {#MyAppName} in new tab"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\Directory\shell\{#MyAppName}Tab"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\icon.ico"
 Root: HKA; Subkey: "Software\Classes\Directory\shell\{#MyAppName}Tab\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""{#MyAppName}://action/new_tab?path=%1"""
-; Add "Open Zap in new tab" to directory background context menu
+; Add "Open Zora in new tab" to directory background context menu
 Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\{#MyAppName}Tab"; ValueType: string; ValueName: ""; ValueData: "Open {#MyAppName} in new tab"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\{#MyAppName}Tab"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\icon.ico"
 Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\{#MyAppName}Tab\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""{#MyAppName}://action/new_tab?path=%V"""
-; Add "Open Zap in new window" to directory context menu
+; Add "Open Zora in new window" to directory context menu
 Root: HKA; Subkey: "Software\Classes\Directory\shell\{#MyAppName}Window"; ValueType: string; ValueName: ""; ValueData: "Open {#MyAppName} in new window"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\Directory\shell\{#MyAppName}Window"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\icon.ico"
 Root: HKA; Subkey: "Software\Classes\Directory\shell\{#MyAppName}Window\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""{#MyAppName}://action/new_window?path=%1"""
-; Add "Open Zap in new window" to directory background context menu
+; Add "Open Zora in new window" to directory background context menu
 Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\{#MyAppName}Window"; ValueType: string; ValueName: ""; ValueData: "Open {#MyAppName} in new window"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\{#MyAppName}Window"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\icon.ico"
 Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\{#MyAppName}Window\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""{#MyAppName}://action/new_window?path=%V"""
 
 [Tasks]
-Name: addToPath; Description: "Add Zap to PATH"
+Name: addToPath; Description: "Add Zora to PATH"
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{userappdata}\warp\{#MyAppName}"
-Type: filesandordirs; Name: "{localappdata}\warp\{#MyAppName}"
+Type: filesandordirs; Name: "{userappdata}\warp\zora"
+Type: filesandordirs; Name: "{localappdata}\warp\zora"
 Type: filesandordirs; Name: "{app}\bin"
 
 [Icons]
@@ -167,10 +167,10 @@ begin
 #endif
 end;
 
-{ Returns true when the installer was launched by Zap's auto-update code.
+{ Returns true when the installer was launched by Zora's auto-update code.
   The auto-update path passes /update=1 on the command line and /NOCLOSEAPPLICATIONS
-  so that the installer does not forcibly kill the running Zap process. Instead we
-  wait for Zap to exit naturally by polling the app mutex below. }
+  so that the installer does not forcibly kill the running Zora process. Instead we
+  wait for Zora to exit naturally by polling the app mutex below. }
 function IsBackgroundUpdate(): Boolean;
 begin
   Result := ExpandConstant('{param:update|false}') <> 'false';
@@ -178,7 +178,7 @@ end;
 
 { For background updates, return an empty mutex name so that Inno Setup skips its
   built-in "application is running" dialog - we handle the wait ourselves. For manual
-  installs, return the real mutex name so the user is prompted to close Zap first. }
+  installs, return the real mutex name so the user is prompted to close Zora first. }
 function GetAppMutex(Value: string): string;
 begin
   if IsBackgroundUpdate() then
@@ -196,15 +196,15 @@ var
   WaitCounter: Integer;
   ResultCode: Integer;
 begin
-  { Background update: the installer was launched while Zap was still running.
+  { Background update: the installer was launched while Zora was still running.
     We passed /NOCLOSEAPPLICATIONS so Inno won't kill it. Wait here - before any
-    files are touched - for Zap to release its single-instance mutex, which
+    files are touched - for Zora to release its single-instance mutex, which
     happens as part of normal process exit. }
   if CurStep = ssInstall then
   begin
     if IsBackgroundUpdate() then
     begin
-      Log('Background update: waiting for Zap to exit (mutex: {#AppMutexName})...');
+      Log('Background update: waiting for Zora to exit (mutex: {#AppMutexName})...');
       WaitCounter := 0;
       while CheckForMutexes('{#AppMutexName}') and (WaitCounter < 30) do
       begin
@@ -213,11 +213,11 @@ begin
       end;
       if CheckForMutexes('{#AppMutexName}') then
       begin
-        Log('Zap mutex still held after timeout; force-killing remaining processes.');
+        Log('Zora mutex still held after timeout; force-killing remaining processes.');
         { Kill by image name. {#MyAppExeName} (e.g. warp.exe, dev.exe) is unique
           enough that collateral damage is not a concern. OpenConsole.exe is NOT
           killed by name because it is shared with Windows Terminal; instead we
-          rely on Zap's Job Object (JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE) to
+          rely on Zora's Job Object (JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE) to
           cascade-kill any child OpenConsole.exe processes when warp.exe dies. }
         Exec('taskkill.exe', '/f /im {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
         if ResultCode <> 0 then
@@ -225,14 +225,14 @@ begin
         Sleep(1000);
       end
       else
-        Log('Zap has exited; proceeding with file installation.');
+        Log('Zora has exited; proceeding with file installation.');
     end;
   end;
 
-  { After a successful install, write a helper script for running the Zap CLI. }
+  { After a successful install, write a helper script for running the Zora CLI. }
   { We use this to add a "warp-" prefix (e.g. "warp-preview.cmd" vs. "preview.exe") }
   if CurStep = ssPostInstall then begin
-    { Add Zap to PATH if requested }
+    { Add Zora to PATH if requested }
     if IsTaskSelected('addToPath') then
       EnvAddPath(ExpandConstant('{app}\bin'));
 
@@ -245,7 +245,7 @@ begin
 #if ReleaseChannel == "stable"
     CmdScriptName := 'oz.cmd'
 #elif ReleaseChannel == "oss"
-    CmdScriptName := 'zap-oss.cmd';
+    CmdScriptName := 'zora.cmd';
 #else
     CmdScriptName := 'oz-{#ReleaseChannel}.cmd';
 #endif

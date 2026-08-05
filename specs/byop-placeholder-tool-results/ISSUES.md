@@ -159,7 +159,7 @@ Add user-visible blocked-request behavior and non-sensitive readiness diagnostic
 ## Acceptance criteria
 
 - [x] Corrupted or unexplained readiness failures map to `RenderableAIError::Other` with `will_attempt_resume = false`.
-- [x] Blocked-request copy states that Zap did not send the BYOP request because a previous tool call is missing its recorded result.
+- [x] Blocked-request copy states that Zora did not send the BYOP request because a previous tool call is missing its recorded result.
 - [x] The initial blocked-request UI does not expose automatic retry or ordinary retry behavior.
 - [x] Manual continuation still passes through readiness and cannot bypass the same blocked state.
 - [x] Diagnostics include readiness category, conversation ID, task ID, assistant tool-call message ID, tool call ID, redacted tool kind, trigger layer, and a non-persistent request-attempt ID where available.

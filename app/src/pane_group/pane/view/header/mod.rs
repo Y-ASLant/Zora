@@ -475,7 +475,7 @@ impl<P: BackingView> PaneHeader<P> {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_main_axis_size(MainAxisSize::Min);
 
-        // Zap Phase 2a: sharing controls removed from the header.
+        // Zora Phase 2a: sharing controls removed from the header.
         let _ = should_show_on_header;
 
         let optional_controls =
@@ -710,7 +710,7 @@ impl<P: BackingView> View for PaneHeader<P> {
             has_overflow_items,
             header_left_inset,
             render_sharing_controls_fn: Box::new(|_app, _icon_color, _button_size| {
-                // Zap Phase 2a: sharing controls removed.
+                // Zora Phase 2a: sharing controls removed.
                 None
             }),
         };

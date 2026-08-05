@@ -179,7 +179,7 @@ fn collect_buttons(
                 description: _,
                 size_bytes: _,
             } => {
-                // Zap no longer has cloud artifact storage, so file and screenshot
+                // Zora no longer has cloud artifact storage, so file and screenshot
                 // artifacts cannot be fetched. Keep deserialization for legacy history,
                 // but do not render buttons that can only fail.
             }

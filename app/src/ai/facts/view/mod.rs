@@ -1,4 +1,4 @@
-// Zap(本地化,Phase 2d-1):本文件原先承担 "offline banner / 同步状态谓词" 的角色,
+// Zora(本地化,Phase 2d-1):本文件原先承担 "offline banner / 同步状态谓词" 的角色,
 // 在云端腿(SyncQueue / NetworkStatus 在线门控)被完全下线后这些代码全部失去意义,
 // 整体移除并精简 imports。Pane 容器视图本身保留,负责在 Rules / RuleEditor 两页之间切换。
 use crate::pane_group::focus_state::PaneFocusHandle;
@@ -277,6 +277,6 @@ impl BackingView for AIFactView {
     }
 }
 
-// Zap(本地化,Phase 2d-1):原 `is_online` / `is_delete_allowed` / `is_edit_allowed`
+// Zora(本地化,Phase 2d-1):原 `is_online` / `is_delete_allowed` / `is_edit_allowed`
 // / `is_syncing` 谓词依赖云端 SyncQueue 与网络在线状态。本地化后规则一律可编辑、
 // 可删除、永不在 "同步中" 状态,谓词直接消除,调用点亦同步删除。

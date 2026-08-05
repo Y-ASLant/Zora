@@ -1,4 +1,4 @@
-//! Zap Home
+//! Zora Home
 //!
 //! This is the landing page for new tabs if session creation isn't supported (e.g. on the web).
 //! It's intentionally small and local-only.
@@ -8,12 +8,12 @@ use warpui::ViewContext;
 use super::view::Workspace;
 use crate::pane_group::{AnyPaneContent, FilePane};
 
-const WARP_HOME_TITLE: &str = "Welcome to Zap";
+const WARP_HOME_TITLE: &str = "Welcome to Zora";
 const WARP_HOME_CONTENT: &str = r#"
-Welcome to Zap.
+Welcome to Zora.
 
 Use this local workspace to:
-* Create, view, and edit Zap Drive objects
+* Create, view, and edit Zora Drive objects
 * Manage local settings
 * Work with local agent sessions, notebooks, and workflows"#;
 

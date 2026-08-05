@@ -10,7 +10,7 @@ While investigating Skills, we checked MCP because its global config has the sam
 ## Goals
 - Preserve the APP-3945 invariant that Warp does not recursively watch `.warp*/worktrees`.
 - Restore `oz --skill <name>` resolution for Warp home skills on Linux, Windows, and macOS.
-- Preserve environment isolation for Dev, Local, Integration, Zap, and development profiles.
+- Preserve environment isolation for Dev, Local, Integration, Zora, and development profiles.
 - Use a single purpose-specific home config path helper for Warp Skills and MCP.
 - Keep `data_dir()` and `config_local_dir()` for their existing app-managed configuration responsibilities.
 - Keep Warp-specific filesystem watching centralized instead of reintroducing ad hoc recursive watchers in `SkillWatcher` or `FileMCPWatcher`.
@@ -26,7 +26,7 @@ Figma: none provided.
 ## User Experience
 ### Warp home skills
 - A Stable user can store a skill at `~/.warp/skills/<skill-name>/SKILL.md`.
-- Dev, Local, Integration, Zap, and profiled builds use their own home-relative Warp config directories, such as `~/.warp-dev/skills`, `~/.warp-local/skills`, or `~/.warp-local-<profile>/skills`.
+- Dev, Local, Integration, Zora, and profiled builds use their own home-relative Warp config directories, such as `~/.warp-dev/skills`, `~/.warp-local/skills`, or `~/.warp-local-<profile>/skills`.
 - Running `oz agent run --skill <skill-name> ...` resolves the skill from the current app environment’s Warp home skills directory even when platform app data is elsewhere.
 - Warp home skill resolution continues to take precedence over project skill resolution for unqualified skill names.
 - The resolver must not require the asynchronous `SkillManager` cache or filesystem watcher to be warmed before `oz --skill` works.

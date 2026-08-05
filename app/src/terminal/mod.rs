@@ -68,7 +68,7 @@ pub mod safe_mode_settings;
 mod secret_regex_updater;
 pub mod session_settings;
 pub mod settings;
-// Zap:删除 share_block_modal(云端 block 永久链分享)
+// Zora:删除 share_block_modal(云端 block 永久链分享)
 pub mod shared_session;
 mod shell_launch_state;
 pub mod universal_developer_input;
@@ -89,7 +89,7 @@ pub(crate) mod cli_agent_sessions;
 
 pub use mock_terminal_manager::MockTerminalManager;
 use model_events::{ModelEvent, ModelEventDispatcher};
-// Zap:删除 ShareBlockModal pub use
+// Zora:删除 ShareBlockModal pub use
 pub use terminal_manager::TerminalManager;
 
 pub use block_list_settings::*;
@@ -120,7 +120,7 @@ const MIN_COLUMNS: usize = 2;
 pub const PTY_READS_BROADCAST_CHANNEL_SIZE: usize = 1024;
 
 pub fn init(app: &mut AppContext) {
-    // Zap:删除 share_block_modal::init
+    // Zora:删除 share_block_modal::init
     view::init(app);
 }
 
@@ -365,7 +365,7 @@ impl SizeInfo {
     }
 
     /// Create SizeInfo for a [`TerminalModel`] instance that doesn't have font metrics,
-    /// which comes from either a headless Zap instance or tests.
+    /// which comes from either a headless Zora instance or tests.
     pub fn new_without_font_metrics(rows: usize, cols: usize) -> Self {
         let width = cols as f32;
         let height = rows as f32;

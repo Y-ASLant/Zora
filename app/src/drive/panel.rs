@@ -37,10 +37,10 @@ pub const MAX_SIDEBAR_WIDTH_RATIO: f32 = 0.75;
 
 pub const WARP_DRIVE_POSITION_ID: &str = "warp_drive";
 
-/// The sidebar that houses Zap Drive.
+/// The sidebar that houses Zora Drive.
 /// `DrivePanel` is different from `DriveIndex` in that it is responsible for
-/// how Zap Drive interacts with the workspace and the rest of the app, whereas
-/// `DriveIndex` is the main zap drive view and responsible for the internals of Zap Drive.
+/// how Zora Drive interacts with the workspace and the rest of the app, whereas
+/// `DriveIndex` is the main zap drive view and responsible for the internals of Zora Drive.
 pub struct DrivePanel {
     index_view: ViewHandle<DriveIndex>,
     mouse_state_handles: MouseStateHandles,
@@ -596,14 +596,14 @@ impl DrivePanel {
         })
     }
 
-    /// This functions scrolls the relevant Zap Drive item into view.
+    /// This functions scrolls the relevant Zora Drive item into view.
     pub fn scroll_item_into_view(&mut self, item_id: WarpDriveItemId, ctx: &mut ViewContext<Self>) {
         self.index_view.update(ctx, |index, ctx| {
             index.scroll_item_into_view(item_id, ctx);
         })
     }
 
-    /// This functions sets the index of a focused Zap Drive item.
+    /// This functions sets the index of a focused Zora Drive item.
     pub fn set_focused_index(&mut self, focused_index: Option<usize>, ctx: &mut ViewContext<Self>) {
         self.index_view.update(ctx, |index, ctx| {
             index.set_focused_index(focused_index, true, ctx);

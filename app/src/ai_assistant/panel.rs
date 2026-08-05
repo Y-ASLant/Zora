@@ -651,14 +651,14 @@ impl AIAssistantPanelView {
         let time_now = Local::now();
 
         result.push_str(&format!(
-            "## Zap AI Transcript ({})\n\n",
+            "## Zora AI Transcript ({})\n\n",
             time_now.format("%x %l:%M %p")
         ));
 
         for part in transcript {
             result.push_str(&format!("Prompt: {}\n\n", part.raw_user_prompt().trim()));
             result.push_str(&format!(
-                "Zap AI: {}\n\n",
+                "Zora AI: {}\n\n",
                 part.raw_assistant_answer().trim()
             ));
         }

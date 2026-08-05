@@ -37,14 +37,14 @@ pub struct ParsedSkill {
     /// The line range where the markdown content (without front matter) is located (1-indexed)
     /// None if there is no front matter (content is the entire file)
     pub line_range: Option<Range<usize>>,
-    /// The provider of the skill (Agents, Claude, Codex, or Zap), determined from the path.
+    /// The provider of the skill (Agents, Claude, Codex, or Zora), determined from the path.
     pub provider: SkillProvider,
     /// The scope of the skill.
     pub scope: SkillScope,
 }
 
 impl ParsedSkill {
-    /// Returns true if this skill is bundled with Zap (not a user-editable file).
+    /// Returns true if this skill is bundled with Zora (not a user-editable file).
     pub fn is_bundled(&self) -> bool {
         self.scope == SkillScope::Bundled
     }

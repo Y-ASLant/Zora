@@ -44,7 +44,7 @@ mod tests;
 const LEARN_MORE_MARKDOWN_URL: &str = "";
 const LEARN_MORE_CODE_URL: &str = "";
 
-/// A path to a file that can be opened in Zap, along with its type.
+/// A path to a file that can be opened in Zora, along with its type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpenablePath {
     pub path: PathBuf,
@@ -98,7 +98,7 @@ impl TerminalView {
         }
     }
 
-    /// Whether or not the "Open in Zap" banner is open.
+    /// Whether or not the "Open in Zora" banner is open.
     #[cfg(feature = "integration_tests")]
     pub fn is_open_in_warp_banner_open(&self) -> bool {
         self.inline_banners_state.open_in_warp_banner.is_some()
@@ -128,7 +128,7 @@ impl TerminalView {
     }
 
     /// Insert a suggestion banner for opening the file `openable_path`, originating from
-    /// `session`, in a Zap pane.
+    /// `session`, in a Zora pane.
     fn suggest_open_in_warp(
         &mut self,
         openable_path: OpenablePath,
@@ -236,7 +236,7 @@ impl TerminalView {
                 match &self.inline_banners_state.open_in_warp_banner {
                     Some(banner_state) => {
                         ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                            format!("Open {} in Zap", banner_state.target.path.display()),
+                            format!("Open {} in Zora", banner_state.target.path.display()),
                             WarpA11yRole::UserAction,
                         ))
                     }
@@ -245,14 +245,14 @@ impl TerminalView {
             }
             OpenInWarpBannerAction::Close => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new_without_help(
-                    "Close View in Zap banner",
+                    "Close View in Zora banner",
                     WarpA11yRole::UserAction,
                 ))
             }
             OpenInWarpBannerAction::LearnMore => {
                 ActionAccessibilityContent::Custom(AccessibilityContent::new(
                     crate::t!("common-learn-more"),
-                    "Learn more about opening Markdown files in Zap",
+                    "Learn more about opening Markdown files in Zora",
                     WarpA11yRole::UserAction,
                 ))
             }
@@ -265,7 +265,7 @@ lazy_static! {
         HashSet::from(["bat", "cat", "glow", "less", "open"]);
 }
 
-/// Examines `command` for a file openable in Zap, returning the resolved path and type if found.
+/// Examines `command` for a file openable in Zora, returning the resolved path and type if found.
 async fn check_openable_in_warp(
     command: String,
     working_directory: Option<String>,
@@ -320,7 +320,7 @@ async fn check_openable_in_warp(
                 );
 
                 if async_fs::metadata(&resolved).await.is_ok() {
-                    // We've found a file that exists and can be opened in Zap.
+                    // We've found a file that exists and can be opened in Zora.
                     return Some(OpenablePath {
                         path: resolved,
                         file_type,

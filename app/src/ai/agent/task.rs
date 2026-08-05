@@ -194,7 +194,7 @@ impl Task {
         }
     }
 
-    /// Zap BYOP 专用:agent 自起 LRC 收到 snapshot 时,在 conversation 里直接
+    /// Zora BYOP 专用:agent 自起 LRC 收到 snapshot 时,在 conversation 里直接
     /// 创建一个 Server-backed subagent task。
     ///
     /// 不能复用 `new_optimistic_cli_agent_subtask`:其产生的 `TaskImpl::Optimistic`

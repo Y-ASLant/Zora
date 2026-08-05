@@ -489,7 +489,7 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
     let ui_font_name = FontSettings::as_ref(ctx).ui_font_name.value().clone();
     let ui_font_size = *FontSettings::as_ref(ctx).ui_font_size.value();
     let warp_glyph_font_family =
-        load_warp_glyph_font_family(ctx).expect("unable to load Zap glyph font family");
+        load_warp_glyph_font_family(ctx).expect("unable to load Zora glyph font family");
 
     let ui_font_family = if ui_font_name.is_empty() {
         load_default_ui_font_family(ctx).expect("unable to load default ui font family")

@@ -21,7 +21,7 @@ use anyhow::Result;
 /// Not wiring through Settings for now since this data is only needed by the panel view.
 pub const REQUEST_LIMIT_INFO_CACHE_KEY: &str = "AIAssistantRequestLimitInfo";
 
-/// Tracks the current request status for making Zap AI requests against server.
+/// Tracks the current request status for making Zora AI requests against server.
 pub enum RequestStatus {
     /// There isn't a request in flight right now.
     NotInFlight,
@@ -103,7 +103,7 @@ impl Requests {
             request_limit_info,
         };
 
-        // Zap:无 Zap Inc 云后端,初始 request_limit_info 不再向服务端拉取;
+        // Zora:无 Zora Inc 云后端,初始 request_limit_info 不再向服务端拉取;
         // 使用上面 cached / default 的值即可。
         let _ = cached_request_limit_info;
         requests
@@ -132,7 +132,7 @@ impl Requests {
         }
     }
 
-    /// Starts a Zap AI request against the server with the given request prompt.
+    /// Starts a Zora AI request against the server with the given request prompt.
     pub fn issue_request(&mut self, request: String, ctx: &mut ModelContext<Self>) {
         let raw_request = request.trim();
         let transcript_part_index = self.current_transcript.len();
@@ -142,7 +142,7 @@ impl Requests {
             TranscriptPartSubType::Question,
             raw_request,
         );
-        let response = "Zap AI Assistant cloud requests are disabled in Zap. Use Agent Mode with a configured BYOP model instead.".to_owned();
+        let response = "Zora AI Assistant cloud requests are disabled in Zora. Use Agent Mode with a configured BYOP model instead.".to_owned();
         let response_in_markdown = markdown_segments_from_text(
             transcript_part_index,
             TranscriptPartSubType::Answer,

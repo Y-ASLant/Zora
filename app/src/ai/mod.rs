@@ -1,7 +1,7 @@
 //! This module should houses all horizontal/cross-cutting AI functionality throughout
-//! Zap (including Agent Mode).
+//! Zora (including Agent Mode).
 //!
-//! The side panel Zap AI implementation lives in `super::ai_assistant`.
+//! The side panel Zora AI implementation lives in `super::ai_assistant`.
 pub(crate) mod agent;
 pub(crate) mod agent_conversations_model;
 pub(crate) mod agent_events;
@@ -37,12 +37,12 @@ pub use request_usage_model::*;
 use warpui::AppContext;
 #[cfg(not(target_family = "wasm"))]
 pub mod agent_sdk;
-// Zap Wave 7-3:`ambient_agent_settings` 随 ambient-agent UI 子系统物理删。
-// Zap Wave 7-2:Cloud environments 的 CLI / 表单 / 环境准备链路已删；
+// Zora Wave 7-3:`ambient_agent_settings` 随 ambient-agent UI 子系统物理删。
+// Zora Wave 7-2:Cloud environments 的 CLI / 表单 / 环境准备链路已删；
 // 本地对象数据类型仍暂存于此，供 ObjectStoreModel 反序列化与现有视图过滤使用。
 pub mod execution_profiles;
 pub mod facts;
-// Zap Wave 6-8:`generate_block_title` 随 `BlockClient::generate_shared_block_title`
+// Zora Wave 6-8:`generate_block_title` 随 `BlockClient::generate_shared_block_title`
 // stub 一同移除 —— 唯一消费点是 BlockClient trait 签名,本地无其他代码路径。
 pub(crate) mod loading;
 pub mod mcp;

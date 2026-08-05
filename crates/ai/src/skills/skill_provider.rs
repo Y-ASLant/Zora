@@ -1,6 +1,6 @@
 //! Skill provider definitions and utilities.
 //!
-//! This module defines the supported skill providers (i.e. Agents, Claude, Codex, Zap) and their
+//! This module defines the supported skill providers (i.e. Agents, Claude, Codex, Zora) and their
 //! associated skills directory paths. It provides utilities for looking up providers
 //! from paths and vice versa.
 use dirs::home_dir;
@@ -14,7 +14,7 @@ use warp_core::ui::color::CLAUDE_ORANGE;
 use warp_core::ui::icons::Icon;
 use warp_core::ui::theme::Fill;
 
-/// Represents a skill provider/origin (Agents, Claude, Codex, or Zap).
+/// Represents a skill provider/origin (Agents, Claude, Codex, or Zora).
 #[derive(
     Debug,
     Clone,
@@ -60,7 +60,7 @@ pub enum SkillScope {
     /// Skills from a project directory (e.g., `./repo/.agents/skills`).
     #[default]
     Project,
-    /// Bundled skills distributed with Zap.
+    /// Bundled skills distributed with Zora.
     Bundled,
 }
 

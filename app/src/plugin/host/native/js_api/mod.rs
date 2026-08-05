@@ -10,7 +10,7 @@ cfg_if::cfg_if! {
     }
 }
 
-/// Returns a JS object representing the Zap Plugin API exposed to external JavaScript plugins.
+/// Returns a JS object representing the Zora Plugin API exposed to external JavaScript plugins.
 ///
 /// Currently, the API contains a single "completions" namespace for registering command
 /// signatures.
@@ -43,7 +43,7 @@ pub fn console(ctx: Ctx<'_>) -> rquickjs::Result<Object<'_>> {
     Ok(console)
 }
 
-/// Returns a JS object representing the Completions namespace for the Zap Plugin API.
+/// Returns a JS object representing the Completions namespace for the Zora Plugin API.
 ///
 /// API methods:
 ///

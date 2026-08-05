@@ -166,7 +166,7 @@ fn test_retry_menu_item_logic() {
         let object_type_and_id: ObjectTypeAndId =
             ObjectTypeAndId::from_id_and_type(sync_id, ObjectType::Workflow);
 
-        // Zap(Wave 4):SyncQueue 整删,原本验证 SyncQueue 队列变化的
+        // Zora(Wave 4):SyncQueue 整删,原本验证 SyncQueue 队列变化的
         // 断言全部变为无意义。跳过留下调用流程本身以验证不报 panic。
 
         index.update(&mut app, |index, ctx| {
@@ -180,9 +180,9 @@ fn test_retry_menu_item_logic() {
             }
         });
 
-        // Zap(Wave 4):原验证 SyncQueue 队头是 CreateWorkflow,SyncQueue 整删后不适用。
+        // Zora(Wave 4):原验证 SyncQueue 队头是 CreateWorkflow,SyncQueue 整删后不适用。
 
-        // Zap(Wave 4):原验证 SyncQueue 队列长度 + UpdateWorkflow tag,SyncQueue 整删后不适用。
+        // Zora(Wave 4):原验证 SyncQueue 队列长度 + UpdateWorkflow tag,SyncQueue 整删后不适用。
     })
 }
 

@@ -1,4 +1,4 @@
-//! Zap input editor logic related to decorating the input's text, such as
+//! Zora input editor logic related to decorating the input's text, such as
 //! applying syntax highlighting and error underlining.
 
 use std::{collections::HashMap, ops::Range};

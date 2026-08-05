@@ -97,7 +97,7 @@ pub(super) async fn prepare_local_harness_child_launch(
                 .map_err(|error: AgentDriverError| error.to_string())?;
             // Local child harness panes inherit the user's existing local Claude
             // auth/session state. We still prepare Claude's config files here,
-            // but there are no Zap-managed secrets to materialize into the
+            // but there are no Zora-managed secrets to materialize into the
             // hidden child pane.
             let managed_secrets: HashMap<String, ManagedSecretValue> = HashMap::new();
             claude_harness
@@ -119,7 +119,7 @@ pub(super) async fn prepare_local_harness_child_launch(
         Harness::Gemini => unreachable!("normalize_local_child_harness filters out Gemini"),
     };
 
-    // Zap(本地化,Phase 3b-4):本地 harness 启动子 task 不再走云端
+    // Zora(本地化,Phase 3b-4):本地 harness 启动子 task 不再走云端
     // `create_agent_task` mutation,直接本地生成 UUID v4 作为 task_id。
     // `local_child_task_config(harness)` 参数不再使用。
     let _ = local_child_task_config(harness);

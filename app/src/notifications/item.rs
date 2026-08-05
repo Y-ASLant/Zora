@@ -42,7 +42,7 @@ impl NotificationFilter {
     }
 }
 
-/// 通知发出方。`Oz` 是 Zap 自家本地 BYOP agent;`CLI(...)` 是第三方 CLI agent
+/// 通知发出方。`Oz` 是 Zora 自家本地 BYOP agent;`CLI(...)` 是第三方 CLI agent
 /// (Claude Code / Codex / DeepSeek 等)。
 #[derive(Debug, Clone, Copy)]
 #[allow(clippy::upper_case_acronyms)]

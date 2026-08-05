@@ -251,11 +251,11 @@ impl ProjectContextModel {
         ctx.spawn(
             async move { Self::read_persisted_rules(persisted_rules).await },
             |me, mut res, ctx| {
-                // Zap:原这里会对每个持久化的 root 调
+                // Zora:原这里会对每个持久化的 root 调
                 // `try_initialize_and_register_watcher`,后者内部走
                 // `DetectedRepositories::detect_possible_git_repo(ProjectRulesIndexing)`
                 // 触发事件,让 RepoMetadataModel 全量索引 6 个持久化仓库
-                // (对 Zap BYOP 是冷启动最大后台 CPU 耗费头)。
+                // (对 Zora BYOP 是冷启动最大后台 CPU 耗费头)。
                 //
                 // 现只填充 in-memory 的 path_to_rules cache,不主动发
                 // detect 事件。用户后续通过 terminal cd 进入仓库时,
@@ -331,7 +331,7 @@ impl ProjectContextModel {
         Ok(())
     }
 
-    // Zap:原 `try_initialize_and_register_watcher` 是从持久化 rule 路径启动时
+    // Zora:原 `try_initialize_and_register_watcher` 是从持久化 rule 路径启动时
     // 强制 detect repo 的入口,启动后续走 RepoMetadataModel 全量索引。已随
     // `new_from_persisted` 中的 detect 调用一并删除;现在仅靠 terminal cd 触发的
     // `RepoDetectionSource::TerminalNavigation` 路径被动走 register_watcher_for_path。

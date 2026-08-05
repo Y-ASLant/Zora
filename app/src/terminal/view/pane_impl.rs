@@ -439,7 +439,7 @@ impl BackingView for TerminalView {
                     .into_item(),
             );
         }
-        // Zap:删除 Pane 头部 "Share session" 入口(云端 shared session)
+        // Zora:删除 Pane 头部 "Share session" 入口(云端 shared session)
 
         // Split-pane related items.
         if self.split_pane_state(ctx).is_in_split_pane() {

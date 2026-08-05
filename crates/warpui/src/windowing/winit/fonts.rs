@@ -317,7 +317,7 @@ impl Default for TextLayoutSystem {
 /// mmap 支撑的字体文件数据本身不会被重新读取。
 ///
 /// 这是可接受的,因为 UI locale 切换很少发生(目前由 Settings → Language 和
-/// "restart Zap" 提示驱动),用户已经预期会有一次中断。如果之后需要热重载低延迟,
+/// "restart Zora" 提示驱动),用户已经预期会有一次中断。如果之后需要热重载低延迟,
 /// 钩子在 `app::i18n::set_locale`。
 fn rebuild_font_system_for_locale(
     store: &std::sync::Arc<RwLock<cosmic_text::FontSystem>>,

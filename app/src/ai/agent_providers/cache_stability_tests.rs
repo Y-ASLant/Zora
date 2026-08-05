@@ -10,7 +10,7 @@
 //!   2. 不依赖 `HashMap` iterate 顺序
 //!   3. 不依赖外部状态(时间戳、随机、PID 等)
 //!
-//! 这套测试是 Zap 的"防退化护栏"——后续任何修改 prompt
+//! 这套测试是 Zora 的"防退化护栏"——后续任何修改 prompt
 //! 构造路径的改动只要破坏字节级稳定性,这里就会断言失败。
 
 use crate::ai::agent::{MCPContext, MCPServer};

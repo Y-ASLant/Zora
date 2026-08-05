@@ -5,7 +5,7 @@ use channel_versions::{ChannelChangelogs, ChannelVersion, ChannelVersions, Versi
 
 use crate::channel::ChannelState;
 
-// 只从本地状态加载通道版本。Zap 不再向 Zap 或 GCP 请求 release-channel 元数据。
+// 只从本地状态加载通道版本。Zora 不再向 Zora 或 GCP 请求 release-channel 元数据。
 pub async fn fetch_channel_versions(
     nonce: &str,
     client: &http_client::Client,

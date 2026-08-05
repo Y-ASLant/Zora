@@ -438,7 +438,7 @@ impl<'a> QuitWarningDialog<'a> {
             QuitScope::Tabs(tabs) if tabs.len() == 1 => "Close tab?".to_string(),
             QuitScope::Tabs(_) => "Close tabs?".to_string(),
             QuitScope::Window(_) => "Close window?".to_string(),
-            QuitScope::App => "Quit Zap?".to_string(),
+            QuitScope::App => "Quit Zora?".to_string(),
             QuitScope::EditorTab { .. } => crate::t!("quit-warning-save-changes-title"),
         };
 
@@ -473,7 +473,7 @@ impl<'a> QuitWarningDialog<'a> {
             not(target_family = "wasm"),
             any(target_os = "linux", target_os = "freebsd", windows)
         )) {
-            // Find a window to show the Zap-native modal in. If there is no active window, use
+            // Find a window to show the Zora-native modal in. If there is no active window, use
             // one of the windows with a running process.
             let window_id_to_focus = ctx
                 .windows()

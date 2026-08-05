@@ -102,7 +102,7 @@ fn byop_dispatch_info(
 
     // 标题生成:只在首轮触发(避免每轮重复打标题)。
     // 解析 active title_model:可能是 base_model 自己,也可能是用户独立选的另一个 BYOP 模型。
-    // 任一模型不是 BYOP 编码(比如 fallback 到非 BYOP 默认),则跳过 — Zap 主路径都是 BYOP,
+    // 任一模型不是 BYOP 编码(比如 fallback 到非 BYOP 默认),则跳过 — Zora 主路径都是 BYOP,
     // 实际 fallback 到 base 时,base 自己就是 BYOP。
     let llm_prefs = crate::ai::llms::LLMPreferences::as_ref(ctx);
     let title_gen = if needs_create_task {
@@ -332,7 +332,7 @@ impl ResponseStream {
         self.params.lrc_should_spawn_subagent
     }
 
-    /// Zap BYOP 本地会话压缩:返回本流是否在跑 SummarizeConversation,
+    /// Zora BYOP 本地会话压缩:返回本流是否在跑 SummarizeConversation,
     /// 以及 overflow 标记。controller 在 handle_response_stream_finished 的
     /// Done 分支据此调 commit_summarization 把摘要落到 conversation.compaction_state。
     pub fn summarization_overflow(&self) -> Option<bool> {
@@ -649,10 +649,10 @@ impl Entity for ResponseStream {
 async fn byop_required_response_stream(
     cancellation_rx: oneshot::Receiver<()>,
 ) -> Result<api::ResponseStream, ConvertToAPITypeError> {
-    log::debug!("No BYOP provider selected for Zap agent request");
+    log::debug!("No BYOP provider selected for Zora agent request");
     let error_stream = futures::stream::once(async {
         Err(Arc::new(AIApiError::Other(anyhow!(
-            "Zap requires a configured BYOP provider in Settings"
+            "Zora requires a configured BYOP provider in Settings"
         ))))
     })
     .take_until(cancellation_rx);

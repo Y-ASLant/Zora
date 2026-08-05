@@ -13,7 +13,7 @@ Cloud Claude runs upload their full state to GCS (`claude_code.json` transcript,
 ## Goals
 - **Transcript rehydration works on Claude** — whenever a Claude sandbox is spun up against an existing conversation (cloud-to-cloud handoff, or explicit `--conversation`), the prior transcript lands in `~/.claude/projects/<encoded_cwd>/<uuid>.jsonl` with subagents, todos, and a `sessions-index.json` entry, AND any workspace patches from the prior sandbox are applied before Claude answers the new user turn. The "AND" is the hard part: it requires server-side prompt changes that survive Claude's own system prompt.
 - **`--conversation <id>` for Claude Code** — `warp agent run-cloud --harness claude --conversation <id> --prompt "..."` spawns a new cloud run that resumes the prior Claude session; `warp agent run --harness claude --conversation <id> --prompt "..."` does the same locally.
-- **Saves continue in place** — follow-up periodic/final saves write to the same server conversation id, same GCS objects, same Zap Drive object, same artifacts list.
+- **Saves continue in place** — follow-up periodic/final saves write to the same server conversation id, same GCS objects, same Zora Drive object, same artifacts list.
 ## Non-goals
 - Transcript rehydration or resume support for third-party harnesses other than Claude Code. The abstraction is harness-agnostic (new CLIs add a `ResumePayload` variant + their own fetch override), but no other harness implements it today.
 - Preserving the envelope's original cwd — we rewrite it to the new run's cwd so `claude --resume` finds the jsonl.
@@ -49,7 +49,7 @@ The client validates `--harness` against the conversation's stored harness befor
 ## Success criteria
 - **Transcript rehydration**: a Claude cloud run whose sandbox is replaced mid-run resumes with its prior transcript visible to Claude AND its uncommitted workspace patches applied before Claude answers the next turn — verified by the next turn's tool calls / git status, not just by the agent's acknowledgement text.
 - **Conversation resuming**: `run-cloud --conversation <id> --prompt "..."` appends to the same AI Conversation in the UI and overwrites `<id>/claude_code.json` / `block_snapshot.json` in place; `agent run --conversation <id>` locally grows `~/.claude/projects/<encoded_cwd>/<uuid>.jsonl` with the prior entries before the new prompt runs.
-- New PR / plan / file artifacts from the resumed run attach to the same Zap Drive conversation object as the original.
+- New PR / plan / file artifacts from the resumed run attach to the same Zora Drive conversation object as the original.
 - Invalid inputs fail cleanly pre-launch with no side effects.
 ## Validation
 - **Transcript rehydration (cloud handoff)**: force a sandbox replacement on a Claude run with uncommitted changes; after handoff, confirm from the next-turn tool calls that `git apply` ran on the expected patches and that the files the patches touched are dirty.

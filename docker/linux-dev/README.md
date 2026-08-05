@@ -1,7 +1,7 @@
 # Dockerfile for Linux Development
 
 The Dockerfile in this directory defines a container with the tools needed to
-build Zap on Linux.
+build Zora on Linux.
 
 This container is based on Debian Sid, Debian's unstable branch.  It ensures that you are running the latest versions of things like `mesa` (an open-source 3D graphics library, providing implementations of OpenGL and Vulkan).
 
@@ -47,7 +47,7 @@ Every time you start XQuartz, you'll need to run this once in order for programs
 xhost +localhost
 ```
 
-You should be able to SSH into the container and build and run Zap without any additional setup (dev account password is "password"):
+You should be able to SSH into the container and build and run Zora without any additional setup (dev account password is "password"):
 
 ```
 ssh dev@localhost
@@ -55,4 +55,4 @@ cd /src
 cargo run --features fast_dev
 ```
 
-It's possible you'll run into some odd errors while compiling Zap; if so, rerun the cargo command and check the first reported error.
+It's possible you'll run into some odd errors while compiling Zora; if so, rerun the cargo command and check the first reported error.

@@ -1,6 +1,6 @@
 // Suppress warnings about rustdoc style.
 #![allow(clippy::doc_lazy_continuation)]
-// 上游 Zap 裁剪后遗留的孤儿代码暂时保留,统一抑制 dead_code 告警。
+// 上游 Zora 裁剪后遗留的孤儿代码暂时保留,统一抑制 dead_code 告警。
 #![allow(dead_code)]
 
 mod ai;
@@ -150,7 +150,7 @@ use code::editor_management::CodeManager;
 use code::opened_files::OpenedFilesModel;
 use code_review::GlobalCodeReviewModel;
 use quit_warning::UnsavedStateSummary;
-// Zap(本地化,Phase 4):`ServerVoiceTranscriber` 原用于默认 VoiceTranscriber 注入,现走 `VoiceTranscriber::disabled()`,同名 import 暂收。
+// Zora(本地化,Phase 4):`ServerVoiceTranscriber` 原用于默认 VoiceTranscriber 注入,现走 `VoiceTranscriber::disabled()`,同名 import 暂收。
 #[cfg(feature = "local_fs")]
 use settings::import::model::ImportedConfigModel;
 use voice::transcriber::VoiceTranscriber;
@@ -312,7 +312,7 @@ pub struct Assets;
 
 pub static ASSETS: Assets = Assets;
 
-/// Launch mode for how to start up Zap.
+/// Launch mode for how to start up Zora.
 #[allow(clippy::large_enum_variant)]
 pub enum LaunchMode {
     /// Run the regular GUI application.
@@ -323,7 +323,7 @@ pub enum LaunchMode {
         api_key: Option<String>,
     },
 
-    /// Run the Zap command-line SDK.
+    /// Run the Zora command-line SDK.
     CommandLine {
         command: warp_cli::CliCommand,
         global_options: GlobalOptions,
@@ -412,7 +412,7 @@ impl LaunchMode {
         }
     }
 
-    /// Returns `true` if Zap should run headlessly, without a visible UI.
+    /// Returns `true` if Zora should run headlessly, without a visible UI.
     fn is_headless(&self) -> bool {
         match self {
             LaunchMode::CommandLine { command, .. } => match command {
@@ -791,15 +791,15 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             launch_mode.args().as_ref(),
         ) {
             // If we were able to contact an existing application instance, quit -
-            // we only want to run a single instance of Zap at a time.
+            // we only want to run a single instance of Zora at a time.
             Ok(_) => std::process::exit(0),
-            // If Zap isn't already running, we're good to go.
+            // If Zora isn't already running, we're good to go.
             Err(app_services::linux::StartupArgsForwardingError::NoExistingInstance) => {}
             // If we just finished an auto-update, we should continue running.
             Err(app_services::linux::StartupArgsForwardingError::IgnoredAfterAutoUpdate) => {}
             // If we were unable to perform the forwarding for an unknown reason,
             // it's better to run a second instance than potentially end up in a
-            // state where Zap refuses to run even a first instance.
+            // state where Zora refuses to run even a first instance.
             Err(err) => {
                 let err = anyhow::Error::from(err).context("Failed to forward startup args");
                 log::error!("{err:#}");
@@ -814,15 +814,15 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             launch_mode.args().as_ref(),
         ) {
             // If we were able to contact an existing application instance, quit -
-            // we only want to run a single instance of Zap at a time.
+            // we only want to run a single instance of Zora at a time.
             Ok(_) => std::process::exit(0),
-            // If Zap isn't already running, we're good to go.
+            // If Zora isn't already running, we're good to go.
             Err(app_services::windows::StartupArgsForwardingError::NoExistingInstance) => {}
             // If we just finished an auto-update, we should continue running.
             Err(app_services::windows::StartupArgsForwardingError::IgnoredAfterAutoUpdate) => {}
             // If we were unable to perform the forwarding for an unknown reason,
             // it's better to run a second instance than potentially end up in a
-            // state where Zap refuses to run even a first instance.
+            // state where Zora refuses to run even a first instance.
             Err(err) => {
                 let err = anyhow::Error::from(err).context("Failed to forward startup args");
                 log::error!("{err:#}");
@@ -831,7 +831,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
         }
     }
 
-    // Sets up a Job Object that we associate with the Zap process to handle
+    // Sets up a Job Object that we associate with the Zora process to handle
     // shared fate with its child processes. This should be called before we
     // start spawning any child processes.
     #[cfg(windows)]
@@ -1064,10 +1064,10 @@ fn initialize_app(
 
     let update_http_client = Arc::new(http_client::Client::new());
 
-    // Zap:保留 AuthStateProvider singleton 仅用于遗留调用点读取本地占位用户态。
+    // Zora:保留 AuthStateProvider singleton 仅用于遗留调用点读取本地占位用户态。
     ctx.add_singleton_model(|_ctx| AuthStateProvider::new(auth_state.clone()));
 
-    // Zap Wave 3-1:AuthManager 已本地化为 stub,不再注入 server_api / auth_client。
+    // Zora Wave 3-1:AuthManager 已本地化为 stub,不再注入 server_api / auth_client。
     ctx.add_singleton_model(AuthManager::new);
 
     ctx.add_singleton_model(|_ctx| GPUState::new());
@@ -1284,7 +1284,7 @@ fn initialize_app(
     ctx.add_singleton_model(|_ctx| SyncedInputState::new());
 
     ctx.add_singleton_model(remote_server::manager::RemoteServerManager::new);
-    // Zap Wave 6-1:`remote_server::wire_auth_token_rotation(ctx)` 调用随
+    // Zora Wave 6-1:`remote_server::wire_auth_token_rotation(ctx)` 调用随
     // server API token rotation 事件 + `wire_auth_token_rotation` 函数本体一同物理删。
 
     log::info!(
@@ -1300,7 +1300,7 @@ fn initialize_app(
         apply_scroll_multiplier(event, ctx);
     });
 
-    // Rewrite recognized Zap web URLs (sessions, Drive, settings, home) into local
+    // Rewrite recognized Zora web URLs (sessions, Drive, settings, home) into local
     // intent URLs when possible so they open directly in the desktop app.
     ctx.set_before_open_url(|url_str, _ctx| {
         if let Ok(url) = Url::parse(url_str) {
@@ -1323,7 +1323,7 @@ fn initialize_app(
     let user_is_logged_in = auth_state.is_logged_in();
 
     if user_is_logged_in {
-        // Zap 本地 auth facade 在 `AuthState::initialize` 时已把身份快照装载完毕。
+        // Zora 本地 auth facade 在 `AuthState::initialize` 时已把身份快照装载完毕。
         // 启动阶段不再额外触发一次云端 token refresh / auth refresh。
 
         // Set the first frame callback to record the app's startup time.
@@ -1480,7 +1480,7 @@ fn initialize_app(
     ai::blocklist::block::status_bar::init(ctx);
     drive::index::init(ctx);
     ai_assistant::panel::init(ctx);
-    // Zap Wave 7-2:`settings_view::update_environment_form::init` 随 cloud ambient agent
+    // Zora Wave 7-2:`settings_view::update_environment_form::init` 随 cloud ambient agent
     // 主体子系统物理删。
     env_vars::env_var_collection_block::init(ctx);
     terminal::ssh::install_tmux::init(ctx);
@@ -1539,7 +1539,7 @@ fn initialize_app(
     #[cfg(feature = "voice_input")]
     ctx.add_singleton_model(voice_input::VoiceInput::new);
     ctx.add_singleton_model(|_| {
-        // Zap(本地化,Phase 4):原默认注入 `ServerVoiceTranscriber` 走云端 Wispr STT。
+        // Zora(本地化,Phase 4):原默认注入 `ServerVoiceTranscriber` 走云端 Wispr STT。
         // 本地化场景下云端语音转写不可用,改为 `disabled()` 让上层 `transcriber()` 返 None,
         // 语音输入 UI 变为只采集不转写(后续接入本地 STT 补上)。
         VoiceTranscriber::disabled()
@@ -1564,7 +1564,7 @@ fn initialize_app(
         )
     });
 
-    // Zap(Wave 4):SyncQueue 整删后,不再有 `unsynced_actions` /
+    // Zora(Wave 4):SyncQueue 整删后,不再有 `unsynced_actions` /
     // `objects_with_pending_changes` 跟踪;本地写入即“完成”。
     let _ = (&object_store_model, &object_actions);
     // 保留 `ObjectTypeAndId` import 供同 crate 其他模块按 `crate::` 路径访问。
@@ -1612,11 +1612,11 @@ fn initialize_app(
 
     ctx.add_singleton_model(|_| AudibleBell::new());
 
-    // Zap:UpdateManager 只负责本地 cloud object 的内存/SQLite 同步,不再注入云端 client。
+    // Zora:UpdateManager 只负责本地 cloud object 的内存/SQLite 同步,不再注入云端 client。
     ctx.add_singleton_model(|ctx| UpdateManager::new(persistence_writer.sender(), ctx));
 
     let toml_file_path = settings::user_preferences_toml_file_path();
-    // Zap(本地化,Phase 5):`PreferencesSyncer` 已物理删除。原同步器负责本地
+    // Zora(本地化,Phase 5):`PreferencesSyncer` 已物理删除。原同步器负责本地
     // settings.toml 与云端 preferences 双向同步,本地化场景下只保留本地 toml 加载。
     let _ = toml_file_path;
     let _ = startup_toml_parse_error_for_syncer;
@@ -1671,7 +1671,7 @@ fn initialize_app(
     ctx.add_singleton_model(NotebookKeybindings::new);
     ctx.add_singleton_model(TerminalKeybindings::new);
     ctx.add_singleton_model(|_| ActiveSession::default());
-    // Zap(本地化,Phase 2d-4a-1):原 `Listener` singleton 负责云端 cloud_objects RTC WebSocket,
+    // Zora(本地化,Phase 2d-4a-1):原 `Listener` singleton 负责云端 cloud_objects RTC WebSocket,
     // 2b-1 后 `start_listener` 已是 no-op,本班整个文件与 singleton 注入一起物理删除。
 
     #[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
@@ -1821,7 +1821,7 @@ fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppCallbacks {
             });
 
             // We want to tear down the terminal server before relaunching for
-            // autoupdate, to ensure we're not running any extra Zap processes
+            // autoupdate, to ensure we're not running any extra Zora processes
             // when we bring up the new process.  Additionally, this must occur
             // after terminating the persistence writer, so we don't keep track
             // of the fact that the shell sessions terminated.
@@ -2281,7 +2281,7 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
     #[cfg(all(debug_assertions, not(windows)))]
     flags.insert(FeatureFlag::ServerFileBrowser);
 
-    // Issue #72: HTTP 代理设置页面。不走 channel 判断,所有 channel 含 zap-oss
+    // Issue #72: HTTP 代理设置页面。不走 channel 判断,所有 channel 含 Zora OSS
     // 默认启用,作为企业 VPN / 公司代理场景的基本能力。
     flags.insert(FeatureFlag::HttpProxySettings);
 
@@ -2342,7 +2342,7 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ShellSelector,
         #[cfg(feature = "block_toolbelt_save_as_workflow")]
         FeatureFlag::BlockToolbeltSaveAsWorkflow,
-        // Zap Wave 7-2:`CloudEnvironments` FeatureFlag 随 cloud ambient agent 主体子系统
+        // Zora Wave 7-2:`CloudEnvironments` FeatureFlag 随 cloud ambient agent 主体子系统
         // 物理删 —— `warp environment` 子命令 + `--environment` 参数同步下线。
         #[cfg(all(feature = "simulate_github_unauthed", debug_assertions))]
         FeatureFlag::SimulateGithubUnauthed,
@@ -2510,7 +2510,7 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ServerFileBrowser,
         #[cfg(feature = "allow_ignoring_input_suggestions")]
         FeatureFlag::AllowIgnoringInputSuggestions,
-        // Zap(本地化):ambient agent / agent management view 的云端入口已物理下线。
+        // Zora(本地化):ambient agent / agent management view 的云端入口已物理下线。
         // BYOP agent 本地运行不依赖这些入口。
         #[cfg(feature = "code_launch_modal")]
         FeatureFlag::CodeLaunchModal,

@@ -1,4 +1,4 @@
-//! Zap 本地身份 facade。
+//! Zora 本地身份 facade。
 //!
 //! 该模块保留 `AuthState` / `AuthStateProvider` / `AuthManager` / `User` / `UserUid` /
 //! `Credentials` 等类型表面 + pub 方法签名,**所有方法体本地化**:
@@ -35,7 +35,7 @@ pub enum OwnerType {
     User,
 }
 
-/// Zap 本地 API key 前缀。
+/// Zora 本地 API key 前缀。
 ///
 /// 历史上用于识别"以 wk- 开头的字符串为托管 API key",在 BYOP 路径上
 /// 已无托管账号 API key 概念。常量仍被 `AuthState::initialize` 内部消费 + 少量遗留
@@ -44,19 +44,19 @@ pub const API_KEY_PREFIX: &str = "wk-";
 
 // ---------- Credentials / AuthToken / LoginToken ----------
 //
-// 原来用于托管 token / API key / session cookie 几种认证方式的运行时分支。Zap
+// 原来用于托管 token / API key / session cookie 几种认证方式的运行时分支。Zora
 // 本地化后只保留 `ApiKey` / `Test` 两种实际用得到的 variant。托管 token 与
-// cookie variant 已物理删除,所有原外部账号分支在 Zap 下永远走 `None` / 早 return。
+// cookie variant 已物理删除,所有原外部账号分支在 Zora 下永远走 `None` / 早 return。
 
-/// 表示用户与 Zap 的认证方式。
+/// 表示用户与 Zora 的认证方式。
 ///
-/// Zap 本地化分支:
+/// Zora 本地化分支:
 /// - `ApiKey`:BYOP 路径下用户自携 LLM provider API key,实际由 settings/keychain
 ///   各自管理,这里只保留 enum facade 给 `AuthState::credentials()` 等读取方法。
 /// - `Test`:测试 / `skip_login` 构建下使用。
 #[derive(Clone, Debug)]
 pub enum Credentials {
-    /// BYOP / Zap Inc API key,保留 owner_type 供旧代码读取(永远 `None`)。
+    /// BYOP / Zora Inc API key,保留 owner_type 供旧代码读取(永远 `None`)。
     ApiKey {
         key: String,
         owner_type: Option<OwnerType>,
@@ -74,7 +74,7 @@ impl Credentials {
         }
     }
 
-    /// 返回 API key owner type(Zap 路径下永远 `None`)。
+    /// 返回 API key owner type(Zora 路径下永远 `None`)。
     pub fn api_key_owner_type(&self) -> Option<OwnerType> {
         match self {
             Credentials::ApiKey { owner_type, .. } => *owner_type,
@@ -98,7 +98,7 @@ impl Credentials {
 pub enum AuthToken {
     /// BYOP / 平台层 API key。
     ApiKey(String),
-    /// 无任何 token(session cookie / test / Zap 本地模式)。
+    /// 无任何 token(session cookie / test / Zora 本地模式)。
     NoAuth,
 }
 
@@ -122,8 +122,8 @@ impl AuthToken {
 
 // ---------- User 元数据 ----------
 
-/// 匿名用户类型 facade。Zap 本地化后无匿名用户概念,保留 enum 是为了让
-/// 散落在 telemetry / settings 中的 match arm 仍能编译。所有 Zap 代码路径
+/// 匿名用户类型 facade。Zora 本地化后无匿名用户概念,保留 enum 是为了让
+/// 散落在 telemetry / settings 中的 match arm 仍能编译。所有 Zora 代码路径
 /// 均不会构造 `Some(AnonymousUserType::...)`。
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AnonymousUserType {
@@ -132,7 +132,7 @@ pub enum AnonymousUserType {
     WebClientAnonymousUser,
 }
 
-/// 认证 principal 类型 facade。Zap 永远等同 `User`。
+/// 认证 principal 类型 facade。Zora 永远等同 `User`。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PrincipalType {
     #[default]
@@ -140,7 +140,7 @@ pub enum PrincipalType {
     ServiceAccount,
 }
 
-/// 个人对象限额 facade(原匿名用户 Free Tier 限额)。Zap 永不构造此值,
+/// 个人对象限额 facade(原匿名用户 Free Tier 限额)。Zora 永不构造此值,
 /// 但保留 struct 让消费方继续编译。
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct PersonalObjectLimits {
@@ -185,7 +185,7 @@ impl User {
         self.metadata.display_name.clone()
     }
 
-    /// 测试/默认用户占位。Zap 在所有路径下都使用此用户。
+    /// 测试/默认用户占位。Zora 在所有路径下都使用此用户。
     pub fn test() -> Self {
         Self {
             local_id: UserUid::new(TEST_USER_UID),
@@ -204,7 +204,7 @@ impl User {
         }
     }
 
-    /// 用户是否匿名。Zap 永远返回 `false`。
+    /// 用户是否匿名。Zora 永远返回 `false`。
     pub fn is_user_anonymous(&self) -> bool {
         false
     }
@@ -273,17 +273,17 @@ impl AuthState {
         state
     }
 
-    /// 用户是否已登录。Zap 永远 `true`。
+    /// 用户是否已登录。Zora 永远 `true`。
     pub fn is_logged_in(&self) -> bool {
         true
     }
 
-    /// 是否匿名或登出。Zap 永远 `false`。
+    /// 是否匿名或登出。Zora 永远 `false`。
     pub fn is_anonymous_or_logged_out(&self) -> bool {
         false
     }
 
-    /// 返回缓存的 access token(忽略有效性)。Zap 路径下仅当用户挂了
+    /// 返回缓存的 access token(忽略有效性)。Zora 路径下仅当用户挂了
     /// `Credentials::ApiKey` 才有值。
     pub fn get_access_token_ignoring_validity(&self) -> Option<String> {
         self.credentials
@@ -338,7 +338,7 @@ impl AuthState {
         Some(false)
     }
 
-    /// Zap 本地用户永不会撞 Free Tier 限额。
+    /// Zora 本地用户永不会撞 Free Tier 限额。
     pub fn is_anonymous_user_past_object_limit(
         &self,
         _object_type: crate::cloud_object::ObjectType,
@@ -377,18 +377,18 @@ impl AuthState {
         self.user.read().as_ref().map(|user| user.local_id)
     }
 
-    /// 返回 nil UUID 字符串。Zap 本地化后,该 ID 不再出现在
+    /// 返回 nil UUID 字符串。Zora 本地化后,该 ID 不再出现在
     /// 任何外发 HTTP 头中,仅为给 telemetry 上下文 / session 头提供形式上的占位。
     pub fn anonymous_id(&self) -> String {
         Uuid::nil().to_string()
     }
 
-    /// 返回是否需要重新认证。Zap 永远 `false`。
+    /// 返回是否需要重新认证。Zora 永远 `false`。
     pub fn needs_reauth(&self) -> bool {
         false
     }
 
-    /// 返回当前用户的 anonymous renotification block 是否过期。Zap 用户
+    /// 返回当前用户的 anonymous renotification block 是否过期。Zora 用户
     /// 不被视作匿名用户,该函数返回 `false`(永不弹注册提示)。
     pub fn anonymous_user_renotification_block_expired(
         &self,
@@ -463,7 +463,7 @@ impl AuthStateProvider {
 
     /// 构造一个"已登出"的 AuthState provider。
     ///
-    /// Zap 不再有真正的登出状态,本函数返回与 `new_for_test` 等价的
+    /// Zora 不再有真正的登出状态,本函数返回与 `new_for_test` 等价的
     /// "已登录测试用户"provider,以保证旧测试代码继续编译。
     pub fn new_logged_out_for_test() -> Self {
         Self::new_for_test()
@@ -488,10 +488,10 @@ pub type LoginGatedFeature = &'static str;
 /// `AuthManager::open_url_maybe_with_anonymous_token` 的 url 构造回调。
 ///
 /// 在原 UI 中,该回调会收到匿名用户 token 后拼装 出”打开浏览器 可附带身份“的 URL。
-/// Zap 下匿名身份不再存在,回调被丢弃。
+/// Zora 下匿名身份不再存在,回调被丢弃。
 pub type AnonymousTokenUrlBuilder = Box<dyn FnOnce(Option<&str>) -> String>;
 
-/// AuthView 变体 facade。Zap 已物理删 AuthView UI,所有派发点在 stub 中
+/// AuthView 变体 facade。Zora 已物理删 AuthView UI,所有派发点在 stub 中
 /// 仅产生 log,但 enum 表面保留供旧 `match` arm 编译通过。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AuthViewVariant {
@@ -527,12 +527,12 @@ impl AuthView {
         self.variant = variant;
     }
 
-    /// 返回当前 variant。Zap 路径下不使用。
+    /// 返回当前 variant。Zora 路径下不使用。
     pub fn variant(&self) -> AuthViewVariant {
         self.variant
     }
 
-    /// 原原生登录 UI 跳过 ”输入口令 “ 进 入后续 ”在浏览器中打开 “步。 Zap:no-op。
+    /// 原原生登录 UI 跳过 ”输入口令 “ 进 入后续 ”在浏览器中打开 “步。 Zora:no-op。
     pub fn skip_to_browser_open_step(&mut self, _ctx: &mut ViewContext<Self>) {}
 }
 
@@ -680,7 +680,7 @@ pub enum AuthManagerEvent {
 }
 
 /// 用户认证错误 facade。少量订阅方仍 match 各 variant,因此保留 enum;
-/// Zap 不再触发任何 variant 的构造。
+/// Zora 不再触发任何 variant 的构造。
 #[derive(Debug, thiserror::Error)]
 pub enum UserAuthenticationError {
     #[error("Access token denied")]
@@ -709,7 +709,7 @@ pub struct PersistedCurrentUserInformation {
     pub email: String,
 }
 
-/// AuthManager facade。Zap 本地化后所有外部账号/RPC 入口都成为 no-op,
+/// AuthManager facade。Zora 本地化后所有外部账号/RPC 入口都成为 no-op,
 /// `AuthManager` 仍作为 singleton 模型挂在 App 中,以保证 `subscribe_to_model` /
 /// `handle(ctx).update(...)` 调用 0 改动,同时保留本地身份 / onboarded 标记 /
 /// logout reset 语义。
@@ -731,13 +731,13 @@ impl AuthManager {
 
     /// 刷新当前用户态。
     ///
-    /// 历史上这里会走云端 token 刷新;Zap 本地化后认证状态在启动时已完成
+    /// 历史上这里会走云端 token 刷新;Zora 本地化后认证状态在启动时已完成
     /// 本地初始化,不再发任何外部账号请求。
     pub fn refresh_user(&self, _ctx: &mut ModelContext<Self>) {}
 
     /// 主动登出。
     ///
-    /// Zap 不再进入“云端已登出”状态,这里仅把本地身份快照恢复成默认占位用户,
+    /// Zora 不再进入“云端已登出”状态,这里仅把本地身份快照恢复成默认占位用户,
     /// 供设置重置 / 会话清理等调用点复用。
     pub(crate) fn log_out(&mut self, _ctx: &mut ModelContext<Self>) {
         self.auth_state.reset_local_defaults();
@@ -785,7 +785,7 @@ impl AuthManager {
     // ---------- URL 构造 facade ----------
     //
     // 旧 UI(login_slide / paste_auth_token_modal / auth_view_modal)在物理删除前
-    // 会调用这些方法以填充历史登录提示链接;Zap 不再打开 Zap 云登录页。
+    // 会调用这些方法以填充历史登录提示链接;Zora 不再打开 Zora 云登录页。
     // 物理删 UI 后已无调用方,但 enum/trait 仍可能被反射式消费,保留 stub。
 
     pub fn sign_up_url(&self) -> String {
@@ -828,7 +828,7 @@ impl SingletonEntity for AuthManager {}
 
 // ---------- 全模块 init ----------
 
-/// Zap 本地身份 facade 的 init(no-op)。
+/// Zora 本地身份 facade 的 init(no-op)。
 ///
 /// 原 `init` 中挂载的 `init` / `auth_view_body::init` /
 /// `auth_override_warning_body::init` / `login_slide::init` /

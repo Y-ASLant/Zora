@@ -1,6 +1,6 @@
 # Security Policy
 
-We take security seriously at Zap and appreciate the efforts of security researchers who help keep our users safe.
+We take security seriously at Zora and appreciate the efforts of security researchers who help keep our users safe.
 
 ## Reporting a Vulnerability
 

@@ -30,7 +30,7 @@ pub enum ShellPathType {
     PlatformNative(PathBuf),
 }
 
-/// Zap:某个远端目录(cwd)下真实子项的快照。
+/// Zora:某个远端目录(cwd)下真实子项的快照。
 ///
 /// 由 daemon 的 `ListDirectory` RPC 返回的结果填充。终端链接检测器
 /// 在远端会话里用它做精确校验:把 `ls -l` 整行候选子串里真正的文件名
@@ -49,7 +49,7 @@ impl RemoteDirListing {
     }
 }
 
-/// Zap:终端文件链接的校验来源。
+/// Zora:终端文件链接的校验来源。
 ///
 /// 本地会话用本地文件系统 `fs::metadata` 判断路径是否存在;远端 SSH
 /// (remote-server)会话的文件不在本地磁盘上,本地校验必然失败,因此远端
@@ -129,7 +129,7 @@ fn is_path_valid(
         return false;
     }
 
-    // Zap:远端 SSH 会话的文件不在本地磁盘上,`fs::metadata` 必然失败。
+    // Zora:远端 SSH 会话的文件不在本地磁盘上,`fs::metadata` 必然失败。
     // 改用 daemon `ListDirectory` 缓存下来的真实目录列表精确校验:候选解析
     // 路径有效 ⇔ 其父目录恰好等于缓存的 cwd 且其文件名是该目录下的已知子项。
     // 这给链接检测器的子串搜索提供了和本地 `fs::metadata` 等价的消歧依据,
@@ -161,7 +161,7 @@ fn is_path_valid(
     metadata.is_file() || (metadata.is_dir() && clean_path_result.line_and_column_num.is_none())
 }
 
-/// Zap:判断一个已解析的远端路径是否指向目录。
+/// Zora:判断一个已解析的远端路径是否指向目录。
 ///
 /// 仅在远端会话点击链接、需要决定"打开文件 vs `cd` 进目录"时调用;
 /// 依据是缓存下来的远端 cwd 目录列表。列表未缓存或路径不在其中时返回

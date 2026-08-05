@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# Cross-platform entrypoint for running a local Zap build.
+# Cross-platform entrypoint for running a local Zora build.
 #
-# On macOS this delegates to `./script/macos/run`, which builds and runs Zap
+# On macOS this delegates to `./script/macos/run`, which builds and runs Zora
 # as a real `.app` bundle (with code signing, plist updates, etc.). On Linux
 # and Windows it invokes `cargo run` directly for the appropriate binary.
 #
@@ -27,7 +27,7 @@ if command -v warp-channel-config &>/dev/null; then
     WARP_BIN_NAME="warp"
     WARP_CHANNEL="local"
 else
-    WARP_BIN_NAME="zap-oss"
+    WARP_BIN_NAME="zora"
     WARP_CHANNEL="oss"
 fi
 

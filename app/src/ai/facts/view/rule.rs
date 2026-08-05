@@ -146,7 +146,7 @@ pub struct RuleView {
 
 impl RuleView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        // Zap(本地化,Phase 2d-1):原 UpdateManager 订阅用来接收云端创建/更新的 ack
+        // Zora(本地化,Phase 2d-1):原 UpdateManager 订阅用来接收云端创建/更新的 ack
         // 事件、以及网络状态驱动的面板重绘。本地化后 ObjectStoreEvent 已覆盖本地写入后的
         // UI 刷新需求(2c-2/2c-3 在 update_object/create_object 里发送),UpdateManager 与
         // NetworkStatus 订阅为死代码,一并移除。
@@ -604,7 +604,7 @@ impl RuleView {
             .finish()
     }
 
-    // Zap(本地化,Phase 2d-1):原 `render_sync_status_icon` 依赖 `SyncQueue::is_dequeueing()`
+    // Zora(本地化,Phase 2d-1):原 `render_sync_status_icon` 依赖 `SyncQueue::is_dequeueing()`
     // 与 `is_syncing` 谓词,本地化后永不会出现 "同步中" 状态,整体移除。
 
     fn render_project_based_row(
@@ -732,7 +732,7 @@ impl RuleView {
                 .finish()
         });
 
-        // Zap(本地化,Phase 2d-1):原 `is_edit_allowed` 依赖网络在线+server_id 两个纬度,
+        // Zora(本地化,Phase 2d-1):原 `is_edit_allowed` 依赖网络在线+server_id 两个纬度,
         // 本地化后规则永远可编辑,点击动作无条件挂载。
         hoverable
             .with_cursor(Cursor::PointingHand)

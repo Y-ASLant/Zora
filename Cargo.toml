@@ -149,7 +149,7 @@ hex = "0.4.3"
 # This matches the version of hyper used by reqwest.
 hyper = "1.6.0"
 html5ever = "0.35.0"
-# Zap BYOP webfetch:HTML→Markdown(纯 Rust 端口的 Turndown 实现,
+# Zora BYOP webfetch:HTML→Markdown(纯 Rust 端口的 Turndown 实现,
 # 对应 opencode webfetch.ts 用的 turndown JS 库)。
 htmd = "0.2"
 http = "1.1.0"
@@ -557,6 +557,6 @@ tikv-jemallocator = { git = "https://github.com/warpdotdev/jemallocator.git", re
 tikv-jemalloc-sys = { git = "https://github.com/warpdotdev/jemallocator.git", rev = "2ee30bfdf7059223b54810e4ea6c666f0a379e0b" }
 
 [patch."https://github.com/warpdotdev/warp-proto-apis.git"]
-# Zap 已切到 zerx-lab fork(见上方 dependency 改动),保留这条 patch 以
+# Zora 已切到 zerx-lab fork(见上方 dependency 改动),保留这条 patch 以
 # 便其它 transitive deps 若意外引用上游 url 时也走 fork。
 warp_multi_agent_api = { git = "https://github.com/zerx-lab/warp-proto-apis.git", rev = "14ab9a71ea3e9521b2ffab2f97a64e7c21050669" }

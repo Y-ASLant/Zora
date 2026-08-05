@@ -1,15 +1,15 @@
-# Migrating settings to Zap
+# Migrating settings to Zora
 
 [简体中文](./migrate-from-warp.zh-CN.md) · [日本語](./migrate-from-warp.ja.md)
 
 This guide is for people who want to bring **settings-style configuration**
-(custom keybindings, themes, workflows, MCP config, etc.) into Zap from a
+(custom keybindings, themes, workflows, MCP config, etc.) into Zora from a
 previous install.
 
 There are two source installs this might apply to:
 
-1. **OpenWarp** — Zap's own previous name.
-2. **Upstream [Warp](https://github.com/warpdotdev/warp)** — the project Zap
+1. **OpenWarp** — Zora's own previous name.
+2. **Upstream [Warp](https://github.com/warpdotdev/warp)** — the project Zora
    is forked from.
 
 The two cases have **different safety profiles** and are covered separately
@@ -24,7 +24,7 @@ not safe to copy across forks.
 
 ## How on-disk state is laid out
 
-Zap (and OpenWarp / upstream Warp before it) splits its on-disk state into
+Zora (and OpenWarp / upstream Warp before it) splits its on-disk state into
 **three categories of directory**:
 
 - **config** — `settings.toml`, `keybindings.yaml`
@@ -37,7 +37,7 @@ On macOS all three categories coincide under a single home dotfile directory
 `directories` crate layout on Windows. The migration scripts below take care
 of placing each file in the correct destination per platform.
 
-### Zap destination paths
+### Zora destination paths
 
 | Category | macOS | Linux | Windows |
 |---|---|---|---|
@@ -72,8 +72,8 @@ of placing each file in the correct destination per platform.
 
 ## 1. From OpenWarp (recommended path for existing users)
 
-OpenWarp **was** Zap. The rename commit (`feat: rename project Warp/OpenWarp →
-Zap`) only renamed identifiers and on-disk paths — the **configuration file
+OpenWarp **was** Zora. The rename commit (`feat: rename project Warp/OpenWarp →
+Zora`) only renamed identifiers and on-disk paths — the **configuration file
 formats and schemas did not change**, so the files below can be copied across
 as-is.
 
@@ -92,7 +92,7 @@ as-is.
 
 ### Steps
 
-> Quit Zap before copying, so no process is holding the files open.
+> Quit Zora before copying, so no process is holding the files open.
 
 **macOS**
 
@@ -164,10 +164,10 @@ Copy-IfMissing $src_home   $dst_home   skills
 ```
 
 The `[ ! -e ... ]` / `-not (Test-Path $to)` guard avoids overwriting anything
-you might have already set in Zap. Drop it if you'd rather have OpenWarp's
+you might have already set in Zora. Drop it if you'd rather have OpenWarp's
 values win.
 
-After verifying Zap looks right, you can delete the OpenWarp directories above
+After verifying Zora looks right, you can delete the OpenWarp directories above
 to reclaim disk space. They're no longer used by anything.
 
 ---
@@ -175,14 +175,14 @@ to reclaim disk space. They're no longer used by anything.
 ## 2. From upstream Warp
 
 Upstream Warp is a separate product with its own on-disk identity (see the
-"Upstream Warp source paths" table above). Zap is built with channel `Oss`,
-which gives it its own app ID (`dev.zap.Zap`) and its own per-platform layout.
+"Upstream Warp source paths" table above). Zora is built with channel `Oss`,
+which gives it its own app ID (`\zap\Zap`) and its own per-platform layout.
 The two installations cannot see each other's files, which is also what keeps
-your Warp account / cloud state out of Zap.
+your Warp account / cloud state out of Zora.
 
 The text-format files listed below have stable, compatible schemas, so copying
 them across is safe. **Other state is not** — Warp evolves independently of
-Zap, and binary / private stores can be tied to Warp's auth and bundle
+Zora, and binary / private stores can be tied to Warp's auth and bundle
 identity.
 
 ### What to copy
@@ -206,15 +206,15 @@ Same eight items as above:
   `~/Library/Application Support/dev.warp.Warp/` (macOS) or the equivalent
   state directory on Linux/Windows. Mixes user preferences with auth tokens,
   machine-bound IDs and cached cloud state. Copying it can leak identity and
-  confuse Zap's auth state. Zap defaults are already privacy-friendly.
+  confuse Zora's auth state. Zora defaults are already privacy-friendly.
 - **`warp.sqlite`** (and its `-wal` / `-shm` sidecars) — schema is coupled
-  to upstream Warp and not guaranteed to be compatible with Zap's migrations.
+  to upstream Warp and not guaranteed to be compatible with Zora's migrations.
 - **Keychain / DPAPI / libsecret entries** — bound to the Warp bundle /
-  service name, useless to Zap.
+  service name, useless to Zora.
 
 ### Steps
 
-> Quit both Warp and Zap before copying.
+> Quit both Warp and Zora before copying.
 
 **macOS**
 
@@ -291,16 +291,16 @@ Your original Warp data is never touched — Warp itself keeps working.
 
 ## Verifying
 
-Start Zap. You should see your custom themes in the theme picker, your
+Start Zora. You should see your custom themes in the theme picker, your
 keybindings in the keybinding editor, and your workflows in the workflow
 launcher. Settings UI values should reflect what was in `settings.toml`.
 
 If something looks off, the offending file is one of the eight above — open
-it in a text editor, or just delete it and let Zap fall back to defaults.
+it in a text editor, or just delete it and let Zora fall back to defaults.
 
 ## Rolling back
 
-Nothing in this guide is destructive: every file copied is something Zap will
+Nothing in this guide is destructive: every file copied is something Zora will
 recreate from defaults on next launch. To undo everything:
 
 ```sh

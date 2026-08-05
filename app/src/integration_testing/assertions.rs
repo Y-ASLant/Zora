@@ -41,7 +41,7 @@ pub fn go_online() -> TestStep {
 }
 
 pub fn join_a_workspace() -> TestStep {
-    TestStep::new("Join a Zap Drive workspace")
+    TestStep::new("Join a Zora Drive workspace")
         .with_action(move |app, _, _| {
             UserWorkspaces::handle(app).update(app, |user_workspaces, ctx| {
                 let workspace_uid = "workspace_uid123456789".to_string().into();
@@ -141,5 +141,5 @@ pub fn assert_binding_display_string(
     )
 }
 
-// Zap(本地化,Phase 2d-4a-1):原 `assert_websocket_has_started` / `assert_websocket_has_not_started`
+// Zora(本地化,Phase 2d-4a-1):原 `assert_websocket_has_started` / `assert_websocket_has_not_started`
 // 断言依赖物理删除的 `Listener` singleton,无调用方,一并移除。

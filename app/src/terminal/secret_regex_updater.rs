@@ -38,7 +38,7 @@ impl CustomSecretRegexUpdater {
 
         set_user_and_enterprise_secret_regexes(user_secrets, enterprise_secrets);
 
-        // Zap(Wave1-S4):原 telemetry-side `update_telemetry_secrets_regex` 调用
+        // Zora(Wave1-S4):原 telemetry-side `update_telemetry_secrets_regex` 调用
         // 已随 `server/telemetry/secret_redaction.rs` 整体删除。安全模式的视觉模糊
         // 走 `set_user_and_enterprise_secret_regexes` 已完整覆盖;telemetry-side
         // defence-in-depth 的 redact 因不再有任何外发路径而失去意义。

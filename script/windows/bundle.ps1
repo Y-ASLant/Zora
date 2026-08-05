@@ -16,9 +16,9 @@ Param (
     [String]$RELEASE_TAG = '',
     [String]$FEATURES = 'release_bundle,crash_reporting,gui',
 
-    # Builds only the Zap binary, skips the installer.
+    # Builds only the Zora binary, skips the installer.
     [Switch]$SKIP_BUILD_INSTALLER = $False,
-    # Builds only the installer, skips the Zap binary. Use this if the Zap
+    # Builds only the installer, skips the Zora binary. Use this if the Zora
     # binary has already been built.
     [Switch]$SKIP_BUILD_BINARY = $False,
 
@@ -106,13 +106,13 @@ if ("$CHANNEL" -eq 'local') {
 } elseif ("$CHANNEL" -eq 'stable') {
     $WARP_BIN = 'stable'
     $BINARY_NAME = 'warp.exe'
-    $APP_NAME = 'Zap'
+    $APP_NAME = 'Zora'
     # TODO(vorporeal): Remove this once we get tests passing with this default enabled.
     $FEATURES = "$FEATURES,nld_improvements"
 } elseif ("$CHANNEL" -eq 'oss') {
-    $WARP_BIN = 'zap-oss'
-    $BINARY_NAME = 'zap-oss.exe'
-    $APP_NAME = 'Zap'
+    $WARP_BIN = 'zora'
+    $BINARY_NAME = 'zora.exe'
+    $APP_NAME = 'Zora'
     # OSS channel 使用本地 crash reporting,不启用 release 默认特性集合。
     # autoupdate 走 GitHub Release(zerx-lab/warp),仅下载到 Downloads,不调 Inno Setup。
     $FEATURES = 'release_bundle,gui,nld_improvements,autoupdate'
@@ -121,10 +121,10 @@ if ("$CHANNEL" -eq 'local') {
 $BINARY_PATH = "$CARGO_TARGET_OUTPUT_DIR\$BINARY_NAME"
 # AUMID(Windows AppUserModel ID)—— 必须与进程端 `ChannelState::app_id()` 生成的完全一致,
 # 否则 Windows ToastNotificationManager 会在 Start Menu 快捷方式 / 进程 AUMID 不匹配时
-# 静默吞掉 toast。OSS(Zap)在 `app/src/bin/oss.rs` 里是 `dev.zap.Zap`,
+# 静默吞掉 toast。OSS(Zora)使用新应用标识 `dev.warp.zora`,
 # 其他官方 channel 是 `dev.warp.<Name>`。
 if ("$CHANNEL" -eq 'oss') {
-    $AUMID = "dev.zap.$APP_NAME"
+    $AUMID = 'dev.warp.zora'
 } else {
     $AUMID = "dev.warp.$APP_NAME"
 }
@@ -148,19 +148,19 @@ if ($DEBUG_BUILD) {
 if ($CHECK_ONLY) {
     cargo check -p warp --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --features "$FEATURES" --target $PLATFORM_TARGET
     if (-Not $?) {
-        Write-Error "Failed to verify Zap $WARP_BIN compilation with profile $CARGO_PROFILE"
+        Write-Error "Failed to verify Zora $WARP_BIN compilation with profile $CARGO_PROFILE"
         exit 1
     }
     exit 0
 }
 
 if (-Not $SKIP_BUILD_BINARY) {
-    Write-Output "Building Zap for channel $CHANNEL and bundle id $BUNDLE_ID"
+    Write-Output "Building Zora for channel $CHANNEL and bundle id $BUNDLE_ID"
     $env:CARGO_BIN_NAME = $CHANNEL
     $env:WARP_APP_NAME = $APP_NAME
     cargo build -p warp --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --features "$FEATURES" --target $PLATFORM_TARGET
     if (-Not $?) {
-        Write-Error "Failed to build Zap $WARP_BIN binary with profile $CARGO_PROFILE"
+        Write-Error "Failed to build Zora $WARP_BIN binary with profile $CARGO_PROFILE"
         exit 1
     }
 
@@ -234,12 +234,12 @@ if (-not ($CargoFeatureList -contains 'standalone')) {
     Write-Output "Verified $($DestinationFiles.Count) async raster assets in $AsyncDestination"
 }
 
-Write-Output 'Building Zap installer'
-# Inno Setup `AppId` 决定注册表 Uninstall 条目与升级跟踪键。OSS 下固定为 `zap-oss`,
+Write-Output 'Building Zora installer'
+# Inno Setup `AppId` 决定注册表 Uninstall 条目与升级跟踪键。OSS 使用新应用标识 `dev.warp.zora`,
 # 避免留在默认的 `warp-terminal-oss` 上。其他 channel 走 .iss 里的默认
 # `warp-terminal-{ReleaseChannel}`。
 if ("$CHANNEL" -eq 'oss') {
-    $INNO_APP_ID = 'zap-oss'
+    $INNO_APP_ID = 'dev.warp.zora'
 } else {
     $INNO_APP_ID = "warp-terminal-$CHANNEL"
 }

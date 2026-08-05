@@ -250,7 +250,7 @@ pub(super) fn vscode_2026_dark_colors() -> TerminalColors {
 }
 
 /// VS Code 2026 Dark 内置主题；配色源: vscode/extensions/theme-defaults/themes/2026-dark.json。
-/// 包含完整 UiColors 覆盖，将 VS Code 的 editor/panel 颜色映射到 Zap UI 组件。
+/// 包含完整 UiColors 覆盖，将 VS Code 的 editor/panel 颜色映射到 Zora UI 组件。
 pub(super) fn vscode_2026_dark() -> WarpTheme {
     WarpTheme::new(
         Fill::Solid(ColorU::from_u32(0x191A1BFF)),

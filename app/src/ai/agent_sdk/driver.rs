@@ -80,17 +80,17 @@ const SETUP_FAILED_IDLE_TIMEOUT: Duration = Duration::from_secs(120);
 /// If no follow-up status arrives within this window, the driver terminates with the
 /// original error so the CLI does not hang indefinitely.
 const AUTO_RESUME_TIMEOUT: Duration = Duration::from_secs(120);
-/// Signals to Claude child-harness hooks that Zap already owns the background
+/// Signals to Claude child-harness hooks that Zora already owns the background
 /// message-listener lifecycle, so the plugin should reuse the shared state
 /// files instead of spawning and cleaning up its own listener.
 ///
 /// When this variable is absent, the Claude plugin falls back to its legacy
-/// self-managed listener path so older Zap builds and standalone plugin
+/// self-managed listener path so older Zora builds and standalone plugin
 /// invocations keep working.
 pub(crate) const OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY_ENV: &str =
     "OZ_MESSAGE_LISTENER_MANAGED_EXTERNALLY";
 /// Optional root directory for the per-session Claude message-listener state
-/// that Zap and the Claude hook scripts share.
+/// that Zora and the Claude hook scripts share.
 pub(crate) const OZ_MESSAGE_LISTENER_STATE_ROOT_ENV: &str = "OZ_MESSAGE_LISTENER_STATE_ROOT";
 // Keep exporting the legacy `OZ_PARENT_*` names to child hooks until the
 // external Claude plugin has fully migrated to the canonical
@@ -187,7 +187,7 @@ pub struct AgentDriverOptions {
     pub selected_harness: Harness,
 }
 
-/// `AgentDriver` is a model for driving an ambient Zap agent to completion.
+/// `AgentDriver` is a model for driving an ambient Zora agent to completion.
 ///
 /// Its primary responsibility is to configure a headless terminal pane and execute an AI query within it.
 pub struct AgentDriver {
@@ -277,13 +277,13 @@ pub enum AgentDriverError {
     MCPMissingVariables,
     #[error("Agent profile \"{0}\" not found")]
     ProfileError(String),
-    #[error("Local user state is unavailable. Restart Zap and try again.")]
+    #[error("Local user state is unavailable. Restart Zora and try again.")]
     NotLoggedIn,
     #[error("Saved prompt not found for id {0}")]
     AIWorkflowNotFound(String),
     #[error("Terminal bootstrap failed")]
     BootstrapFailed,
-    #[error("Error syncing Zap Drive")]
+    #[error("Error syncing Zora Drive")]
     WarpDriveSyncFailed,
     #[error("Requested environment not found: {0}")]
     EnvironmentNotFound(String),
@@ -351,7 +351,7 @@ impl AgentDriver {
             )
         );
 
-        // Zap 启动时会初始化本地用户;走到这里说明本地 auth singleton 未正确初始化。
+        // Zora 启动时会初始化本地用户;走到这里说明本地 auth singleton 未正确初始化。
         if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
             return Err(AgentDriverError::NotLoggedIn);
         }
@@ -1008,7 +1008,7 @@ impl AgentDriver {
     }
 
     /// Sets up the third-party harness by subscribing to CLI session events and
-    /// installing the Zap plugin and platform plugin, if applicable.
+    /// installing the Zora plugin and platform plugin, if applicable.
     ///
     /// Returns a oneshot receiver that fires when the harness should exit
     /// (either immediately on completion or after the idle-on-complete timeout).
@@ -1376,7 +1376,7 @@ impl AgentDriver {
             }
         });
 
-        // openWarp 不同步 plan 到 Zap Drive,原 "plan_artifact_created" CLI 输出依赖云 notebook_link,
+        // openWarp 不同步 plan 到 Zora Drive,原 "plan_artifact_created" CLI 输出依赖云 notebook_link,
         // 这里不再订阅 AIDocumentModel 的 SaveStatusUpdated 事件。
 
         // Submit the AI query.

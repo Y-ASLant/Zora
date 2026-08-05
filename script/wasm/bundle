@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Builds a Zap binary and bundles it up for distribution.
+# Builds a Zora binary and bundles it up for distribution.
 
 set -e
 
@@ -127,7 +127,7 @@ elif [[ $RELEASE_CHANNEL = "preview" ]]; then
 elif [[ $RELEASE_CHANNEL = "stable" ]]; then
   WARP_BIN="stable"
 elif [[ $RELEASE_CHANNEL = "oss" ]]; then
-  WARP_BIN="zap-oss"
+  WARP_BIN="zora"
 fi
 
 if [ -n "${FEATURES_OVERRIDE+x}" ]; then
@@ -143,7 +143,7 @@ if [[ "$CHECK_ONLY" == "true" ]]; then
 fi
 
 # Build the wasm binary.
-echo "Building and bundling Zap for channel $RELEASE_CHANNEL"
+echo "Building and bundling Zora for channel $RELEASE_CHANNEL"
 ASSET_TARGET_DIR="$ASSET_TARGET_DIR" cargo build --target wasm32-unknown-unknown --profile "$CARGO_PROFILE" --bin "$WARP_BIN" --features "$FEATURES"
 
 # Generate linked JS and wasm files that can be run in the browser.

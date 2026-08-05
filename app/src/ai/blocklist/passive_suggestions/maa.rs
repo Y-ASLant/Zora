@@ -167,7 +167,7 @@ impl PassiveSuggestionsModel {
         };
 
         log::debug!(
-            "[passive-suggestions] skipped MAA request because the multi-agent endpoint is disabled in Zap"
+            "[passive-suggestions] skipped MAA request because the multi-agent endpoint is disabled in Zora"
         );
         let (cancellation_tx, cancellation_rx) = futures::channel::oneshot::channel();
 
@@ -388,7 +388,7 @@ impl PassiveSuggestionsModel {
     ) {
         self.abort_pending_requests(ctx);
 
-        // Zap:暂时关闭 AgentResponseCompleted 触发的 passive suggestions 云端请求,
+        // Zora:暂时关闭 AgentResponseCompleted 触发的 passive suggestions 云端请求,
         // 避免每轮 Agent 回复后都向 ${server_root_url}/ai/multi-agent 发一次必失败的 HTTP
         // (无云端 auth + ShowSuggestions proto 动作 BYOP 无法合成)。
         // TODO(byop-suggestions): 后续若要在 BYOP 下复刻"Suggested Workflow / Rule"芯片,

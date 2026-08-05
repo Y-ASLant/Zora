@@ -349,7 +349,7 @@ impl View for AgentMessageBar {
             return Empty::new().finish();
         };
 
-        // Zap(Phase 3c A1):删除 ambient credits banner UI。
+        // Zora(Phase 3c A1):删除 ambient credits banner UI。
         // 本地化后 `ambient_only_credits_remaining` 恒为 None，原分支只会走 None。
         let right_element: Option<Box<dyn warpui::Element>> = None;
 

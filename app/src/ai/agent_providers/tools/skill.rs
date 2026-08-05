@@ -1,4 +1,4 @@
-//! `read_skill`:读取 Zap 的 Skill markdown 模板。
+//! `read_skill`:读取 Zora 的 Skill markdown 模板。
 //!
 //! Skill 是用户/项目预定义的可复用工作流(`SKILL.md` 文件 + 可选元数据)。
 //! 模型读 skill 后能按用户期望的步骤推进任务。warp 自家维护一个 `SkillManager`

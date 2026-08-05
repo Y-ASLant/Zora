@@ -137,7 +137,7 @@
     return [[NSImage alloc] initWithContentsOfFile:imagePath];
 }
 
-// Protocol method that is invoked by the system when the dock for Zap is updated.
+// Protocol method that is invoked by the system when the dock for Zora is updated.
 // Note that we listen for direct changes to the AppIcon key in the user defaults.
 - (void)setDockTile:(NSDockTile *)dockTile {
     @try {

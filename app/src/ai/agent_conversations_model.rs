@@ -667,7 +667,7 @@ pub struct AgentConversationsModel {
     /// A map of conversation IDs to local conversations.
     conversations: HashMap<AIConversationId, ConversationMetadata>,
     /// Set of view IDs actively consuming this model's data per window.
-    /// Zap:本地化后无轮询,仅作为 register_view_open/closed 的占位记录使用。
+    /// Zora:本地化后无轮询,仅作为 register_view_open/closed 的占位记录使用。
     active_data_consumers_per_window: HashMap<WindowId, HashSet<EntityId>>,
     /// Whether we have finished the initial task load
     has_finished_initial_load: bool,
@@ -698,7 +698,7 @@ impl SingletonEntity for AgentConversationsModel {}
 
 impl AgentConversationsModel {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        // Zap(本地化,Phase 3b-1 / Wave 6-6):AgentConversationsModel 原本负责轮询/探听
+        // Zora(本地化,Phase 3b-1 / Wave 6-6):AgentConversationsModel 原本负责轮询/探听
         // 远端 ambient agent tasks 与 conversation metadata。本地化场景下:
         //   - 无轮询子系统(Wave 6-6 物理删)
         //   - has_finished_initial_load 直接为 true,使 UI 查询以空集合返回
@@ -962,7 +962,7 @@ impl AgentConversationsModel {
 
     /// 按 task ID 读取本地已缓存的 task 数据。
     ///
-    /// Zap 不再向云端补取 ambient agent task。调用方如果恢复了旧布局但本地模型没有
+    /// Zora 不再向云端补取 ambient agent task。调用方如果恢复了旧布局但本地模型没有
     /// 对应 task,这里返回 `None`,由现有面板降级路径处理。
     pub fn get_or_async_fetch_task_data(
         &self,

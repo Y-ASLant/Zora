@@ -305,7 +305,7 @@ impl ShellCommandExecutor {
                         RequestCommandOutputResult::CancelledBeforeExecution,
                     ));
                 }
-                // Zap:同步等待型命令(wait_until_completion=true)无条件禁用 pager。
+                // Zora:同步等待型命令(wait_until_completion=true)无条件禁用 pager。
                 //
                 // 模型自报的 `uses_pager` 不可靠 —— deepseek-v4-flash 等小模型几乎不会主动标,
                 // 一旦命中 `git diff`/`git log`/`man` 等隐式 pager 就会卡在 less 提示符,
@@ -850,7 +850,7 @@ fn effective_read_shell_command_delay(
 }
 
 /// 判断 `command` 是否会启动一个**永不主动退出**的交互会话。命中规则:
-/// - 被 Zap generator wrapper 包裹的命令,递归判断内部命令。
+/// - 被 Zora generator wrapper 包裹的命令,递归判断内部命令。
 /// - 裸 `ssh ...`(走 `parse_interactive_ssh_command`,会正确排除 `-T` / `-W`
 ///   等非交互形式)。
 /// - 带路径或带 `.exe` 的 ssh(改写为裸 `ssh` 后再判)。
@@ -875,7 +875,7 @@ fn command_starts_non_terminating_session(command: &str) -> bool {
         })
 }
 
-/// 解开 Zap 自身的 generator wrapper,把里面真正要跑的命令抽出来。
+/// 解开 Zora 自身的 generator wrapper,把里面真正要跑的命令抽出来。
 ///
 /// wrapper 协议形如:`<wrapper> <generator_id> '<inner_command>' [extra flags...]`
 /// 其中:
