@@ -190,7 +190,13 @@ impl SettingsWidget for AboutPageWidget {
                 .with_max_width(350.)
                 .finish(),
             )
-            .with_child(ui_builder.span("Zora").build().with_margin_top(12.).finish())
+            .with_child(
+                ui_builder
+                    .span("Zora")
+                    .build()
+                    .with_margin_top(12.)
+                    .finish(),
+            )
             .with_child(version_row.finish());
 
         // 更新状态区域:显示当前是否有新版本,并提供"检查更新"或"前往 GitHub 下载"链接。

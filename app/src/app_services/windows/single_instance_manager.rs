@@ -75,9 +75,9 @@ fn try_create_mutex() -> Result<Option<MutexHandle>, Error> {
         instance_name_prefix(),
         channel = ChannelState::channel()
     )
-        .encode_utf16()
-        .chain(std::iter::once(0))
-        .collect::<Vec<u16>>();
+    .encode_utf16()
+    .chain(std::iter::once(0))
+    .collect::<Vec<u16>>();
     let handle = unsafe { CreateMutexW(None, true, windows::core::PCWSTR(name.as_ptr())) };
 
     // https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw#return-value
