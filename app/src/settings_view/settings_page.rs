@@ -36,9 +36,9 @@ use warpui::{
         new_scrollable::{ClippedAxisConfiguration, DualAxisConfig, SingleAxisConfig},
         Align, Border, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container,
         CornerRadius, CrossAxisAlignment, Element, Empty, Expanded, Flex, Hoverable,
-        MainAxisAlignment, MainAxisSize, MouseStateHandle, NewScrollable, ParentElement, Radius,
-        SavePosition, ScrollTarget, ScrollToPositionMode, Shrinkable, SizeConstraintCondition,
-        SizeConstraintSwitch, Text,
+        MainAxisAlignment, MainAxisSize, MouseStateHandle, NewScrollable, ParentElement,
+        Percentage, Radius, SavePosition, ScrollTarget, ScrollToPositionMode, Shrinkable,
+        SizeConstraintCondition, SizeConstraintSwitch, Text,
     },
     fonts::{Properties, Weight},
     platform::Cursor,
@@ -59,7 +59,7 @@ const ALTERNATING_LIST_CLOSE_BUTTON_DIAMETER: f32 = 20.0;
 const ALTERNATING_LIST_ITEM_PADDING: f32 = 8.0;
 const GREY_TEXT_OPACITY: u8 = 60;
 const MIN_PAGE_WIDTH: f32 = 520.;
-const MAX_PAGE_WIDTH: f32 = 800.;
+const PAGE_WIDTH_PERCENTAGE: f32 = 0.9;
 
 /// Left margin for top-level sidebar nav items (pages and umbrella labels).
 pub(super) const NAV_ITEM_LEFT_MARGIN: f32 = 12.;
@@ -1683,6 +1683,15 @@ impl<V: warpui::View> PageType<V> {
     }
 
     pub(super) fn render_page(&self, view: &V, app: &AppContext) -> Box<dyn Element> {
+        self.render_page_with_width(view, app, Some(PAGE_WIDTH_PERCENTAGE))
+    }
+
+    fn render_page_with_width(
+        &self,
+        view: &V,
+        app: &AppContext,
+        width_percentage: Option<f32>,
+    ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let page = match self.get_filtered() {
             FilteredPageType::Monolith { widget, title, .. } => {
@@ -1763,17 +1772,20 @@ impl<V: warpui::View> PageType<V> {
             }
         };
 
-        Container::new(
-            Align::new(
-                ConstrainedBox::new(page)
-                    .with_max_width(MAX_PAGE_WIDTH)
-                    .finish(),
-            )
-            .top_center()
-            .finish(),
-        )
-        .with_uniform_padding(PAGE_PADDING)
-        .finish()
+        // 设置页使用可用宽度的 90%,避免宽窗口下固定 800px 导致两侧出现大块空白。
+        // Stretch 让卡片和表单真正占满这段宽度,而不是只限制最大宽度。
+        let page = Flex::column()
+            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+            .with_child(page)
+            .finish();
+        let page = match width_percentage {
+            Some(width_percentage) => Percentage::width(width_percentage, page).finish(),
+            None => page,
+        };
+
+        Container::new(Align::new(page).top_center().finish())
+            .with_uniform_padding(PAGE_PADDING)
+            .finish()
     }
 
     fn wrap_dual_scrollable(
@@ -1822,7 +1834,7 @@ impl<V: warpui::View> PageType<V> {
                             stretch_child: false,
                         },
                         child: Align::new(
-                            ConstrainedBox::new(self.render_page(view, app))
+                            ConstrainedBox::new(self.render_page_with_width(view, app, None))
                                 .with_max_width(min_width)
                                 .finish(),
                         )

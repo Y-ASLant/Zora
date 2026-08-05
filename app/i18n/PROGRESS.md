@@ -39,7 +39,7 @@
 | 8 | auth | `app/src/auth/**` | ⬜ | ⬜ | ⬜ | (free) | |
 | 9 | workflows | `app/src/workflows/**` | ⬜ | ⬜ | ⬜ | (free) | |
 | 10 | editor & search | `app/src/editor/**`, `app/src/search/**`, `app/src/search_bar.rs` | ⬜ | ⬜ | ⬜ | (free) | |
-| 11 | terminal | `app/src/terminal/**`, `app/src/shell_indicator.rs` | ⬜ | ⬜ | ⬜ | (free) | |
+| 11 | terminal | `app/src/terminal/**`, `app/src/shell_indicator.rs` | 🟡 | 🟡 | 15 | codex | 本轮完成 CLI agent 插件安装/更新链路的按钮、提示、失败和成功文案（含 en/zh-CN/ja）；terminal 其余主体仍待迁移。 |
 | 12 | mcp servers | `app/src/settings_view/mcp_servers/**`, `app/src/ai/mcp/**` | ✅ (settings_view/mcp_servers/**) | ✅ | 78 | agent-settings-mcp-servers-subdir | mcp_servers_page.rs ✅(6 key/6 cs);settings_view/mcp_servers/** 子目录 ✅:destructive_mcp_confirmation_dialog.rs(9 key/12 cs)+ edit_page.rs(12 key/13 cs)+ installation_modal.rs(6 key/6 cs)+ list_page.rs(20 key/16 cs:删 3 个 const + LazyLock 改运行时 fragments)+ server_card.rs(14 key/14 cs:tooltip×4/button×3/status×4/tools×2/update-tooltip)+ update_modal.rs(10 key/9 cs:default-name/title/desc/publisher×2/from/version/cancel/update/no-updates)。cargo check -p warp --lib 0 error / 50s。剩余 ai/mcp/** 待认领 |
 | 13 | billing & pricing | `app/src/billing/**`, `app/src/pricing/**` | ⬜ | ⬜ | ⬜ | (free) | |
 | 14 | notebooks | `app/src/notebooks/**` | ⬜ | ⬜ | ⬜ | (free) | |

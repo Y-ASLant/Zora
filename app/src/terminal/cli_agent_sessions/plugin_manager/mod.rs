@@ -123,14 +123,14 @@ pub(crate) async fn run_cli_command_logged(
                 return Ok(());
             }
             Err(PluginInstallError {
-                message: format!("'{display_cmd}' failed"),
+                message: crate::t!("cli-agent-plugin-command-failed", command = display_cmd),
                 log: log.to_owned(),
             })
         }
         Err(err) => {
             log.push_str(&format!("error: {err}\n"));
             Err(PluginInstallError {
-                message: format!("failed to run '{display_cmd}'"),
+                message: crate::t!("cli-agent-plugin-command-run-failed", command = display_cmd),
                 log: log.clone(),
             })
         }
@@ -166,7 +166,7 @@ pub(crate) trait CliAgentPluginManager: Send + Sync {
     /// Default returns an error — only agents with `can_auto_install() == true` should override.
     async fn install(&self) -> Result<(), PluginInstallError> {
         Err(PluginInstallError {
-            message: "Auto-install not supported for this agent".to_owned(),
+            message: crate::t!("cli-agent-plugin-auto-install-not-supported"),
             log: String::new(),
         })
     }
@@ -175,19 +175,19 @@ pub(crate) trait CliAgentPluginManager: Send + Sync {
     /// Default returns an error — only agents with `can_auto_install() == true` should override.
     async fn update(&self) -> Result<(), PluginInstallError> {
         Err(PluginInstallError {
-            message: "Auto-update not supported for this agent".to_owned(),
+            message: crate::t!("cli-agent-plugin-auto-update-not-supported"),
             log: String::new(),
         })
     }
 
     /// Toast message shown after a successful auto-install.
-    fn install_success_message(&self) -> &'static str {
-        "Zap plugin installed. Please restart the session to activate."
+    fn install_success_message(&self) -> String {
+        crate::t!("cli-agent-plugin-default-install-success")
     }
 
     /// Toast message shown after a successful auto-update.
-    fn update_success_message(&self) -> &'static str {
-        "Zap plugin updated. Please restart the session to activate."
+    fn update_success_message(&self) -> String {
+        crate::t!("cli-agent-plugin-default-update-success")
     }
 
     /// Manual installation instructions for the modal UI.

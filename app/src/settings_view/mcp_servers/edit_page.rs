@@ -341,25 +341,30 @@ impl MCPServersEditPageView {
             rhs_row.add_child(ChildView::new(&self.reinstall_button).finish());
         }
 
+        let title_row = Flex::row()
+            .with_main_axis_size(MainAxisSize::Max)
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_child(self.render_back_button(appearance))
+            .with_child(
+                Shrinkable::new(
+                    1.,
+                    appearance
+                        .ui_builder()
+                        .wrappable_text(title, true)
+                        .with_style(style::header_text(appearance))
+                        .build()
+                        .finish(),
+                )
+                .finish(),
+            )
+            .finish();
+
         Container::new(
             Flex::row()
                 .with_main_axis_size(MainAxisSize::Max)
                 .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    Flex::row()
-                        .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                        .with_child(self.render_back_button(appearance))
-                        .with_child(
-                            appearance
-                                .ui_builder()
-                                .wrappable_text(title, true)
-                                .with_style(style::header_text(appearance))
-                                .build()
-                                .finish(),
-                        )
-                        .finish(),
-                )
+                .with_child(Shrinkable::new(1., title_row).finish())
                 .with_child(rhs_row.finish())
                 .finish(),
         )

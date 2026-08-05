@@ -21,7 +21,9 @@ const HONOR_PS1_NAME: &str = "WARP_HONOR_PS1";
 const INITIAL_WORKING_DIR_NAME: &str = "WARP_INITIAL_WORKING_DIR";
 const USE_SSH_WRAPPER_NAME: &str = "WARP_USE_SSH_WRAPPER";
 const SHELL_DEBUG_MODE_NAME: &str = "WARP_SHELL_DEBUG_MODE";
+const TERM_NAME: &str = "TERM";
 const TERM_PROGRAM_NAME: &str = "TERM_PROGRAM";
+const COLORTERM_NAME: &str = "COLORTERM";
 const IS_LOCAL_SESSION_NAME: &str = "WARP_IS_LOCAL_SHELL_SESSION";
 const SSH_SOCKET_DIR: &str = "SSH_SOCKET_DIR";
 const PATH_APPEND_NAME: &str = "WARP_PATH_APPEND";
@@ -85,10 +87,26 @@ pub(super) fn get_shell_environment_variables(options: &PtyOptions) -> Vec<u16> 
     );
 
     env.insert(
+        map_key(TERM_NAME.into()),
+        EnvEntry {
+            preferred_key: TERM_NAME.into(),
+            value: "xterm-256color".into(),
+        },
+    );
+
+    env.insert(
         map_key(TERM_PROGRAM_NAME.into()),
         EnvEntry {
             preferred_key: TERM_PROGRAM_NAME.into(),
             value: "WarpTerminal".into(),
+        },
+    );
+
+    env.insert(
+        map_key(COLORTERM_NAME.into()),
+        EnvEntry {
+            preferred_key: COLORTERM_NAME.into(),
+            value: "truecolor".into(),
         },
     );
 
@@ -158,7 +176,8 @@ pub(super) fn get_shell_environment_variables(options: &PtyOptions) -> Vec<u16> 
             // TODO(CORE-3107): Hook this up to a new setting "Working directory for new sessions" setting for WSL.
             let mut wslenv = format!(
                 "{HONOR_PS1_NAME}/u:{USE_SSH_WRAPPER_NAME}/u:{SHELL_DEBUG_MODE_NAME}/u:\
-                {TERM_PROGRAM_NAME}/u:{IS_LOCAL_SESSION_NAME}/u:{SSH_SOCKET_DIR}/u"
+                {TERM_NAME}/u:{COLORTERM_NAME}/u:{TERM_PROGRAM_NAME}/u:\
+                {IS_LOCAL_SESSION_NAME}/u:{SSH_SOCKET_DIR}/u"
             );
             if options.start_dir.is_some() {
                 wslenv.push(':');

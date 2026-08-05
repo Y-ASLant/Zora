@@ -33,7 +33,7 @@ use syn::{parse_macro_input, LitStr};
 use warp_util::assets::{ASSETS_DIR, ASYNC_ASSETS_DIR, BUNDLED_ASSETS_DIR, REMOTE_ASSETS_DIR};
 
 struct MacroArgs {
-    /// The name of the asset. E.g. `jpg/jellyfish_bg.jpg`
+    /// The name of the asset. E.g. `jpg/leafy_bg.jpg`
     asset_name: LitStr,
     /// The asset subfolder under `app/assets`. E.g. `async`.
     asset_folder: Option<LitStr>,

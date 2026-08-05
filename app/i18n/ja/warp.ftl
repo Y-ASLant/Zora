@@ -240,6 +240,7 @@ ai-rule-edit-rule = ルールを編集
 ai-rule-delete-rule = ルールを削除
 ai-aws-refresh-credentials = AWS 認証情報を更新
 ai-footer-enable-notifications = 通知を有効化
+ai-footer-enable-agent-notifications = { $agent } の通知を有効化
 ai-footer-enable-notifications-tooltip = Warp プラグインをインストールして Zap 内のリッチなエージェント通知を有効化
 ai-footer-notifications-setup-instructions = 通知セットアップ手順
 ai-footer-install-plugin-instructions-tooltip = Warp プラグインのインストール手順を表示
@@ -2918,6 +2919,17 @@ auth-logout-unsaved-files-warning = 未保存のファイルが { $count } { $co
     }は失われます。
 
 # CLI agent plugin instructions
+cli-agent-plugin-command-failed = 「{ $command }」に失敗しました
+cli-agent-plugin-command-run-failed = 「{ $command }」を実行できませんでした
+cli-agent-plugin-auto-install-not-supported = このエージェントはプラグインの自動インストールに対応していません
+cli-agent-plugin-auto-update-not-supported = このエージェントはプラグインの自動更新に対応していません
+cli-agent-plugin-default-install-success = Zap プラグインをインストールしました。反映するにはセッションを再起動してください。
+cli-agent-plugin-default-update-success = Zap プラグインを更新しました。反映するにはセッションを再起動してください。
+cli-agent-plugin-update-no-effect = プラグインの更新が反映されませんでした
+cli-agent-plugin-claude-install-success = Zap プラグインをインストールしました。反映するには /reload-plugins を実行してください。
+cli-agent-plugin-claude-update-success = Zap プラグインを更新しました。反映するには /reload-plugins を実行してください。
+cli-agent-plugin-gemini-install-success = Zap プラグインをインストールしました。反映するには Gemini CLI を再起動してください。
+cli-agent-plugin-gemini-update-success = Zap プラグインを更新しました。反映するには Gemini CLI を再起動してください。
 cli-agent-plugin-run-on-remote = これらのコマンドは必ずリモートマシン上で実行してください。
 cli-agent-plugin-codex-install-title = Codex の Zap 通知を有効化
 cli-agent-plugin-codex-install-subtitle = Codex を最新版に更新し、フォーカス時通知を有効にすることで Zap が作業中に通知を表示できるようにします。
@@ -3199,6 +3211,8 @@ ai-footer-failed-install-warp-plugin = Warp プラグインのインストール
 ai-footer-plugin-updated-restart-session = Warp プラグインを更新しました。アクティブ化するにはセッションを再起動してください。
 ai-footer-updating-warp-plugin = Warp プラグインを更新中…
 ai-footer-failed-update-warp-plugin = Warp プラグインの更新に失敗しました
+ai-footer-plugin-auto-install-failed = プラグインを自動インストールできませんでした。チップをもう一度クリックして手動インストール手順を確認してください。
+ai-footer-no-plugin-manager = 利用可能なプラグインマネージャーがありません
 voice-input-limit-reached = 音声入力の上限に達しました
 voice-input-transcription-failed = 音声入力の書き起こしに失敗しました
 ai-toolbar-context-chip = コンテキストチップ

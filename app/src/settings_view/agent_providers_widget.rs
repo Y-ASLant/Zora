@@ -27,8 +27,8 @@ use std::collections::{HashMap, HashSet};
 
 use settings::Setting;
 use warpui::elements::{
-    ChildView, Container, CornerRadius, CrossAxisAlignment, Expanded, Flex, MainAxisAlignment,
-    MouseStateHandle, ParentElement, Radius, Text, Wrap,
+    ChildView, Clipped, Container, CornerRadius, CrossAxisAlignment, Expanded, Flex,
+    MainAxisAlignment, MouseStateHandle, ParentElement, Radius, Text, Wrap,
 };
 use warpui::ui_components::{
     button::ButtonVariant,
@@ -732,7 +732,7 @@ impl AgentProvidersWidget {
         let cell = |flex: f32, view: &ViewHandle<EditorView>| -> Box<dyn Element> {
             Expanded::new(
                 flex,
-                Container::new(ChildView::new(view).finish())
+                Container::new(Clipped::new(ChildView::new(view).finish()).finish())
                     .with_margin_right(MODEL_ROW_GAP)
                     .finish(),
             )
@@ -1040,18 +1040,22 @@ impl AgentProvidersWidget {
                 .with_child(
                     Expanded::new(
                         1.,
-                        Container::new(ChildView::new(&h_row.key_editor).finish())
-                            .with_margin_right(MODEL_ROW_GAP)
-                            .finish(),
+                        Container::new(
+                            Clipped::new(ChildView::new(&h_row.key_editor).finish()).finish(),
+                        )
+                        .with_margin_right(MODEL_ROW_GAP)
+                        .finish(),
                     )
                     .finish(),
                 )
                 .with_child(
                     Expanded::new(
                         1.,
-                        Container::new(ChildView::new(&h_row.val_editor).finish())
-                            .with_margin_right(MODEL_ROW_GAP)
-                            .finish(),
+                        Container::new(
+                            Clipped::new(ChildView::new(&h_row.val_editor).finish()).finish(),
+                        )
+                        .with_margin_right(MODEL_ROW_GAP)
+                        .finish(),
                     )
                     .finish(),
                 )
@@ -1117,12 +1121,15 @@ impl AgentProvidersWidget {
                 Expanded::new(
                     flex,
                     Container::new(
-                        Text::new(
-                            label.to_string(),
-                            appearance.ui_font_family(),
-                            appearance.ui_font_size(),
+                        Clipped::new(
+                            Text::new(
+                                label.to_string(),
+                                appearance.ui_font_family(),
+                                appearance.ui_font_size(),
+                            )
+                            .with_color(dim.into())
+                            .finish(),
                         )
-                        .with_color(dim.into())
                         .finish(),
                     )
                     .with_margin_right(MODEL_ROW_GAP)
@@ -1407,7 +1414,7 @@ fn field_block(
     Flex::column()
         .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
         .with_child(label_text)
-        .with_child(editor_element)
+        .with_child(Clipped::new(editor_element).finish())
         .finish()
 }
 
@@ -1441,10 +1448,11 @@ impl AgentProvidersWidget {
             appearance,
         );
 
-        let search_box = Container::new(ChildView::new(&self.search_editor).finish())
-            .with_margin_left(8.)
-            .with_margin_right(8.)
-            .finish();
+        let search_box =
+            Container::new(Clipped::new(ChildView::new(&self.search_editor).finish()).finish())
+                .with_margin_left(8.)
+                .with_margin_right(8.)
+                .finish();
 
         let header_row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)

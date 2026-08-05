@@ -1,5 +1,5 @@
-# Integration tests in Warp
-This is a short guide into writing integration tests in Warp.
+# Integration tests in Zap
+This is a short guide to writing integration tests in Zap.
 
 ## When to add a new integration test?
 Our general philosophy around how we see unit vs integration testing can be summarized as follows:
@@ -61,7 +61,7 @@ fn test_simple_example() -> TestDriver {
 }
 ```
 
-I find `with_keystrokes` and `with_input_string` most helpful methods, so far. You can check the implementation (and expand it!) in [ui/src/integration/test_driver.rs](../../ui/src/integration/test_driver.ts).
+I find `with_keystrokes` and `with_input_string` most helpful so far. You can check the implementation (and expand it!) in [integration/src/builder.rs](../src/builder.rs).
 
 ## When to use `assert!` vs `async_assert!`
 The former will fail the test the first time it's false. The latter will fail the test if we don't ever see a success in the timeout. If you don't specify a timeout, the default timeout is used.
@@ -102,8 +102,8 @@ This has helped us catch a lot of existing bugs in the system.
 Note that for `async_assert` to actually work, the `set_assertion` needs to **return** with the `async_assert`.
 
 ## How to add a sqlite snapshot?
-* You can copy over a warp.sqlite file from ~/Library/Application\ Support/{warp, dev.warp.Warp-(Dev|Preview|Stable)} directly
-* You may want to sanitize some info that is specific to you (i.e. cwd https://staging.warp.dev/block/FNBafyVtxvjmdNIx6HxUM5)
+* You can copy over a `warp.sqlite` file from the local Zap application-data directory directly.
+* You may want to sanitize information that is specific to you, such as the working directory.
 
 
 ### How to run integration tests?

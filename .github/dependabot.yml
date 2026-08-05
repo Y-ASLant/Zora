@@ -7,18 +7,12 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-    reviewers:
-      - "warpdotdev/tech-leads"
-    registries:
-      - github-private
     # Only send security updates, not general version updates.
     open-pull-requests-limit: 0
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "daily"
-    reviewers:
-      - "warpdotdev/tech-leads"
     cooldown:
       # Don't update to any action release that is less than two weeks old.
       default-days: 14
@@ -40,12 +34,3 @@ updates:
         update-types:
           - "minor"
           - "patch"
-registries:
-  # Allow dependabot to access our private GitHub repositories.
-  github-private:
-    type: git
-    url: https://github.com
-    username: x-access-token
-    # This is a PAT (personal access token) for the warpmachineuser
-    # GitHub user.
-    password: ${{secrets.DEPENDABOT_PRIVATE_REPO_ACCESS_TOKEN}}

@@ -110,19 +110,19 @@ impl CliAgentPluginManager for ClaudeCodePluginManager {
         if still_outdated {
             log.push_str("Post-update version check: plugin is still outdated\n");
             return Err(PluginInstallError {
-                message: "Plugin update did not take effect".to_owned(),
+                message: crate::t!("cli-agent-plugin-update-no-effect"),
                 log,
             });
         }
         Ok(())
     }
 
-    fn install_success_message(&self) -> &'static str {
-        "Zap plugin installed. Please run /reload-plugins to activate."
+    fn install_success_message(&self) -> String {
+        crate::t!("cli-agent-plugin-claude-install-success")
     }
 
-    fn update_success_message(&self) -> &'static str {
-        "Zap plugin updated. Please run /reload-plugins to activate."
+    fn update_success_message(&self) -> String {
+        crate::t!("cli-agent-plugin-claude-update-success")
     }
 
     fn install_instructions(&self) -> &'static PluginInstructions {

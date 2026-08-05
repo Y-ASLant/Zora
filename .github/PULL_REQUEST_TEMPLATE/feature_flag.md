@@ -8,7 +8,7 @@ This PR template helps ensure that as we launch new features we appropriately co
 
 - [ ] Test in dev for a week
 - [ ] Telemetry in code
-- [ ] A11y (if applicable, see [testing a11y guide](https://docs.google.com/document/d/1-H0bWss5Qw18ZpIYg-RUvN7_db1MVdWfOb5UF_GLxNc/edit?usp=sharing) for more info)
+- [ ] A11y (if applicable)
 - [ ] Add to Command Palette (if applicable)
 - [ ] Add toggle setting(s) to command palette (if applicable)
 - [ ] Add to Mac Menu (if applicable)
@@ -16,20 +16,20 @@ This PR template helps ensure that as we launch new features we appropriately co
 - [ ] Sanity check within the app that it does not clash other keybindings
 - [ ] No sensitive info in logs
 - [ ] No crashes on dev related to the feature
-- [ ] No performance regression on dev. See [dashboard](https://warp.metabaseapp.com/dashboard/1519-dev-performance-by-version?shell=zsh)
-- [ ] Feature works fine, and no regression, over SSH. See [instructions](https://github.com/warpdotdev/warp-internal/tree/master/app/tests/ssh/README.md) on how to get a VM.
+- [ ] No known performance regression on dev
+- [ ] Feature works fine, and no regression, over SSH. See [the local SSH test instructions](../../app/tests/ssh/README.md).
 - [ ] Have we explicitly brainstormed how this feature will be discovered by developers?
 - [ ] Link to Figma mocks
 - [ ] Tested on multiple themes (both dark and light)
-- [ ] If the feature being released relies on some server API, has that server API been stable on production for at least one full server release cycle? See [here](https://www.notion.so/warpdev/How-to-add-a-new-full-stack-feature-8412cede405a4ec194b32bdd4b951035?pvs=4#73b202f939834b97ab1fbdf7fc82cd53) for more details.
+- [ ] If the feature relies on an external service/API, its compatibility and rollback plan are documented
 
 
 ## Content checklist
 
 - [ ] Help content
 - [ ] Changelog entry (add entry below)
-- [ ] [Telemetry entry](https://docs.warp.dev/getting-started/privacy#exhaustive-telemetry-table) (if applicable)
-- [ ] Metrics dashboard in Metabase
+- [ ] Telemetry entry (if applicable)
+- [ ] Metrics or observability plan (if applicable)
 - [ ] Tweet (if appropriate)
 - [ ] Blog post (if appropriate)
 
