@@ -35,7 +35,7 @@ begin
     if Pos(';' + Uppercase(Path) + ';', ';' + Uppercase(Paths) + ';') > 0 then exit;
 
     { Append string to the end of the path variable }
-    Paths := Paths + ';'+ Path +';'
+    Paths := Paths + ';' + Path + ';';
 
     { Overwrite (or create if missing) path environment variable }
     if RegWriteStringValue(RootKey, SubKey, 'Path', Paths)
@@ -70,4 +70,3 @@ begin
     then Log(Format('Removed [%s] from PATH: [%s]', [Path, Paths]))
     else Log(Format('Error removing [%s] from PATH: [%s]', [Path, Paths]));
 end;
-

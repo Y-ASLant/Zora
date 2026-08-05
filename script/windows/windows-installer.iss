@@ -34,7 +34,6 @@
   ((ReleaseChannel == "integration") ? "Integration" : \
   ((ReleaseChannel == "oss") ? "Oss" : \
   "Unknown")))))
-; 必须与 single_instance_manager.rs 中当前 channel 的 Mutex 命名保持一致。
 #if ReleaseChannel == "oss"
   #define AppMutexName "Local\dev.warp.zora" + ChannelPascalCase + "_SingleInstance"
 #else

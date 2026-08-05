@@ -320,7 +320,7 @@ elif [[ $RELEASE_CHANNEL = "oss" ]]; then
 fi
 
 OUT_DIR="target/$TARGET_PROFILE_DIR/bundle/osx"
-DOCK_TILE_PLUGIN_DIR="target/$TARGET_PROFILE_DIR/dev.warp.Zap.docktileplugin"
+DOCK_TILE_PLUGIN_DIR="target/$TARGET_PROFILE_DIR/ZapDockTilePlugin.docktileplugin"
 
 # Handle specific architecture targeting
 if [[ -n "$TARGET_ARCH" ]]; then
@@ -516,8 +516,8 @@ if [[ "$ARTIFACT" == "app" ]]; then
   cp -R "$DOCK_TILE_PLUGIN_DIR" "$BUNDLE_DIR/$WARP_APP_NAME.app/Contents/PlugIns/"
 
   echo "Updating plist with dock tile plugin entries"
-  plutil -insert NSDockTilePlugIn -string "dev.warp.Zap.docktileplugin" "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/Info.plist
-  plutil -insert MainAppBundleIdentifier -string "$BUNDLE_ID" "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/PlugIns/dev.warp.Zap.docktileplugin/Contents/Info.plist
+  plutil -insert NSDockTilePlugIn -string "ZapDockTilePlugin.docktileplugin" "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/Info.plist
+  plutil -insert MainAppBundleIdentifier -string "$BUNDLE_ID" "$BUNDLE_DIR"/$WARP_APP_NAME.app/Contents/PlugIns/ZapDockTilePlugin.docktileplugin/Contents/Info.plist
 
   BUNDLED_RESOURCES_DIR="$BUNDLE_DIR/$WARP_APP_NAME.app/Contents/Resources"
   echo "Preparing bundled resources..."
