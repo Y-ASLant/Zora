@@ -130,10 +130,7 @@ pub(crate) async fn run_cli_command_logged(
         Err(err) => {
             log.push_str(&format!("error: {err}\n"));
             Err(PluginInstallError {
-                message: crate::t!(
-                    "cli-agent-plugin-command-run-failed",
-                    command = display_cmd
-                ),
+                message: crate::t!("cli-agent-plugin-command-run-failed", command = display_cmd),
                 log: log.clone(),
             })
         }
