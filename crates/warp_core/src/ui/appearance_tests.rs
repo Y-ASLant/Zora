@@ -254,9 +254,8 @@ fn test_terminal_fallback_font_family_can_be_updated() {
     assert_eq!(appearance.terminal_fallback_font_family(), None);
 }
 
-/// Per-window theme override resolution: `theme()`/`ui_builder()` return the
-/// override only for the ambient render window, and the global value otherwise.
-/// Also exercises the `theme_overrides.is_empty()` zero-cost fast path.
+/// 验证按窗口解析主题覆盖：`theme()`/`ui_builder()` 只在对应环境窗口中返回覆盖值，
+/// 其他情况下返回全局值；同时验证没有主题覆盖时仍然返回全局主题与构建器。
 #[test]
 fn test_per_window_theme_override_resolution() {
     use warpui::{current_render_window, set_current_render_window, WindowId};
@@ -265,8 +264,7 @@ fn test_per_window_theme_override_resolution() {
     let window_a = WindowId::from_usize(1);
     let window_b = WindowId::from_usize(2);
 
-    // Fast path: with no overrides, the ambient window is irrelevant and the
-    // global theme/ui_builder is always returned.
+    // 没有主题覆盖时，环境窗口不会影响返回的全局主题与构建器。
     set_current_render_window(Some(window_a));
     assert!(std::ptr::eq(appearance.theme(), &appearance.theme));
     assert!(std::ptr::eq(
@@ -319,4 +317,39 @@ fn test_per_window_theme_override_resolution() {
     // Reset the thread-local ambient so it doesn't leak into other tests sharing
     // this test thread.
     set_current_render_window(None);
+}
+
+#[test]
+fn test_per_window_ui_background_opacity_resolution() {
+    use warpui::{set_current_render_window, WindowId};
+
+    let mut appearance = mock_appearance();
+    appearance.theme.set_ui_background_opacity(40);
+    let native_window = WindowId::from_usize(3);
+    let transparent_window = WindowId::from_usize(4);
+    appearance
+        .window_ui_background_opacity_overrides
+        .insert(native_window, 100);
+
+    set_current_render_window(Some(native_window));
+    assert_eq!(
+        appearance.theme().surface_2().into_solid().a,
+        255,
+        "原生装饰窗口必须使用有效透明度 100"
+    );
+    assert_eq!(
+        appearance
+            .ui_builder()
+            .warp_theme()
+            .surface_2()
+            .into_solid()
+            .a,
+        255
+    );
+
+    set_current_render_window(Some(transparent_window));
+    assert_eq!(appearance.theme().surface_2().into_solid().a, 102);
+
+    set_current_render_window(None);
+    assert_eq!(appearance.theme().surface_2().into_solid().a, 102);
 }

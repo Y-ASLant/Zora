@@ -7,7 +7,10 @@ use warpui::{
     Entity, ModelContext, SingletonEntity, WindowId,
 };
 
-use super::{builder::UiBuilder, theme::WarpTheme};
+use super::{
+    builder::UiBuilder,
+    theme::{set_current_window_ui_background_opacity, WarpTheme},
+};
 use crate::ui::color::Opacity;
 
 /// The standard font size to use for headers (e.g.: in dialogs).
@@ -53,6 +56,8 @@ pub struct Appearance {
     /// Per-window `UiBuilder`s, kept in lockstep with `theme_overrides` (a
     /// `UiBuilder` bakes the theme into its styles, so each override needs its own).
     ui_builder_overrides: HashMap<WindowId, UiBuilder>,
+    /// 每个窗口的有效 UI 透明度。原生窗口装饰阻止透明时，它会不同于主题中保存的透明度。
+    window_ui_background_opacity_overrides: HashMap<WindowId, Opacity>,
 }
 
 /// Defines appearance change events.
@@ -138,6 +143,7 @@ impl Appearance {
             heading_font_size_multipliers,
             theme_overrides: HashMap::new(),
             ui_builder_overrides: HashMap::new(),
+            window_ui_background_opacity_overrides: HashMap::new(),
         }
     }
 
@@ -196,11 +202,12 @@ impl Appearance {
             heading_font_size_multipliers: HeadingFontSizeMultipliers::default(),
             theme_overrides: HashMap::new(),
             ui_builder_overrides: HashMap::new(),
+            window_ui_background_opacity_overrides: HashMap::new(),
         }
     }
 
     pub fn set_theme(&mut self, new_theme: WarpTheme, ctx: &mut ModelContext<Self>) {
-        let ui_background_opacity = self.theme.ui_background_opacity();
+        let ui_background_opacity = self.theme.stored_ui_background_opacity();
         self.theme = new_theme;
         self.theme.set_ui_background_opacity(ui_background_opacity);
         self.ui_builder = UiBuilder::new(
@@ -223,11 +230,11 @@ impl Appearance {
     }
 
     pub fn set_ui_background_opacity(&mut self, opacity: Opacity, ctx: &mut ModelContext<Self>) {
-        if self.theme.ui_background_opacity() == opacity
+        if self.theme.stored_ui_background_opacity() == opacity
             && self
                 .theme_overrides
                 .values()
-                .all(|theme| theme.ui_background_opacity() == opacity)
+                .all(|theme| theme.stored_ui_background_opacity() == opacity)
         {
             return;
         }
@@ -427,6 +434,8 @@ impl Appearance {
     }
 
     pub fn ui_builder(&self) -> &UiBuilder {
+        let theme = self.theme_for_current_window();
+        self.update_current_window_ui_background_opacity(theme);
         if self.ui_builder_overrides.is_empty() {
             return &self.ui_builder;
         }
@@ -440,13 +449,47 @@ impl Appearance {
     }
 
     pub fn theme(&self) -> &WarpTheme {
-        if self.theme_overrides.is_empty() {
-            return &self.theme;
-        }
-        match current_render_window() {
-            Some(w) => self.theme_overrides.get(&w).unwrap_or(&self.theme),
-            None => &self.theme,
-        }
+        let theme = self.theme_for_current_window();
+        self.update_current_window_ui_background_opacity(theme);
+        theme
+    }
+
+    fn theme_for_current_window(&self) -> &WarpTheme {
+        let theme = if self.theme_overrides.is_empty() {
+            &self.theme
+        } else {
+            match current_render_window() {
+                Some(w) => self.theme_overrides.get(&w).unwrap_or(&self.theme),
+                None => &self.theme,
+            }
+        };
+        theme
+    }
+
+    fn update_current_window_ui_background_opacity(&self, theme: &WarpTheme) {
+        let Some(window_id) = current_render_window() else {
+            set_current_window_ui_background_opacity(None);
+            return;
+        };
+        let opacity = self
+            .window_ui_background_opacity_overrides
+            .get(&window_id)
+            .copied()
+            .unwrap_or_else(|| theme.stored_ui_background_opacity());
+        set_current_window_ui_background_opacity(Some((window_id, opacity)));
+    }
+
+    /// 设置单个窗口的有效 UI 透明度，不修改主题中保存的透明度。
+    /// 如果窗口已经渲染，调用方负责使其失效并请求重绘。
+    pub fn set_window_ui_background_opacity(&mut self, window_id: WindowId, opacity: Opacity) {
+        self.window_ui_background_opacity_overrides
+            .insert(window_id, opacity);
+    }
+
+    /// 移除已关闭窗口的有效 UI 透明度覆盖。
+    pub fn clear_window_ui_background_opacity(&mut self, window_id: WindowId) {
+        self.window_ui_background_opacity_overrides
+            .remove(&window_id);
     }
 
     /// Sets a per-window theme override, invalidating only that window.
@@ -456,7 +499,7 @@ impl Appearance {
         mut theme: WarpTheme,
         ctx: &mut ModelContext<Self>,
     ) {
-        theme.set_ui_background_opacity(self.theme.ui_background_opacity());
+        theme.set_ui_background_opacity(self.theme.stored_ui_background_opacity());
         let ui_builder = UiBuilder::new(
             theme.clone(),
             self.ui_font_family,

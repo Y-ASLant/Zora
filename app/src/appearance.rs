@@ -56,9 +56,21 @@ impl AppearanceManager {
 
         ctx.subscribe_to_model(&WindowSettings::handle(ctx), |_, event, ctx| {
             if matches!(event, WindowSettingsChangedEvent::BackgroundOpacity { .. }) {
+                let window_opacities = ctx
+                    .window_ids()
+                    .map(|window_id| {
+                        let opacity = WindowSettings::as_ref(ctx)
+                            .background_opacity
+                            .effective_opacity(window_id, ctx);
+                        (window_id, opacity)
+                    })
+                    .collect::<Vec<_>>();
                 let opacity = *WindowSettings::as_ref(ctx).background_opacity;
                 Appearance::handle(ctx).update(ctx, |appearance, ctx| {
                     appearance.set_ui_background_opacity(opacity, ctx);
+                    for (window_id, opacity) in window_opacities {
+                        appearance.set_window_ui_background_opacity(window_id, opacity);
+                    }
                 });
             }
         });

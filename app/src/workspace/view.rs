@@ -20274,33 +20274,20 @@ impl View for Workspace {
             }
         }
 
-        let panels = if use_simplified_wasm_tab_bar {
-            // For the simplified WASM tab bar, we want to render the tab bar on top of all other content
-            // so that content being added/moved around in the workspace (for example the details panel being toggled)
-            // does not affect the tab.
-            let mut outer_column = Flex::column();
-            if tab_bar_mode == ShowTabBar::Stacked {
-                outer_column.add_child(self.render_tab_bar(self.tab_fixed_width, appearance, app));
-            }
-            let content = self.render_banner_and_active_tab(app, appearance);
-            // Hide the vertical tab rail for simplified WASM views (notebooks, shared sessions, etc.)
-            let panels_row = self.render_panels(app, Shrinkable::new(1.0, content).finish(), true);
-            outer_column.add_child(Shrinkable::new(1.0, panels_row).finish());
-            Container::new(outer_column.finish())
-                .with_background(util::get_terminal_background_fill(self.window_id, app))
-                .finish()
-        } else {
-            let mut outer_column = Flex::column();
-            if tab_bar_mode == ShowTabBar::Stacked {
-                outer_column.add_child(self.render_tab_bar(self.tab_fixed_width, appearance, app));
-            }
-            let content = self.render_banner_and_active_tab(app, appearance);
-            let panels_row = self.render_panels(app, Shrinkable::new(1.0, content).finish(), false);
-            outer_column.add_child(Shrinkable::new(1.0, panels_row).finish());
-            Container::new(outer_column.finish())
-                .with_background(util::get_terminal_background_fill(self.window_id, app))
-                .finish()
-        };
+        let mut outer_column = Flex::column();
+        if tab_bar_mode == ShowTabBar::Stacked {
+            outer_column.add_child(self.render_tab_bar(self.tab_fixed_width, appearance, app));
+        }
+        let content = self.render_banner_and_active_tab(app, appearance);
+        let panels_row = self.render_panels(
+            app,
+            Shrinkable::new(1.0, content).finish(),
+            use_simplified_wasm_tab_bar,
+        );
+        outer_column.add_child(Shrinkable::new(1.0, panels_row).finish());
+        let panels = Container::new(outer_column.finish())
+            .with_background(util::get_terminal_background_fill(self.window_id, app))
+            .finish();
         let mut stack = Stack::new();
 
         #[cfg(target_family = "wasm")]

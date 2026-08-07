@@ -6,10 +6,12 @@ use warpui::{
 
 use crate::{
     ai::blocklist::BlocklistAIHistoryModel,
+    appearance::Appearance,
     pane_group::{PaneGroup, PaneId},
     send_telemetry_from_app_ctx,
     server::telemetry::{TelemetryEvent, UndoCloseItemType},
     tab::TabData,
+    window_settings::WindowSettings,
     workspace::Workspace,
 };
 
@@ -257,6 +259,13 @@ impl UndoCloseStack {
 
                 let window_id = data.window_id;
                 ctx.reopen_closed_window(*data);
+
+                let background_opacity = WindowSettings::as_ref(ctx)
+                    .background_opacity
+                    .effective_opacity(window_id, ctx);
+                Appearance::handle(ctx).update(ctx, |appearance, _| {
+                    appearance.set_window_ui_background_opacity(window_id, background_opacity);
+                });
 
                 if let Some(workspace) = window_workspace(window_id, ctx) {
                     workspace.update(ctx, |workspace, ctx| {

@@ -2020,6 +2020,12 @@ fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppCallbacks {
                 return;
             }
 
+            if let Some(window_id) = closed_window_data.as_ref().map(|data| data.window_id) {
+                Appearance::handle(ctx).update(ctx, |appearance, _| {
+                    appearance.clear_window_ui_background_opacity(window_id);
+                });
+            }
+
             if let Some(window_data) = closed_window_data {
                 UndoCloseStack::handle(ctx).update(ctx, |stack, ctx| {
                     stack.handle_window_closed(window_data, ctx);

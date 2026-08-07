@@ -1395,6 +1395,14 @@ impl RootView {
         workspace_setting: NewWorkspaceSource,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
+        let window_id = ctx.window_id();
+        let background_opacity = WindowSettings::as_ref(ctx)
+            .background_opacity
+            .effective_opacity(window_id, ctx);
+        Appearance::handle(ctx).update(ctx, |appearance, _| {
+            appearance.set_window_ui_background_opacity(window_id, background_opacity);
+        });
+
         let auth_state = AuthStateProvider::as_ref(ctx).get().clone();
 
         ctx.subscribe_to_model(&AuthManager::handle(ctx), |me, _, event, ctx| {
@@ -1458,7 +1466,7 @@ impl RootView {
             web_handoff_view,
             model_event_sender,
             mouse_states: Default::default(),
-            window_id: ctx.window_id(),
+            window_id,
         };
 
         match &root_view.auth_onboarding_state {
