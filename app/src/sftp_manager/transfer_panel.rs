@@ -6,9 +6,9 @@
 
 use warp_core::ui::appearance::Appearance;
 use warpui::elements::{
-    ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable,
-    MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, SavePosition,
-    Shrinkable, Text,
+    ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container, CornerRadius,
+    CrossAxisAlignment, Fill, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle,
+    ParentElement, Radius, SavePosition, ScrollbarWidth, Shrinkable, Text,
 };
 use warpui::platform::Cursor;
 use warpui::Element;
@@ -21,6 +21,8 @@ use crate::ui_components::icons::Icon;
 const PROGRESS_BAR_HEIGHT: f32 = 4.0;
 /// 面板内边距
 const PANEL_PADDING: f32 = 8.0;
+/// 传输面板位置 ID
+const TRANSFER_PANEL_POSITION_ID: &str = "sftp_transfer_panel";
 
 /// 渲染传输方向图标
 fn render_direction_icon(
@@ -277,6 +279,8 @@ fn render_transfer_row(task: &TransferTask, appearance: &Appearance) -> Box<dyn 
 pub fn render_transfer_panel(
     transfers: &[TransferTask],
     appearance: &Appearance,
+    max_height: f32,
+    scroll_state: ClippedScrollStateHandle,
     close_btn_state: MouseStateHandle,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
@@ -334,13 +338,31 @@ pub fn render_transfer_panel(
         }
         inner.finish()
     };
-    col.add_child(rows_col);
+    let scrollbar_color = theme.disabled_text_color(theme.background()).into();
+    let scrollbar_thumb_hover = theme.main_text_color(theme.background()).into();
+    let rows = ClippedScrollable::vertical(
+        scroll_state,
+        rows_col,
+        ScrollbarWidth::Auto,
+        scrollbar_color,
+        scrollbar_thumb_hover,
+        Fill::None,
+    )
+    .finish();
+    col.add_child(Shrinkable::new(1.0, rows).finish());
 
-    Container::new(col.finish())
+    let panel = Container::new(col.finish())
         .with_uniform_padding(PANEL_PADDING)
         .with_corner_radius(CornerRadius::with_all(Radius::Pixels(6.0)))
         .with_background(theme.surface_2())
-        .finish()
+        .finish();
+    SavePosition::new(
+        ConstrainedBox::new(panel)
+            .with_max_height(max_height)
+            .finish(),
+        TRANSFER_PANEL_POSITION_ID,
+    )
+    .finish()
 }
 
 #[cfg(test)]
@@ -363,6 +385,7 @@ mod tests {
     struct TransferPanelTestView {
         transfers: Vec<TransferTask>,
         close_btn_state: MouseStateHandle,
+        scroll_state: ClippedScrollStateHandle,
         actions: Vec<SftpBrowserAction>,
     }
 
@@ -372,6 +395,7 @@ mod tests {
             Self {
                 transfers: vec![make_transfer_task(1)],
                 close_btn_state: MouseStateHandle::default(),
+                scroll_state: ClippedScrollStateHandle::default(),
                 actions: Vec::new(),
             }
         }
@@ -403,6 +427,8 @@ mod tests {
                 .with_child(render_transfer_panel(
                     &self.transfers,
                     appearance,
+                    200.0,
+                    self.scroll_state.clone(),
                     self.close_btn_state.clone(),
                 ))
                 .finish()
@@ -553,6 +579,66 @@ mod tests {
                     view.transfers.len(),
                     1,
                     "点击传输面板背景区域后传输内容应保持显示"
+                );
+            });
+        });
+    }
+
+    /// 验证传输记录超过限制高度后，面板保持限高并支持内部滚动
+    #[test]
+    fn transfer_panel_is_height_limited_and_scrollable() {
+        App::test((), |mut app| async move {
+            initialize_app(&mut app);
+            let (window_id, view) = app.add_window(WindowStyle::NotStealFocus, |_| {
+                let mut view = TransferPanelTestView::new();
+                view.transfers = (1..=30).map(make_transfer_task).collect();
+                view
+            });
+            let root_view_id = app.root_view_id(window_id).expect("测试窗口应包含根视图");
+            let presenter = Rc::new(RefCell::new(Presenter::new(window_id)));
+
+            app.update({
+                let presenter = presenter.clone();
+                move |ctx| {
+                    presenter.borrow_mut().invalidate(
+                        WindowInvalidation {
+                            updated: HashSet::from([root_view_id]),
+                            ..Default::default()
+                        },
+                        ctx,
+                    );
+                    presenter
+                        .borrow_mut()
+                        .build_scene(vec2f(800.0, 600.0), 1.0, None, ctx);
+
+                    let panel_bounds = presenter
+                        .borrow()
+                        .position_cache()
+                        .get_position(TRANSFER_PANEL_POSITION_ID)
+                        .expect("传输面板必须保存布局位置");
+                    assert!(
+                        panel_bounds.height() <= 200.0,
+                        "面板高度不得超过窗口高度的三分之一"
+                    );
+
+                    ctx.simulate_window_event(
+                        Event::ScrollWheel {
+                            position: panel_bounds.origin()
+                                + vec2f(panel_bounds.width() / 2.0, panel_bounds.height() / 2.0),
+                            delta: vec2f(0.0, -80.0),
+                            precise: true,
+                            modifiers: Default::default(),
+                        },
+                        window_id,
+                        presenter,
+                    );
+                }
+            });
+
+            view.read(&app, |view, _| {
+                assert!(
+                    view.scroll_state.scroll_start().as_f32() > 0.0,
+                    "传输记录溢出后应可向下滚动"
                 );
             });
         });

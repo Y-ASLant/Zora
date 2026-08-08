@@ -26,7 +26,7 @@ use warpui::platform::{Cursor, FilePickerConfiguration, SaveFilePickerConfigurat
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::{
     AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
+    ViewHandle, WindowId,
 };
 
 use crate::editor::{
@@ -166,6 +166,8 @@ pub enum SftpBrowserAction {
 pub struct SftpBrowserView {
     /// 关联的 SSH 服务器节点 ID
     node_id: String,
+    /// 当前所属窗口，用于按窗口高度限制传输面板。
+    window_id: WindowId,
     /// pane 配置句柄
     pane_configuration: ModelHandle<PaneConfiguration>,
     /// 焦点句柄
@@ -238,6 +240,8 @@ pub struct SftpBrowserView {
     transfer_panel_hidden: bool,
     /// 传输面板关闭按钮
     transfer_panel_close_btn: MouseStateHandle,
+    /// 传输记录滚动状态
+    transfer_scroll_state: ClippedScrollStateHandle,
     // ---- 对话框编辑器 ----
     /// 重命名编辑器
     pub(crate) rename_editor: ViewHandle<EditorView>,
@@ -319,6 +323,7 @@ impl SftpBrowserView {
 
         let mut me = Self {
             node_id,
+            window_id: ctx.window_id(),
             pane_configuration,
             focus_handle: None,
             connection: ConnectionState::Disconnected,
@@ -352,6 +357,7 @@ impl SftpBrowserView {
             dialog_close_btn: MouseStateHandle::default(),
             transfer_panel_hidden: false,
             transfer_panel_close_btn: MouseStateHandle::default(),
+            transfer_scroll_state: ClippedScrollStateHandle::default(),
             rename_editor,
             new_folder_editor,
             search_editor,
@@ -1347,10 +1353,12 @@ impl SftpBrowserView {
     }
 
     /// 渲染传输面板
-    fn render_transfers(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_transfers(&self, appearance: &Appearance, max_height: f32) -> Box<dyn Element> {
         super::transfer_panel::render_transfer_panel(
             &self.transfers,
             appearance,
+            max_height,
+            self.transfer_scroll_state.clone(),
             self.transfer_panel_close_btn.clone(),
         )
     }
@@ -2334,7 +2342,12 @@ impl View for SftpBrowserView {
 
         // 8. 传输面板浮动层
         if !self.transfers.is_empty() && !self.transfer_panel_hidden {
-            let panel_el = Container::new(self.render_transfers(appearance))
+            let max_height = app
+                .window_bounds(&self.window_id)
+                .map(|bounds| bounds.height() / 3.0)
+                .filter(|height| *height > 0.0)
+                .unwrap_or(f32::INFINITY);
+            let panel_el = Container::new(self.render_transfers(appearance, max_height))
                 .with_padding_left(PANEL_PADDING)
                 .with_padding_right(PANEL_PADDING)
                 .with_padding_bottom(PANEL_PADDING)
@@ -2438,6 +2451,15 @@ impl View for SftpBrowserView {
 
         // 13. 拖拽事件拦截
         super::drop_target::SftpDropTargetElement::new(key_handler.finish()).finish()
+    }
+
+    fn on_window_transferred(
+        &mut self,
+        _source_window_id: WindowId,
+        target_window_id: WindowId,
+        _ctx: &mut ViewContext<Self>,
+    ) {
+        self.window_id = target_window_id;
     }
 }
 
