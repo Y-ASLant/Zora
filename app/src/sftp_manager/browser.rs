@@ -109,6 +109,8 @@ pub enum SftpBrowserAction {
     ConfirmNewFolder,
     /// 确认覆盖
     ConfirmOverwrite,
+    /// 确认当前覆盖，并覆盖批量上传中剩余的同名文件
+    ConfirmOverwriteAll,
     /// 弹出右键菜单
     ContextMenu { index: usize, position: Vector2F },
     /// 关闭右键菜单
@@ -135,6 +137,8 @@ pub enum SftpBrowserAction {
     DragAndDropFiles(Vec<PathBuf>),
     /// 执行上传
     ExecuteUpload(String),
+    /// 批量执行上传
+    UploadFiles(Vec<PathBuf>),
     /// 执行保存下载（用户已选择路径）
     DownloadSaveAs { index: usize, local_path: String },
     /// 批量下载到用户选择的目录
@@ -223,6 +227,8 @@ pub struct SftpBrowserView {
     new_folder_btn: MouseStateHandle,
     /// 对话框确认按钮
     dialog_confirm_btn: MouseStateHandle,
+    /// 批量覆盖按钮
+    dialog_overwrite_all_btn: MouseStateHandle,
     /// 对话框取消按钮
     dialog_cancel_btn: MouseStateHandle,
     /// 对话框关闭按钮（标题栏 X 按钮）
@@ -256,7 +262,7 @@ pub struct SftpBrowserView {
     transfer_handles: HashMap<usize, SpawnedFutureHandle>,
     /// 传输快照轮询任务
     transfer_progress_poll_handle: Option<SpawnedFutureHandle>,
-    /// 拖拽批量上传时的待处理队列
+    /// 批量上传的待处理队列
     pending_uploads: Vec<PathBuf>,
 }
 
@@ -341,6 +347,7 @@ impl SftpBrowserView {
             upload_folder_btn: MouseStateHandle::default(),
             new_folder_btn: MouseStateHandle::default(),
             dialog_confirm_btn: MouseStateHandle::default(),
+            dialog_overwrite_all_btn: MouseStateHandle::default(),
             dialog_cancel_btn: MouseStateHandle::default(),
             dialog_close_btn: MouseStateHandle::default(),
             transfer_panel_hidden: false,
@@ -1348,11 +1355,22 @@ impl SftpBrowserView {
         )
     }
 
-    /// 执行上传操作（公共入口，供拖拽上传和文件选择上传共用）
-    ///
-    /// 先检查远程目录是否已存在同名文件，若存在则弹出覆盖确认对话框，
-    /// 用户确认后通过 `execute_upload_confirmed` 执行实际上传。
+    /// 执行上传操作（公共入口，供拖拽上传和文件选择上传共用）。
     fn execute_upload(&mut self, local_path: &Path, ctx: &mut ViewContext<Self>) {
+        self.execute_upload_with_conflict_check(local_path, true, ctx);
+    }
+
+    /// 执行已选择“全部覆盖”的批量上传项，不再逐项询问同名文件。
+    fn execute_upload_overwriting(&mut self, local_path: &Path, ctx: &mut ViewContext<Self>) {
+        self.execute_upload_with_conflict_check(local_path, false, ctx);
+    }
+
+    fn execute_upload_with_conflict_check(
+        &mut self,
+        local_path: &Path,
+        check_for_conflict: bool,
+        ctx: &mut ViewContext<Self>,
+    ) {
         let file_name = local_path
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
@@ -1370,13 +1388,11 @@ impl SftpBrowserView {
             return;
         }
 
-        // 检查远程目录中是否已存在同名文件
-        let existing = self
+        let target_exists = self
             .entries
             .iter()
-            .find(|e| e.name == file_name && matches!(e.file_type, FileEntryType::File));
-
-        if existing.is_some() {
+            .any(|entry| entry.name == file_name && entry.file_type == FileEntryType::File);
+        if check_for_conflict && target_exists {
             let local_size = std::fs::metadata(local_path).map(|m| m.len()).unwrap_or(0);
             self.dialog = Some(Dialog::OverwriteConfirm {
                 source: local_path.to_path_buf(),
@@ -1388,24 +1404,66 @@ impl SftpBrowserView {
             return;
         }
 
-        // 无冲突，直接执行上传
         self.execute_upload_confirmed(local_path, &remote_path, ctx);
     }
 
-    /// 处理待上传队列，逐个上传直到遇到冲突或队列清空
-    ///
-    /// 拖拽批量上传时，将所有文件入队后逐个处理。
-    /// 遇到同名文件冲突时暂停队列并弹出覆盖确认对话框，
-    /// 用户确认后由 ConfirmOverwrite 继续调用本方法。
-    /// author: logic
-    /// date: 2026-06-01
+    /// 将一批本地路径按选择顺序加入上传队列。
+    fn queue_uploads(&mut self, paths: &[PathBuf], ctx: &mut ViewContext<Self>) {
+        self.pending_uploads = paths.iter().rev().cloned().collect();
+        self.process_pending_uploads(ctx);
+    }
+
+    /// 逐项处理上传队列，遇到同名文件时暂停并等待用户选择。
     fn process_pending_uploads(&mut self, ctx: &mut ViewContext<Self>) {
         while let Some(local_path) = self.pending_uploads.pop() {
             self.execute_upload(&local_path, ctx);
             if self.dialog.is_some() {
-                // 遇到冲突，暂停队列等待用户确认
                 return;
             }
+        }
+    }
+
+    fn confirm_overwrite(
+        &mut self,
+        overwrite_remaining_uploads: bool,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let (source, target, file_size, direction) = match &self.dialog {
+            Some(Dialog::OverwriteConfirm {
+                source,
+                target,
+                file_size,
+                direction,
+            }) => (source.clone(), target.clone(), *file_size, *direction),
+            Some(Dialog::DeleteConfirm { .. })
+            | Some(Dialog::Rename { .. })
+            | Some(Dialog::CreateFolder { .. })
+            | Some(Dialog::Move { .. })
+            | Some(Dialog::FileDetails { .. })
+            | Some(Dialog::CloseTransferPanelConfirm)
+            | None => {
+                self.dialog = None;
+                ctx.notify();
+                return;
+            }
+        };
+
+        self.dialog = None;
+        match direction {
+            TransferDirection::Download => {
+                self.execute_download(&source, &target, file_size, ctx);
+            }
+            TransferDirection::Upload => {
+                self.execute_upload_confirmed(&source, &target, ctx);
+            }
+        }
+
+        if overwrite_remaining_uploads && direction == TransferDirection::Upload {
+            while let Some(local_path) = self.pending_uploads.pop() {
+                self.execute_upload_overwriting(&local_path, ctx);
+            }
+        } else {
+            self.process_pending_uploads(ctx);
         }
     }
 
@@ -1842,9 +1900,8 @@ impl TypedActionView for SftpBrowserView {
                 ctx.open_file_picker(
                     move |result, ctx: &mut ViewContext<SftpBrowserView>| match result {
                         Ok(paths) => {
-                            for path in paths {
-                                ctx.dispatch_typed_action(&SftpBrowserAction::ExecuteUpload(path));
-                            }
+                            let paths = paths.into_iter().map(PathBuf::from).collect();
+                            ctx.dispatch_typed_action(&SftpBrowserAction::UploadFiles(paths));
                         }
                         Err(e) => {
                             log::warn!("sftp: file picker failed: {e}");
@@ -1973,39 +2030,10 @@ impl TypedActionView for SftpBrowserView {
                 }
             }
             SftpBrowserAction::ConfirmOverwrite => {
-                // 从对话框中提取路径和传输方向
-                let (source, target, file_size, direction) = match &self.dialog {
-                    Some(Dialog::OverwriteConfirm {
-                        source,
-                        target,
-                        file_size,
-                        direction,
-                    }) => (source.clone(), target.clone(), *file_size, *direction),
-                    Some(Dialog::DeleteConfirm { .. })
-                    | Some(Dialog::Rename { .. })
-                    | Some(Dialog::CreateFolder { .. })
-                    | Some(Dialog::Move { .. })
-                    | Some(Dialog::FileDetails { .. })
-                    | Some(Dialog::CloseTransferPanelConfirm)
-                    | None => {
-                        self.dialog = None;
-                        ctx.notify();
-                        return;
-                    }
-                };
-
-                // 关闭对话框
-                self.dialog = None;
-                match direction {
-                    TransferDirection::Download => {
-                        self.execute_download(&source, &target, file_size, ctx);
-                    }
-                    TransferDirection::Upload => {
-                        self.execute_upload_confirmed(&source, &target, ctx);
-                    }
-                }
-                // 批量上传队列：确认当前文件后继续处理下一个
-                self.process_pending_uploads(ctx);
+                self.confirm_overwrite(false, ctx);
+            }
+            SftpBrowserAction::ConfirmOverwriteAll => {
+                self.confirm_overwrite(true, ctx);
             }
             SftpBrowserAction::ContextMenu { index, position } => {
                 let index = *index;
@@ -2193,9 +2221,10 @@ impl TypedActionView for SftpBrowserView {
             }
             SftpBrowserAction::DragAndDropFiles(paths) => {
                 self.is_drag_hovering = false;
-                // 逆序入队，使得 pop() 按原始顺序取出
-                self.pending_uploads = paths.iter().rev().cloned().collect();
-                self.process_pending_uploads(ctx);
+                self.queue_uploads(paths, ctx);
+            }
+            SftpBrowserAction::UploadFiles(paths) => {
+                self.queue_uploads(paths, ctx);
             }
             SftpBrowserAction::ExecuteUpload(local_path_str) => {
                 let local_path = PathBuf::from(local_path_str);
@@ -2346,7 +2375,9 @@ impl View for SftpBrowserView {
                 &self.rename_editor,
                 &self.new_folder_editor,
                 appearance,
+                !self.pending_uploads.is_empty(),
                 self.dialog_confirm_btn.clone(),
+                self.dialog_overwrite_all_btn.clone(),
                 self.dialog_cancel_btn.clone(),
                 self.dialog_close_btn.clone(),
             );

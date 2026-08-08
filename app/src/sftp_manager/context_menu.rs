@@ -146,6 +146,7 @@ pub fn render_context_menu(state: &ContextMenuState, appearance: &Appearance) ->
             | SftpBrowserAction::ConfirmRename
             | SftpBrowserAction::ConfirmNewFolder
             | SftpBrowserAction::ConfirmOverwrite
+            | SftpBrowserAction::ConfirmOverwriteAll
             | SftpBrowserAction::ContextMenu { .. }
             | SftpBrowserAction::CloseContextMenu
             | SftpBrowserAction::CloseDialog
@@ -157,6 +158,7 @@ pub fn render_context_menu(state: &ContextMenuState, appearance: &Appearance) ->
             | SftpBrowserAction::DragFilesEnter
             | SftpBrowserAction::DragFilesLeave
             | SftpBrowserAction::DragAndDropFiles(_)
+            | SftpBrowserAction::UploadFiles(_)
             | SftpBrowserAction::ExecuteUpload(_)
             | SftpBrowserAction::DownloadSaveAs { .. }
             | SftpBrowserAction::DownloadBatchSaveAs { .. }

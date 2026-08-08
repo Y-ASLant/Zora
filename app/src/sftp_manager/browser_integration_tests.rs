@@ -1362,6 +1362,69 @@ fn test_upload_creates_transfer_task() {
     });
 }
 
+/// 验证批量上传选择“全部覆盖”会替换所有同名远程文件
+#[test]
+fn test_batch_upload_overwrite_all_replaces_every_conflict() {
+    warpui::App::test((), |mut app| async move {
+        let runtime = tokio::runtime::Runtime::new().expect("创建 Tokio 测试运行时失败");
+        let _runtime_guard = runtime.enter();
+        let remote_dir = create_temp_dir_with_files(&[
+            ("first.txt", b"old first"),
+            ("second.txt", b"old second"),
+        ]);
+        let local_dir = create_temp_dir_with_files(&[
+            ("first.txt", b"new first"),
+            ("second.txt", b"new second"),
+        ]);
+        let backend = Arc::new(InMemorySftpBackend::new(remote_dir.path().to_path_buf()))
+            as Arc<dyn SftpBackend>;
+
+        initialize_app(&mut app);
+        let (_, view) = create_view(&mut app);
+        view.update(&mut app, |view, ctx| {
+            view.set_backend_for_test(backend, PathBuf::from("/"), ctx);
+            view.handle_action(
+                &SftpBrowserAction::UploadFiles(vec![
+                    local_dir.path().join("first.txt"),
+                    local_dir.path().join("second.txt"),
+                ]),
+                ctx,
+            );
+        });
+
+        view.read(&app, |view, _| {
+            assert!(matches!(
+                view.dialog,
+                Some(Dialog::OverwriteConfirm {
+                    direction: TransferDirection::Upload,
+                    ..
+                })
+            ));
+        });
+
+        view.update(&mut app, |view, ctx| {
+            view.handle_action(&SftpBrowserAction::ConfirmOverwriteAll, ctx);
+        });
+
+        view.read(&app, |view, _| {
+            assert!(view.dialog.is_none());
+            assert_eq!(view.transfers.len(), 2);
+            assert!(view
+                .transfers
+                .iter()
+                .all(|task| matches!(task.state, TransferState::Completed)));
+        });
+        assert_eq!(
+            std::fs::read(remote_dir.path().join("first.txt")).unwrap(),
+            b"new first"
+        );
+        assert_eq!(
+            std::fs::read(remote_dir.path().join("second.txt")).unwrap(),
+            b"new second"
+        );
+    });
+}
+
 /// 验证上传不存在文件失败
 #[test]
 fn test_upload_nonexistent_file_fails() {

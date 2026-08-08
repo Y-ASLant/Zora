@@ -17,7 +17,9 @@ use crate::test_util::settings::initialize_settings_for_tests;
 use pathfinder_geometry::vector::Vector2F;
 
 use super::browser::{SftpBrowserAction, SftpBrowserView};
-use super::types::{ConnectionState, Dialog, TransferDirection, TransferState};
+use super::types::{
+    ConnectionState, Dialog, FileEntry, FileEntryType, TransferDirection, TransferState,
+};
 use crate::editor::EditorView;
 
 /// 初始化测试所需的最小单例集合
@@ -1118,6 +1120,61 @@ fn test_confirm_overwrite_closes_dialog() {
 
         view.read(&app, |view, _| {
             assert!(view.dialog.is_none());
+        });
+    });
+}
+
+/// 验证批量上传选择“全部覆盖”后不再逐个弹出确认框
+#[test]
+fn test_confirm_overwrite_all_processes_remaining_batch() {
+    warpui::App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let (_, view) = create_view(&mut app);
+        let first = PathBuf::from("first.txt");
+        let second = PathBuf::from("second.txt");
+
+        view.update(&mut app, |view, ctx| {
+            view.entries = vec![
+                FileEntry {
+                    name: "first.txt".to_string(),
+                    path: PathBuf::from("/first.txt"),
+                    file_type: FileEntryType::File,
+                    size: 0,
+                    modified: None,
+                    permissions: None,
+                },
+                FileEntry {
+                    name: "second.txt".to_string(),
+                    path: PathBuf::from("/second.txt"),
+                    file_type: FileEntryType::File,
+                    size: 0,
+                    modified: None,
+                    permissions: None,
+                },
+            ];
+            view.handle_action(&SftpBrowserAction::UploadFiles(vec![first, second]), ctx);
+        });
+
+        view.read(&app, |view, _| {
+            assert!(matches!(
+                view.dialog,
+                Some(Dialog::OverwriteConfirm {
+                    direction: TransferDirection::Upload,
+                    ..
+                })
+            ));
+            assert!(view.transfers.is_empty());
+        });
+
+        view.update(&mut app, |view, ctx| {
+            view.handle_action(&SftpBrowserAction::ConfirmOverwriteAll, ctx);
+        });
+
+        view.read(&app, |view, _| {
+            assert!(view.dialog.is_none());
+            assert_eq!(view.transfers.len(), 2);
+            assert_eq!(view.transfers[0].target_path, PathBuf::from("/first.txt"));
+            assert_eq!(view.transfers[1].target_path, PathBuf::from("/second.txt"));
         });
     });
 }
