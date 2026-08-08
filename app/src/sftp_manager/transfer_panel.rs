@@ -72,6 +72,17 @@ fn render_state_label(state: &TransferState, appearance: &Appearance) -> Box<dyn
         .finish()
 }
 
+fn transfer_failure_reason(state: &TransferState) -> Option<&str> {
+    match state {
+        TransferState::Failed(reason) => Some(reason),
+        TransferState::Pending
+        | TransferState::InProgress
+        | TransferState::Paused
+        | TransferState::Completed
+        | TransferState::Cancelled => None,
+    }
+}
+
 fn render_task_action(
     label: &str,
     task_id: usize,
@@ -231,6 +242,22 @@ fn render_transfer_row(task: &TransferTask, appearance: &Appearance) -> Box<dyn 
         .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
         .with_spacing(4.0)
         .with_child(top_row.finish());
+
+    if let Some(reason) = transfer_failure_reason(&task.state) {
+        col.add_child(
+            Shrinkable::new(
+                1.0,
+                Text::new_inline(
+                    format!("失败: {reason}"),
+                    appearance.ui_font_family(),
+                    appearance.ui_font_size() * 0.8,
+                )
+                .with_color(appearance.theme().ui_error_color().into())
+                .finish(),
+            )
+            .finish(),
+        );
+    }
 
     // 进度条（仅传输中显示）
     if matches!(
@@ -451,6 +478,13 @@ mod tests {
         );
         task.state = TransferState::InProgress;
         task
+    }
+
+    #[test]
+    fn failed_transfer_preserves_failure_reason() {
+        let state = TransferState::Failed(String::from("连接已断开"));
+
+        assert_eq!(transfer_failure_reason(&state), Some("连接已断开"));
     }
 
     #[test]

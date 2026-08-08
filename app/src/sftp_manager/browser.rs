@@ -16,17 +16,17 @@ use warp_core::ui::appearance::Appearance;
 use warp_core::ui::icons::Icon;
 use warp_ssh_manager::{KeychainSecretStore, SshRepository};
 use warpui::elements::{
-    Align, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ClippedScrollable,
-    ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DispatchEventResult, Element,
-    EventHandler, Fill, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle,
-    OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius, SavePosition,
-    ScrollbarWidth, Shrinkable, Stack, Text,
+    Align, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container,
+    CornerRadius, CrossAxisAlignment, DispatchEventResult, Element, EventHandler, Fill, Flex,
+    Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
+    ParentElement, ParentOffsetBounds, Radius, SavePosition, ScrollStateHandle, Scrollable,
+    ScrollbarWidth, Shrinkable, Stack, Text, UniformListState,
 };
 use warpui::platform::{Cursor, FilePickerConfiguration, SaveFilePickerConfiguration};
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::{
     AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle, WindowId,
+    ViewHandle, WeakViewHandle, WindowId,
 };
 
 use crate::editor::{
@@ -249,13 +249,15 @@ pub struct SftpBrowserView {
     pub(crate) new_folder_editor: ViewHandle<EditorView>,
     /// 搜索过滤编辑器
     search_editor: ViewHandle<EditorView>,
-    // ---- 文件行鼠标句柄 ----
+    // ---- 文件列表 ----
     /// 每行文件条目的鼠标状态句柄
-    row_mouse_handles: Vec<MouseStateHandle>,
-    // ---- 滚动 ----
-    /// 滚动状态句柄
-    scroll_state: ClippedScrollStateHandle,
-    // ---- 异步任务 ----
+    pub(super) row_mouse_handles: Vec<MouseStateHandle>,
+    /// 虚拟文件列表状态
+    file_list_state: UniformListState,
+    /// 文件列表滚动条状态
+    scroll_state: ScrollStateHandle,
+    /// 供虚拟列表按需读取当前视图状态的弱句柄
+    view_handle: WeakViewHandle<Self>,
     /// 当前连接任务的 future handle
     connect_handle: Option<SpawnedFutureHandle>,
     /// 当前刷新目录的 future handle
@@ -362,7 +364,9 @@ impl SftpBrowserView {
             new_folder_editor,
             search_editor,
             row_mouse_handles: Vec::new(),
-            scroll_state: ClippedScrollStateHandle::default(),
+            file_list_state: UniformListState::new(),
+            scroll_state: ScrollStateHandle::default(),
+            view_handle: ctx.handle(),
             connect_handle: None,
             refresh_handle: None,
             refresh_generation: 0,
@@ -1322,13 +1326,20 @@ impl SftpBrowserView {
 
         // 文件行
         let rows = super::file_list::render_file_rows(
-            &self.entries,
-            &filtered_indices,
-            &self.selected,
-            &self.row_mouse_handles,
-            appearance,
+            filtered_indices,
+            self.file_list_state.clone(),
+            self.view_handle.clone(),
         );
-
+        let rows = Scrollable::vertical(
+            self.scroll_state.clone(),
+            rows,
+            ScrollbarWidth::Auto,
+            theme.disabled_text_color(theme.background()).into(),
+            theme.main_text_color(theme.background()).into(),
+            Fill::None,
+        )
+        .with_overlayed_scrollbar()
+        .finish();
         let rows = EventHandler::new(rows)
             .with_always_handle()
             .on_left_mouse_down(|ctx, _, position| {
@@ -1348,7 +1359,7 @@ impl SftpBrowserView {
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(header)
-            .with_child(rows)
+            .with_child(Shrinkable::new(1.0, rows).finish())
             .finish()
     }
 
@@ -2322,19 +2333,7 @@ impl View for SftpBrowserView {
         if self.is_loading {
             col.add_child(Shrinkable::new(1.0, self.render_loading(appearance)).finish());
         } else {
-            let file_list = self.render_file_list(appearance);
-            let scrollbar_color = theme.disabled_text_color(theme.background()).into();
-            let scrollbar_thumb_hover = theme.main_text_color(theme.background()).into();
-            let scrollable = ClippedScrollable::vertical(
-                self.scroll_state.clone(),
-                file_list,
-                ScrollbarWidth::Auto,
-                scrollbar_color,
-                scrollbar_thumb_hover,
-                Fill::None,
-            )
-            .finish();
-            col.add_child(Shrinkable::new(1.0, scrollable).finish());
+            col.add_child(Shrinkable::new(1.0, self.render_file_list(appearance)).finish());
         }
 
         // 7. 传输面板（浮动在底部）

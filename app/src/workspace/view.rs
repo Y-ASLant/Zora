@@ -520,6 +520,12 @@ pub(crate) const VERTICAL_TABS_PANEL_POSITION_ID: &str = "workspace_view:vertica
 /// The main content area in a workspace. This is directly below the tab bar.
 const TAB_CONTENT_POSITION_ID: &str = "workspace_view:tab_content";
 
+#[derive(Clone, Copy)]
+enum ToastAlignment {
+    Center,
+    Right,
+}
+
 const WELCOME_TIPS_POSITION_ID: &str = "welcome_tips_pill";
 
 const AI_ASSISTANT_BUTTON_ID: &str = "workspace_view:ai_assistant_button";
@@ -17744,60 +17750,90 @@ impl Workspace {
         Some(Shrinkable::new(1.0, ChildView::new(&self.right_panel_view).finish()).finish())
     }
 
+    /// Returns a toast position that keeps the active input unobstructed.
+    fn toast_positioning(
+        input_position_id: Option<&str>,
+        alignment: ToastAlignment,
+        app: &AppContext,
+    ) -> OffsetPositioning {
+        let (
+            top_anchor,
+            bottom_anchor,
+            child_top_anchor,
+            child_bottom_anchor,
+            parent_bottom_anchor,
+            input_offset_x,
+        ) = match alignment {
+            ToastAlignment::Center => (
+                PositionedElementAnchor::TopMiddle,
+                PositionedElementAnchor::BottomMiddle,
+                ChildAnchor::TopMiddle,
+                ChildAnchor::BottomMiddle,
+                ParentAnchor::BottomMiddle,
+                0.0,
+            ),
+            ToastAlignment::Right => (
+                PositionedElementAnchor::TopRight,
+                PositionedElementAnchor::BottomRight,
+                ChildAnchor::TopRight,
+                ChildAnchor::BottomRight,
+                ParentAnchor::BottomRight,
+                -16.0,
+            ),
+        };
+
+        match input_position_id {
+            Some(input_position_id) => match *InputModeSettings::as_ref(app).input_mode.value() {
+                InputMode::PinnedToBottom => OffsetPositioning::offset_from_save_position_element(
+                    input_position_id,
+                    vec2f(input_offset_x, -16.),
+                    PositionedElementOffsetBounds::WindowByPosition,
+                    top_anchor,
+                    child_bottom_anchor,
+                ),
+                InputMode::PinnedToTop => OffsetPositioning::offset_from_save_position_element(
+                    input_position_id,
+                    vec2f(input_offset_x, 16.),
+                    PositionedElementOffsetBounds::WindowByPosition,
+                    bottom_anchor,
+                    child_top_anchor,
+                ),
+                InputMode::Waterfall => OffsetPositioning::offset_from_parent(
+                    vec2f(input_offset_x, -16.),
+                    ParentOffsetBounds::WindowByPosition,
+                    parent_bottom_anchor,
+                    child_bottom_anchor,
+                ),
+            },
+            None => OffsetPositioning::offset_from_save_position_element(
+                TAB_CONTENT_POSITION_ID,
+                vec2f(0., 16.),
+                PositionedElementOffsetBounds::WindowByPosition,
+                top_anchor,
+                child_top_anchor,
+            ),
+        }
+    }
+
     /// Offset positioning for agent toasts.
-    /// TODO: update positioning based on input mode.
-    fn agent_toast_positioning(&self) -> OffsetPositioning {
-        OffsetPositioning::offset_from_save_position_element(
-            TAB_CONTENT_POSITION_ID,
-            vec2f(0., 16.),
-            PositionedElementOffsetBounds::WindowByPosition,
-            PositionedElementAnchor::TopRight,
-            ChildAnchor::TopRight,
-        )
+    fn agent_toast_positioning(
+        input_position_id: Option<&str>,
+        app: &AppContext,
+    ) -> OffsetPositioning {
+        Self::toast_positioning(input_position_id, ToastAlignment::Right, app)
     }
 
     /// Offset positioning for global toasts.
-    // TODO: update positioning based on input mode.
-    fn global_toast_positioning(&self) -> OffsetPositioning {
-        OffsetPositioning::offset_from_save_position_element(
-            TAB_CONTENT_POSITION_ID,
-            vec2f(0., 16.),
-            PositionedElementOffsetBounds::WindowByPosition,
-            PositionedElementAnchor::TopMiddle,
-            ChildAnchor::TopMiddle,
-        )
+    fn global_toast_positioning(
+        input_position_id: Option<&str>,
+        app: &AppContext,
+    ) -> OffsetPositioning {
+        Self::toast_positioning(input_position_id, ToastAlignment::Center, app)
     }
 
     /// Offset positioning for the update toast.
-    fn update_toast_positioning(
-        &self,
-        input_position_id: String,
-        app: &AppContext,
-    ) -> OffsetPositioning {
-        let input_mode = InputModeSettings::as_ref(app).input_mode.value();
-
-        match input_mode {
-            InputMode::PinnedToBottom => OffsetPositioning::offset_from_save_position_element(
-                input_position_id,
-                vec2f(-16., -16.),
-                PositionedElementOffsetBounds::WindowByPosition,
-                PositionedElementAnchor::TopRight,
-                ChildAnchor::BottomRight,
-            ),
-            InputMode::PinnedToTop => OffsetPositioning::offset_from_save_position_element(
-                input_position_id,
-                vec2f(-16., 16.),
-                PositionedElementOffsetBounds::WindowByPosition,
-                PositionedElementAnchor::BottomRight,
-                ChildAnchor::TopRight,
-            ),
-            InputMode::Waterfall => OffsetPositioning::offset_from_parent(
-                vec2f(-16., -16.),
-                ParentOffsetBounds::WindowByPosition,
-                ParentAnchor::BottomRight,
-                ChildAnchor::BottomRight,
-            ),
-        }
+    fn update_toast_positioning(input_position_id: &str, app: &AppContext) -> OffsetPositioning {
+        Self::toast_positioning(Some(input_position_id), ToastAlignment::Right, app)
     }
 
     fn add_toggle_setting_context_flags(&self, app: &AppContext, context: &mut Context) {
@@ -20999,14 +21035,14 @@ impl View for Workspace {
 
         stack.add_positioned_overlay_child(
             ChildView::new(&self.toast_stack).finish(),
-            self.global_toast_positioning(),
+            Self::global_toast_positioning(input_position_id.as_deref(), app),
         );
 
         // Render agent toast stack (for agent-related notifications) if popup is not open
         if !self.current_workspace_state.is_agent_management_popup_open {
             stack.add_positioned_overlay_child(
                 ChildView::new(&self.agent_toast_stack).finish(),
-                self.agent_toast_positioning(),
+                Self::agent_toast_positioning(input_position_id.as_deref(), app),
             );
         }
 
@@ -21062,11 +21098,11 @@ impl View for Workspace {
             }
         }
 
-        if let Some(input_position_id) = input_position_id {
+        if let Some(input_position_id) = input_position_id.as_deref() {
             if FeatureFlag::AvatarInTabBar.is_enabled() && self.is_input_box_visible(app) {
                 stack.add_positioned_overlay_child(
                     ChildView::new(&self.update_toast_stack).finish(),
-                    self.update_toast_positioning(input_position_id, app),
+                    Self::update_toast_positioning(input_position_id, app),
                 );
             }
         }
