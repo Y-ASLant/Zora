@@ -60,6 +60,7 @@ const ALTERNATING_LIST_ITEM_PADDING: f32 = 8.0;
 const GREY_TEXT_OPACITY: u8 = 60;
 const MIN_PAGE_WIDTH: f32 = 520.;
 const PAGE_WIDTH_PERCENTAGE: f32 = 0.9;
+const SETTINGS_DESCRIPTION_LINE_HEIGHT_RATIO: f32 = 1.2;
 
 /// Left margin for top-level sidebar nav items (pages and umbrella labels).
 pub(super) const NAV_ITEM_LEFT_MARGIN: f32 = 12.;
@@ -807,7 +808,8 @@ pub fn build_toggle_element(
     if let Some(description_text) = description_text {
         let description = appearance
             .ui_builder()
-            .paragraph(description_text)
+            .wrappable_text(description_text, true)
+            .with_line_height_ratio(SETTINGS_DESCRIPTION_LINE_HEIGHT_RATIO)
             .with_style(UiComponentStyles {
                 font_color: Some(blended_colors::text_sub(
                     appearance.theme(),
