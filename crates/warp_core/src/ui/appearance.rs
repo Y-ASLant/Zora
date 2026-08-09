@@ -18,7 +18,7 @@ const HEADER_FONT_SIZE: f32 = 18.;
 const OVERLINE_FONT_SIZE: f32 = 10.;
 
 /// 默认 UI 字号(基准值)。其他语义化字号方法都以此为标尺按比例缩放。
-pub const DEFAULT_UI_FONT_SIZE: f32 = 12.0;
+pub const DEFAULT_UI_FONT_SIZE: f32 = 13.0;
 /// UI 字号合法下界(设置 UI / `set_ui_font_size` 调用方应在此与 `UI_FONT_SIZE_MAX` 间 clamp)。
 pub const UI_FONT_SIZE_MIN: f32 = 8.0;
 /// UI 字号合法上界。
@@ -183,7 +183,7 @@ impl Appearance {
         Self {
             theme: mock_theme.clone(),
             monospace_font_family: FamilyId(0),
-            monospace_font_size: 13.,
+            monospace_font_size: 14.,
             monospace_font_weight: Weight::Normal,
             line_height_ratio,
             ui_builder: UiBuilder::new(

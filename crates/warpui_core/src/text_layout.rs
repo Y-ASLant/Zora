@@ -47,9 +47,9 @@ pub const UNDERLINE_THICKNESS: f32 = 2.;
 pub const STRIKETHROUGH_THICKNESSS: f32 = 2.;
 pub const UNDERLINE_BOTTOM_PADDING: f32 = 2.;
 // TODO: Ideally, we would use DEFAULT_MONOSPACE_FONT_SIZE here, however that
-// should stay app crate-specific. Hence, we're using 13.0 as a magic number
+// should stay app crate-specific. Hence, we're using 14.0 as a magic number
 // for the purposes of scaling underline padding correctly.
-const DEFAULT_FONT_SIZE: f32 = 13.;
+const DEFAULT_FONT_SIZE: f32 = 14.;
 
 // The offset for where on the text glyph the strikethrough should be drawn.
 const STRIKETHROUGH_FONT_OFFSET: f32 = 2.5;

@@ -32,9 +32,8 @@ impl SettingsInitializer {
     /// but we don't want to change it for existing users (which is what would happen if we changed the
     /// default value in define_settings_group! in code).
     pub fn handle_user_fetched(&self, auth_state: Arc<AuthState>, ctx: &mut ModelContext<Self>) {
-        /// We use a font-size of 16px (12pt) on Windows to more closely match the default font size of
-        /// Windows terminal.
-        const DEFAULT_WINDOWS_MONOSPACE_FONT_SIZE: f32 = 16.;
+        /// We use a font-size of 14px to match the app's default terminal font size.
+        const DEFAULT_WINDOWS_MONOSPACE_FONT_SIZE: f32 = 14.;
 
         if auth_state.is_onboarded() == Some(false) {
             PrivacySettings::handle(ctx).update(ctx, |settings, ctx| {
@@ -45,7 +44,7 @@ impl SettingsInitializer {
             });
 
             if cfg!(windows) {
-                log::debug!("Setting default font size to 16px (12pt) for a new Windows user");
+                log::debug!("Setting default font size to 14px for a new Windows user");
                 FontSettings::handle(ctx).update(ctx, |settings, ctx| {
                     report_if_error!(settings
                         .monospace_font_size

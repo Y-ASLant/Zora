@@ -51,8 +51,8 @@ impl CursorBlink {
 )]
 #[schemars(description = "Visual style of the cursor.", rename_all = "snake_case")]
 pub enum CursorDisplayType {
-    #[default]
     Bar,
+    #[default]
     Block,
     Underline,
 }

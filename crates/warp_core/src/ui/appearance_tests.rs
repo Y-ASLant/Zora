@@ -38,11 +38,11 @@ fn mock_appearance() -> Appearance {
 #[test]
 fn test_semantic_font_sizes_at_default() {
     let appearance = mock_appearance();
-    assert_eq!(appearance.ui_font_size(), 12.0);
+    assert_eq!(appearance.ui_font_size(), 13.0);
 
     assert_eq!(appearance.ui_font_overline(), 10.0);
     assert_eq!(appearance.ui_font_footnote(), 11.0);
-    assert_eq!(appearance.ui_font_body(), 12.0);
+    assert_eq!(appearance.ui_font_body(), 13.0);
     assert_eq!(appearance.ui_font_body_large(), 13.0);
     assert_eq!(appearance.ui_font_subheading(), 14.0);
     assert_eq!(appearance.ui_font_heading_3(), 16.0);
@@ -69,18 +69,18 @@ fn test_semantic_font_sizes_at_minimum() {
     appearance.set_ui_font_size_test(8.0);
 
     assert_eq!(appearance.ui_font_size(), 8.0);
-    assert_eq!(appearance.ui_font_overline(), 8.0 * 10.0 / 12.0);
-    assert_eq!(appearance.ui_font_footnote(), 8.0 * 11.0 / 12.0);
+    assert_eq!(appearance.ui_font_overline(), 8.0 * 10.0 / 13.0);
+    assert_eq!(appearance.ui_font_footnote(), 8.0 * 11.0 / 13.0);
     assert_eq!(appearance.ui_font_body(), 8.0);
-    assert_eq!(appearance.ui_font_body_large(), 8.0 * 13.0 / 12.0);
-    assert_eq!(appearance.ui_font_subheading(), 8.0 * 14.0 / 12.0);
-    assert_eq!(appearance.ui_font_heading_3(), 8.0 * 16.0 / 12.0);
-    assert_eq!(appearance.ui_font_heading_2(), 8.0 * 18.0 / 12.0);
-    assert_eq!(appearance.ui_font_heading_1(), 8.0 * 20.0 / 12.0);
-    assert_eq!(appearance.ui_font_display(), 8.0 * 24.0 / 12.0);
-    assert_eq!(appearance.ui_font_hero(), 8.0 * 36.0 / 12.0);
-    assert_eq!(appearance.header_font_size(), 8.0 * 18.0 / 12.0);
-    assert_eq!(appearance.overline_font_size(), 8.0 * 10.0 / 12.0);
+    assert_eq!(appearance.ui_font_body_large(), 8.0 * 13.0 / 13.0);
+    assert_eq!(appearance.ui_font_subheading(), 8.0 * 14.0 / 13.0);
+    assert_eq!(appearance.ui_font_heading_3(), 8.0 * 16.0 / 13.0);
+    assert_eq!(appearance.ui_font_heading_2(), 8.0 * 18.0 / 13.0);
+    assert_eq!(appearance.ui_font_heading_1(), 8.0 * 20.0 / 13.0);
+    assert_eq!(appearance.ui_font_display(), 8.0 * 24.0 / 13.0);
+    assert_eq!(appearance.ui_font_hero(), 8.0 * 36.0 / 13.0);
+    assert_eq!(appearance.header_font_size(), 8.0 * 18.0 / 13.0);
+    assert_eq!(appearance.overline_font_size(), 8.0 * 10.0 / 13.0);
 }
 
 /// 作者: logic
@@ -91,18 +91,18 @@ fn test_semantic_font_sizes_at_maximum() {
     appearance.set_ui_font_size_test(20.0);
 
     assert_eq!(appearance.ui_font_size(), 20.0);
-    assert_eq!(appearance.ui_font_overline(), 20.0 * 10.0 / 12.0);
+    assert_eq!(appearance.ui_font_overline(), 20.0 * 10.0 / 13.0);
     assert_eq!(appearance.ui_font_body(), 20.0);
-    assert_eq!(appearance.ui_font_subheading(), 20.0 * 14.0 / 12.0);
-    assert_eq!(appearance.ui_font_heading_3(), 20.0 * 16.0 / 12.0);
-    assert_eq!(appearance.ui_font_display(), 20.0 * 24.0 / 12.0);
+    assert_eq!(appearance.ui_font_subheading(), 20.0 * 14.0 / 13.0);
+    assert_eq!(appearance.ui_font_heading_3(), 20.0 * 16.0 / 13.0);
+    assert_eq!(appearance.ui_font_display(), 20.0 * 24.0 / 13.0);
 }
 
 /// 作者: logic
 /// 验证默认值常量
 #[test]
 fn test_default_constants() {
-    assert_eq!(DEFAULT_UI_FONT_SIZE, 12.0);
+    assert_eq!(DEFAULT_UI_FONT_SIZE, 13.0);
 }
 
 /// 作者: logic
@@ -161,11 +161,11 @@ fn test_semantic_font_size_ordering() {
 }
 
 /// 作者: logic
-/// 验证 dropdown 顶栏高度公式在默认字号 (12) 时为 30.0
+/// 验证 dropdown 顶栏高度公式在默认字号 (13) 时为 32.5
 #[test]
 fn test_dropdown_top_bar_height_at_default() {
     let appearance = mock_appearance();
-    assert_eq!(appearance.dropdown_top_bar_height(), 30.0);
+    assert_eq!(appearance.dropdown_top_bar_height(), 32.5);
 }
 
 /// 作者: logic
