@@ -51,8 +51,8 @@ impl CursorBlink {
 )]
 #[schemars(description = "Visual style of the cursor.", rename_all = "snake_case")]
 pub enum CursorDisplayType {
-    Bar,
     #[default]
+    Bar,
     Block,
     Underline,
 }
@@ -161,7 +161,7 @@ define_settings_group!(AppEditorSettings, settings: [
     },
     cursor_display_type: CursorDisplayState {
         type: CursorDisplayType,
-        default: CursorDisplayType::default(),
+        default: CursorDisplayType::Block,
         supported_platforms: SupportedPlatforms::ALL,
         sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
@@ -251,3 +251,7 @@ impl AppEditorSettings {
         *self.cursor_blink.value() == CursorBlink::Enabled
     }
 }
+
+#[cfg(test)]
+#[path = "editor_tests.rs"]
+mod tests;

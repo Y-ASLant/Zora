@@ -1575,7 +1575,6 @@ settings-agent-providers-description = Configure custom Agent providers across m
 settings-agent-providers-empty = No providers configured yet. Click [+ Add provider] in the top-right to add one.
 settings-agent-providers-add-button = + Add provider
 settings-agent-providers-search-placeholder = Search providers…
-settings-agent-providers-quick-add-title = Quick add
 settings-agent-providers-refresh-catalog = Refresh catalog
 settings-agent-providers-loading-catalog = Loading models.dev catalog… (the first load may take a few seconds)
 settings-agent-providers-catalog-empty = models.dev catalog is empty. Click [Refresh catalog] to retry.
