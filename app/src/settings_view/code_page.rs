@@ -1,4 +1,4 @@
-//! Code 设置页:Zap 在 LSP 全栈 + 持久化 workspace 历史下线后,
+//! Code 设置页:Zora 在 LSP 全栈 + 持久化 workspace 历史下线后,
 //! 这个页面只剩「编辑器与代码评审」相关的几个本地开关。
 //!
 //! 历史上这里还承载 LSP 管理子页 + codebase indexing,但都已下线;

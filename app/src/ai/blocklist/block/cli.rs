@@ -740,7 +740,7 @@ impl CLISubagentView {
                         })
                     })
                     .or_else(|| {
-                        // Zap BYOP fallback:agent 自起 LRC 时
+                        // Zora BYOP fallback:agent 自起 LRC 时
                         // `cli_controller::FinishedAction` 通过
                         // `create_silent_cli_subagent_task_for_conversation` 真实创建
                         // subtask 但暂未给它 append exchange(没新 query 触发

@@ -4,23 +4,23 @@ Technical implementation details are tracked in `TECH.md`. The core repair-bound
 
 ## Problem Statement
 
-Zap BYOP Agent can construct a follow-up request before a real asynchronous tool result has been persisted. To keep the OpenAI Chat tool-call sequence valid, the current request sanitizer may insert a placeholder tool result: `(tool 执行结果未保留)`.
+Zora BYOP Agent can construct a follow-up request before a real asynchronous tool result has been persisted. To keep the OpenAI Chat tool-call sequence valid, the current request sanitizer may insert a placeholder tool result: `(tool 执行结果未保留)`.
 
 This avoids upstream protocol rejection, but it gives the model an artificial observation. From the user's perspective, the agent appears to continue normally while reasoning from incomplete or misleading tool output. This can cause repeated actions, weaker follow-up decisions, or confusion in long-running command workflows.
 
 ## Solution
 
-Zap should only send real terminal tool states to BYOP providers during normal agent execution. Before a BYOP request is sent, every model-produced tool call that is still relevant to the conversation should have a real terminal result: success, cancellation, or structured error.
+Zora should only send real terminal tool states to BYOP providers during normal agent execution. Before a BYOP request is sent, every model-produced tool call that is still relevant to the conversation should have a real terminal result: success, cancellation, or structured error.
 
 Placeholder tool results should remain available as a defensive repair mechanism for explicitly recorded forked or restored legacy history gaps. They should not be produced for ordinary in-flight tool execution, user continuation, auto-resume flow, corrupted persisted history, or compacted tool output.
 
 ## User Stories
 
-1. As an Zap user, I want the agent to see real tool results, so that it can continue from accurate context.
-2. As a BYOP user, I want Zap to preserve strict OpenAI Chat tool-call ordering, so that strict providers accept my requests.
+1. As an Zora user, I want the agent to see real tool results, so that it can continue from accurate context.
+2. As a BYOP user, I want Zora to preserve strict OpenAI Chat tool-call ordering, so that strict providers accept my requests.
 3. As a DeepSeek BYOP user, I want `assistant(tool_calls) -> tool -> user` ordering to remain valid, so that my requests are not rejected for malformed history.
 4. As an agent user, I want cancelled tool execution to be recorded as a real cancellation result, so that the model understands why no normal output was produced.
-5. As a user who sends a new prompt while tools are running, I want Zap to drain or cancel prior tool actions before the next request is built, so that history stays coherent.
+5. As a user who sends a new prompt while tools are running, I want Zora to drain or cancel prior tool actions before the next request is built, so that history stays coherent.
 6. As a user working in a long-running command session, I want the model to receive the latest real PTY tool result, so that it does not act on stale or missing terminal state.
 7. As a user using LRC tag-in, I want auto-accepted tools to finish their result persistence before auto-resume, so that the next model turn has complete observations.
 8. As a user, I want the agent to avoid retrying work only because it saw a placeholder result, so that it does not repeat commands unnecessarily.
@@ -32,10 +32,10 @@ Placeholder tool results should remain available as a defensive repair mechanism
 14. As a maintainer, I want deterministic request-body tests, so that future changes do not reintroduce orphan tools, late tool results, or placeholder use in normal paths.
 15. As a support engineer, I want logs to identify when a placeholder was inserted and why, so that log-based diagnosis is fast.
 16. As a support engineer, I want normal in-flight tool waits to be logged differently from damaged historical state, so that user reports are easier to triage.
-17. As a BYOP provider integrator, I want Zap to emit provider-compatible tool result bundles, so that adapters do not need to compensate for malformed conversation state.
+17. As a BYOP provider integrator, I want Zora to emit provider-compatible tool result bundles, so that adapters do not need to compensate for malformed conversation state.
 18. As a tester, I want regression coverage using the observed placeholder scenario, so that the specific failure shape cannot silently return.
 19. As a user of local tool interception, I want intercepted tool results to auto-resume only after they are represented as real tool results, so that the model sees the intended feedback.
-20. As an Zap user, I want long conversations to continue without fabricated observations, so that agent quality does not degrade unexpectedly.
+20. As an Zora user, I want long conversations to continue without fabricated observations, so that agent quality does not degrade unexpectedly.
 
 ## Implementation Decisions
 
@@ -139,12 +139,12 @@ Placeholder tool results should remain available as a defensive repair mechanism
 - User-visible readiness errors should reuse `RenderableAIError::Other` with `will_attempt_resume=false` and `waiting_for_network=false`. Detailed readiness categories should remain in the readiness result type, logs, and tests rather than becoming UI error variants.
 - UI error mapping may collapse corrupted or unexplained readiness categories into the same `RenderableAIError::Other`, but logs, diagnostics, and tests should preserve the precise readiness category.
 - Corrupted or unexplained missing-result messages should state that no BYOP request was sent because a previous tool call is missing its recorded result.
-- User-visible blocked-request copy should clearly distinguish local Zap blocking from provider/model errors.
-- Blocked-request copy should include both facts: Zap did not send the BYOP request, and a previous tool call is missing a recorded result.
+- User-visible blocked-request copy should clearly distinguish local Zora blocking from provider/model errors.
+- Blocked-request copy should include both facts: Zora did not send the BYOP request, and a previous tool call is missing a recorded result.
 - Corrupted or unexplained history should be treated as a terminal blocked-request state for the current run. It should not trigger automatic resume or retry, because retrying would rebuild the same invalid history and can loop.
 - The initial blocked-request UI should not offer an automatic retry or ordinary retry action, because retrying the same damaged history will not make it valid.
 - Users may still manually continue the conversation, but the next request must go through the same readiness gate and should remain blocked until the underlying history state is resolved.
-- If a user manually continues while the same blocked history state remains unresolved, Zap may show the blocked-request error again so the user receives clear feedback for that attempt.
+- If a user manually continues while the same blocked history state remains unresolved, Zora may show the blocked-request error again so the user receives clear feedback for that attempt.
 - Repeated blocked-request diagnostics for the same conversation, task, tool call, and readiness category should be rate-limited or coalesced in logs to avoid high-severity log spam.
 - Duplicate blocked-request diagnostics should be keyed by conversation ID, task ID, assistant tool-call message ID, tool call ID, readiness category, and trigger layer.
 - The diagnostic coalescing key should not include raw message content, tool arguments, tool output, user prompt text, or raw payloads.
@@ -398,6 +398,6 @@ Placeholder tool results should remain available as a defensive repair mechanism
 
 The observed request set did not show an upstream request rejection problem. All inspected BYOP requests were accepted and had valid tool-call pairing. The issue is conversation fidelity: a protocol-safe placeholder can still be semantically wrong when produced during normal execution.
 
-The current evidence came from local request records and `zap.log`: one request contained `(tool 执行结果未保留)` for a tool call, while the next request contained a real cancellation result for that same call. That suggests Zap can send a follow-up request before the real asynchronous result is persisted.
+The current evidence came from local request records and `zap.log`: one request contained `(tool 执行结果未保留)` for a tool call, while the next request contained a real cancellation result for that same call. That suggests Zora can send a follow-up request before the real asynchronous result is persisted.
 
 Regression fixtures derived from this observation should be synthetic, minimal, and redacted. Do not copy real logs, prompts, tool arguments, or user content into tests.

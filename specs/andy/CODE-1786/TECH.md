@@ -48,7 +48,7 @@ Add `login_item/windows.rs` with the Windows implementation:
   const RUN_SUBKEY: &str =
       r"Software\Microsoft\Windows\CurrentVersion\Run";
   fn value_name() -> String {
-      // e.g. "Warp", "WarpPreview", "WarpDev", "Zap"
+      // e.g. "Warp", "WarpPreview", "WarpDev", "Zora"
       ChannelState::app_id().application_name().to_owned()
   }
   fn register(exe: &Path) -> std::io::Result<()> {
@@ -72,7 +72,7 @@ Add `login_item/windows.rs` with the Windows implementation:
   }
   ```
   `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` is the user-scope per-login key; it does not require admin, and is what Windows 10/11's **Settings → Apps → Startup** and **Task Manager → Startup apps** surface. This satisfies Behavior invariants 3–4, 7, 11.
-- The per-channel value name from `application_name()` keeps Dev/Preview/Stable isolated (Behavior 7): `Warp`, `WarpPreview`, `WarpDev`, `Zap`.
+- The per-channel value name from `application_name()` keeps Dev/Preview/Stable isolated (Behavior 7): `Warp`, `WarpPreview`, `WarpDev`, `Zora`.
 - Behavior 10 ("moving the install") is partially covered: the short-circuit `add_app_as_login_item && app_added_as_login_item` intentionally prevents re-registration on every launch, so a moved install keeps the stale path until the user toggles the setting off and back on (which rewrites against the new `current_exe()`). Automatic detection + rewrite when the stored path differs is tracked as a follow-up.
 ### 3. Rewire startup
 Replace the existing `#[cfg(target_os = "macos")]` block in `app/src/lib.rs:2229-2239` with a block gated on `cfg(any(target_os = "macos", target_os = "windows"))`, calling the new cross-platform `login_item::maybe_register_app_as_login_item`. The subscription to `GeneralSettingsChangedEvent::LoginItem` stays identical. Delete the old `maybe_register_app_as_login_item` body from `lib.rs:2279-2362`.

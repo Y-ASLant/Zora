@@ -12,7 +12,7 @@
 //! 3. UI 回调里直接消费返回的 response,与原 `ServerApi` 路径完全等价
 //!
 //! 没有 BYOP 配置(`active_ai_model` 解码失败)→ `dispatch::*` 返回 `None`,
-//! 调用方静默 no-op(Zap 已剥云,不再 fallback ServerApi)。
+//! 调用方静默 no-op(Zora 已剥云,不再 fallback ServerApi)。
 
 use minijinja::{context, Environment};
 use serde::Serialize;

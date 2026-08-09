@@ -13,7 +13,7 @@ If you're not sure whether you should add a test, check the [testing guidance](.
 - [ ] Any new external dependency, API contract, compatibility constraint, and rollback plan are documented in the PR.
 
 ## Agent Mode
-- [ ] Zap Agent Mode - This PR was created via Zap's AI Agent Mode
+- [ ] Zora Agent Mode - This PR was created via Zora's AI Agent Mode
 
 ## Changelog Entries for Stable
 <!--

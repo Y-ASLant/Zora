@@ -212,7 +212,7 @@ fn check_installed(claude_dir: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Reads the installed version string for the Zap plugin, if present.
+/// Reads the installed version string for the Zora plugin, if present.
 fn installed_version(claude_dir: &Path) -> Option<String> {
     let plugins_path = claude_dir.join("plugins").join("installed_plugins.json");
     let contents = fs::read_to_string(plugins_path).ok()?;

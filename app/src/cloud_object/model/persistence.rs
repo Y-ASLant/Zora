@@ -100,7 +100,7 @@ enum FolderOpenState {
     Reversed,
 }
 
-/// [StoredObject] 信息的持久化 model。Zap 中它对应 SQLite 内的本地 object store。
+/// [StoredObject] 信息的持久化 model。Zora 中它对应 SQLite 内的本地 object store。
 /// 超出基础 update/query 的逻辑应放在 [ObjectStoreViewModel] 并在 model_test.rs 覆盖。
 pub struct ObjectStoreModel {
     objects_by_id: HashMap<ObjectUid, Box<dyn StoredObject>>,
@@ -121,7 +121,7 @@ impl ObjectStoreModel {
             .map(|object| (object.uid().to_owned(), object))
             .collect::<HashMap<ObjectUid, Box<dyn StoredObject>>>();
         let initial_load_complete = Condition::new();
-        // Zap 没有云端 object 初始拉取；SQLite restore 完成后即可视为可读。
+        // Zora 没有云端 object 初始拉取；SQLite restore 完成后即可视为可读。
         initial_load_complete.set();
 
         Self {
@@ -132,7 +132,7 @@ impl ObjectStoreModel {
         }
     }
 
-    /// 等待本地 object store 可读。Zap 下该条件在 SQLite restore 后立即满足。
+    /// 等待本地 object store 可读。Zora 下该条件在 SQLite restore 后立即满足。
     pub fn initial_load_complete(&self) -> impl Future<Output = ()> {
         self.initial_load_complete.wait()
     }
@@ -728,7 +728,7 @@ impl ObjectStoreModel {
             .count()
     }
 
-    /// 已进入错误状态且会显示在 Zap Drive index 中的本地对象数量。
+    /// 已进入错误状态且会显示在 Zora Drive index 中的本地对象数量。
     pub fn num_visible_errored_objects(&self) -> usize {
         self.objects_by_id
             .values()

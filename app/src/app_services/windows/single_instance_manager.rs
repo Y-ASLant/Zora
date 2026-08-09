@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 
 use ipc::ServerBuilder;
 use parking_lot::Mutex;
-use warp_core::channel::ChannelState;
+use warp_core::channel::{Channel, ChannelState};
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use windows::core::Error;
@@ -44,8 +44,23 @@ impl Drop for MutexHandle {
 static SOLE_INSTANCE_MUTEX: LazyLock<Mutex<Result<Option<MutexHandle>, Error>>> =
     LazyLock::new(|| Mutex::new(try_create_mutex()));
 
+fn instance_name_prefix() -> &'static str {
+    match ChannelState::channel() {
+        Channel::Oss => "dev.warp.zora",
+        Channel::Stable
+        | Channel::Preview
+        | Channel::Dev
+        | Channel::Local
+        | Channel::Integration => "Zap",
+    }
+}
+
 pub(super) fn uri_named_pipe_name() -> String {
-    format!("Zap{:?}_URI_CHANNEL", ChannelState::channel())
+    format!(
+        "{}{channel:?}_URI_CHANNEL",
+        instance_name_prefix(),
+        channel = ChannelState::channel()
+    )
 }
 
 fn try_create_mutex() -> Result<Option<MutexHandle>, Error> {
@@ -54,13 +69,15 @@ fn try_create_mutex() -> Result<Option<MutexHandle>, Error> {
     // > "client processes can use the "Local\" prefix to explicitly create an object in their
     //   session namespace"
     //
-    // NOTE: This lock name must stay in sync with `AppMutexName` in
-    // `script/windows/windows-installer.iss`, which the installer uses to detect whether Zap is
-    // running.
-    let name = format!("Local\\Zap{:?}_SingleInstance", ChannelState::channel())
-        .encode_utf16()
-        .chain(std::iter::once(0))
-        .collect::<Vec<u16>>();
+    // 此名称必须与 `script/windows/windows-installer.iss` 中的 AppMutexName 保持一致。
+    let name = format!(
+        "Local\\{}{channel:?}_SingleInstance",
+        instance_name_prefix(),
+        channel = ChannelState::channel()
+    )
+    .encode_utf16()
+    .chain(std::iter::once(0))
+    .collect::<Vec<u16>>();
     let handle = unsafe { CreateMutexW(None, true, windows::core::PCWSTR(name.as_ptr())) };
 
     // https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw#return-value
@@ -82,7 +99,7 @@ fn try_create_mutex() -> Result<Option<MutexHandle>, Error> {
         })
 }
 
-/// A singleton model that is responsible for ensuring there is only one instance of Zap running.
+/// A singleton model that is responsible for ensuring there is only one instance of Zora running.
 /// Uses a Windows named mutex (via `CreateMutexW`) which is a kernel object automatically cleaned
 /// up by the OS when all handles are closed, including on crash.
 pub(super) struct SingleInstanceManager {
@@ -90,7 +107,7 @@ pub(super) struct SingleInstanceManager {
 }
 
 impl SingleInstanceManager {
-    /// Attempts to upgrade the current Zap instance to the "main" instance (i.e. the one that
+    /// Attempts to upgrade the current Zora instance to the "main" instance (i.e. the one that
     /// holds the named mutex). This function enforces that a URI server is created iff the mutex
     /// is held.
     pub(super) fn new(ctx: &mut ModelContext<Self>) -> Self {
@@ -130,7 +147,7 @@ impl SingleInstanceManager {
         }
     }
 
-    /// Returns whether or not this process should be treated as the main instance of Zap.
+    /// Returns whether or not this process should be treated as the main instance of Zora.
     ///
     /// NOTE: If an unexpected error occurs, we return `true` since it's better to open a second
     /// instance than to fail to create a first instance.

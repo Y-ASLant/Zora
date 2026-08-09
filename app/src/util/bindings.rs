@@ -86,7 +86,7 @@ pub enum CustomAction {
     CopyBlock,
     CopyBlockCommand,
     CopyBlockOutput,
-    // Zap Wave 6-8:`ViewSharedBlocks` 随 `ShowBlocksView` 设置页与
+    // Zora Wave 6-8:`ViewSharedBlocks` 随 `ShowBlocksView` 设置页与
     // `workspace:show_settings_shared_blocks_page` keybinding 一同物理删。
     CloseTab,
     CloseOtherTabs,
@@ -118,9 +118,9 @@ pub enum CustomAction {
     WindowsPaste,
     #[cfg(windows)]
     WindowsCopy,
-    /// Also applies to legacy Zap AI (toggles the panel)
+    /// Also applies to legacy Zora AI (toggles the panel)
     NewAgentModePane,
-    /// Also applies to legacy Zap AI (attaches the selection to the panel editor)
+    /// Also applies to legacy Zora AI (attaches the selection to the panel editor)
     AttachSelectionAsAgentModeContext,
     OpenAIFactCollection,
     OpenMCPServerCollection,
@@ -137,8 +137,8 @@ pub enum CustomAction {
 lazy_static! {
     /// Maps for converting from custom tags back to the action enum
     /// This layer of indirection is necessary because the UI framework can't
-    /// know about particular Zap specific actions, so it deals with all actions
-    /// as plain isizes.  Within Zap though we want to deal with them as the enum type.
+    /// know about particular Zora specific actions, so it deals with all actions
+    /// as plain isizes.  Within Zora though we want to deal with them as the enum type.
     pub static ref CUSTOM_TAG_TO_ACTION: HashMap<isize, CustomAction> = HashMap::from_iter(all::<CustomAction>().map(|action| {
         (action as isize, action)
     }));

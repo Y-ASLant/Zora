@@ -17,7 +17,7 @@ pub(crate) use driver::{
 };
 pub(crate) use message_hydrator::MessageHydrator;
 
-/// 本地 agent 事件流入口。Zap 保留接口以支持本地 driver 注入,默认实现禁用云端 RTC。
+/// 本地 agent 事件流入口。Zora 保留接口以支持本地 driver 注入,默认实现禁用云端 RTC。
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 pub(crate) trait AgentEventStreamClient: 'static + Send + Sync {
@@ -39,7 +39,7 @@ impl AgentEventStreamClient for DisabledAgentEventStreamClient {
         _since_sequence: i64,
     ) -> Result<http_client::EventSourceStream> {
         Err(anyhow!(
-            "Agent event stream disabled in Zap - RTC endpoint is removed"
+            "Agent event stream disabled in Zora - RTC endpoint is removed"
         ))
     }
 }

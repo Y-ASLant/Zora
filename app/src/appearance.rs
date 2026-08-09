@@ -27,6 +27,7 @@ use crate::{
         DEFAULT_UI_FONT_FAMILY_NAME, UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN,
     },
     themes::theme::{ThemeKind, WarpTheme},
+    window_settings::{WindowSettings, WindowSettingsChangedEvent},
     ASSETS,
 };
 
@@ -51,6 +52,27 @@ impl AppearanceManager {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
         ctx.subscribe_to_model(&ThemeSettings::handle(ctx), move |me, _event, ctx| {
             me.refresh_theme_state(ctx);
+        });
+
+        ctx.subscribe_to_model(&WindowSettings::handle(ctx), |_, event, ctx| {
+            if matches!(event, WindowSettingsChangedEvent::BackgroundOpacity { .. }) {
+                let window_opacities = ctx
+                    .window_ids()
+                    .map(|window_id| {
+                        let opacity = WindowSettings::as_ref(ctx)
+                            .background_opacity
+                            .effective_opacity(window_id, ctx);
+                        (window_id, opacity)
+                    })
+                    .collect::<Vec<_>>();
+                let opacity = *WindowSettings::as_ref(ctx).background_opacity;
+                Appearance::handle(ctx).update(ctx, |appearance, ctx| {
+                    appearance.set_ui_background_opacity(opacity, ctx);
+                    for (window_id, opacity) in window_opacities {
+                        appearance.set_window_ui_background_opacity(window_id, opacity);
+                    }
+                });
+            }
         });
 
         #[cfg(target_os = "macos")]
@@ -489,7 +511,7 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
     let ui_font_name = FontSettings::as_ref(ctx).ui_font_name.value().clone();
     let ui_font_size = *FontSettings::as_ref(ctx).ui_font_size.value();
     let warp_glyph_font_family =
-        load_warp_glyph_font_family(ctx).expect("unable to load Zap glyph font family");
+        load_warp_glyph_font_family(ctx).expect("unable to load Zora glyph font family");
 
     let ui_font_family = if ui_font_name.is_empty() {
         load_default_ui_font_family(ctx).expect("unable to load default ui font family")
@@ -515,6 +537,7 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
 
     let theme_kind = active_theme_kind(ThemeSettings::as_ref(ctx), ctx);
     let theme = Settings::theme_for_theme_kind(&theme_kind, ctx);
+    let background_opacity = *WindowSettings::as_ref(ctx).background_opacity;
     #[cfg(target_family = "wasm")]
     emit_theme_background_event(&theme);
 
@@ -532,6 +555,7 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
         ui_font_size.clamp(UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX),
         heading_multipliers,
     )
+    .with_ui_background_opacity(background_opacity)
 }
 
 #[cfg(target_family = "wasm")]

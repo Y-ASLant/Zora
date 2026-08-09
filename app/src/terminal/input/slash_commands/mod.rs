@@ -785,7 +785,7 @@ impl Input {
                 self.open_repos_menu(ctx);
             }
             compact if command.name == commands::COMPACT.name => {
-                // Zap:`/compact` 与 `/compact-and` 共用本地会话压缩链路 —
+                // Zora:`/compact` 与 `/compact-and` 共用本地会话压缩链路 —
                 // dispatch `WorkspaceAction::SummarizeAIConversation`,initial_prompt: None
                 // 表示"压缩完不发后续 prompt",仅做摘要静默落到 conversation。
                 // 自定义指令(`/compact <指令>`)进 prompt 字段,在 BYOP build_chat_request

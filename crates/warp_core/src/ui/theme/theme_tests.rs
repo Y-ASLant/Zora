@@ -620,6 +620,20 @@ fn surface_2_without_ui_colors_returns_derived() {
     assert_eq!(theme.surface_2(), derived);
 }
 
+#[test]
+fn ui_surfaces_follow_window_opacity() {
+    let mut theme = build_theme(None);
+
+    assert_eq!(theme.background().into_solid().a, 255);
+    assert_eq!(theme.surface_2().into_solid().a, 255);
+
+    theme.set_ui_background_opacity(40);
+
+    assert_eq!(theme.background().into_solid().a, 255);
+    assert_eq!(theme.ui_background().into_solid().a, 102);
+    assert_eq!(theme.surface_2().into_solid().a, 102);
+}
+
 // --- surface_3 回退逻辑测试 ---
 
 #[test]

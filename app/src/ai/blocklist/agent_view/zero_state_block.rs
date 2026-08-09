@@ -422,7 +422,7 @@ pub enum AgentViewZeroStateAction {
         conversation_id: AIConversationId,
     },
     /// 点击标题右侧「×」按钮：永久隐藏零状态快捷键提示（包含 message bar 那一排）。
-    /// 用户可在「设置 → Zap 智能体 → AI 输入」中重新开启。
+    /// 用户可在「设置 → Zora 智能体 → AI 输入」中重新开启。
     HideZeroStateHints,
 }
 

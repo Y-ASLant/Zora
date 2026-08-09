@@ -12,7 +12,7 @@ The installer is a single executable that takes care of:
 
 
 `windows-installer.iss` is an **Inno Setup script**:
-a configuration file for building a Zap installer.
+a configuration file for building a Zora installer.
 The Inno Setup Compiler takes a script file and generates an installer executable.
 This is roughly equivalent to the bundling process on MacOS.
 
@@ -24,7 +24,7 @@ This script can be edited manually using any code editor.
 The Inno Setup compiler turns this script into an installer `.exe`.
 
 
-## Build a Zap installer
+## Build a Zora installer
 
 For a normal Windows release build, run this from the repository root:
 
@@ -38,7 +38,7 @@ This invokes `bundle.ps1`, builds the correct OSS executable, prepares bundled r
 make build RELEASE_TAG=v2026.08.03.1
 ```
 
-The OSS installer is normally written to `script/windows/Output/ZapSetup.exe`.
+The OSS installer is normally written to `script/windows/Output/ZoraSetup.exe`.
 
 To reclaim Cargo build-cache space without deleting generated installers:
 
@@ -64,7 +64,7 @@ iscc .\script\windows\windows-installer.iss
 ```
 3. Run the generated executable:
 ```shell
-.\script\windows\Output\ZapSetup.exe
+.\script\windows\Output\ZoraSetup.exe
 ```
 
 The script begins with a series of preprocessor definitions.

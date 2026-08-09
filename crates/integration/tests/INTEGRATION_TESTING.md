@@ -1,5 +1,5 @@
-# Integration tests in Zap
-This is a short guide to writing integration tests in Zap.
+# Integration tests in Zora
+This is a short guide to writing integration tests in Zora.
 
 ## When to add a new integration test?
 Our general philosophy around how we see unit vs integration testing can be summarized as follows:
@@ -102,7 +102,7 @@ This has helped us catch a lot of existing bugs in the system.
 Note that for `async_assert` to actually work, the `set_assertion` needs to **return** with the `async_assert`.
 
 ## How to add a sqlite snapshot?
-* You can copy over a `warp.sqlite` file from the local Zap application-data directory directly.
+* You can copy over a `warp.sqlite` file from the local Zora application-data directory directly.
 * You may want to sanitize information that is specific to you, such as the working directory.
 
 

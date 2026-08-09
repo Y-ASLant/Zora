@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="assets/zap-logo.svg" alt="Zap" width="128" />
+<img src="assets/zap-logo.svg" alt="Zora" width="128" />
 
-# Zap
+# Zora
 
 [简体中文](./README.zh-CN.md) · [日本語](./README.ja.md)
 
@@ -10,9 +10,9 @@
 
 </div>
 
-Zap is an open, local-first terminal with first-class AI and agent support. Plug in any AI provider, bring in any CLI agent, manage SSH hosts inside the terminal — with keys, history and agent state staying on your machine by default.
+Zora is an open, local-first terminal with first-class AI and agent support. Plug in any AI provider, bring in any CLI agent, manage SSH hosts inside the terminal — with keys, history and agent state staying on your machine by default.
 
-## What Zap adds over upstream Warp
+## What Zora adds over upstream Warp
 
 - **No mandatory cloud** — no account, login, Drive sync or cloud agent history required.
 - **BYOP AI providers** — any OpenAI-compatible endpoint, plus native OpenAI / Anthropic / Gemini / DeepSeek / Ollama protocols. Keys stay local.
@@ -26,7 +26,7 @@ Zap is an open, local-first terminal with first-class AI and agent support. Plug
 
 ## Migrating from OpenWarp or Warp
 
-If you used the project before it was renamed to Zap (formerly **OpenWarp**),
+If you used the project before it was renamed to Zora (formerly **OpenWarp**),
 or are coming from upstream **Warp**, see
 [docs/migrate-from-warp.md](docs/migrate-from-warp.md) to bring your settings
 across.
@@ -59,5 +59,7 @@ See [docs/roadmap.md](docs/roadmap.md).
 
 ## Acknowledgements
 
-- [Warp](https://github.com/warpdotdev/warp) — the upstream terminal Zap is built on.
-- [DeepSeek-TUI](https://github.com/Hmbown/DeepSeek-TUI) — first-class CLI agent partner.
+- [Warp](https://github.com/warpdotdev/warp) — the upstream open-source terminal codebase and core platform on which Zora is built.
+- [Zap](https://github.com/zerx-lab/zap) — a related open-source project from which some Zora features and implementation ideas are derived or adapted.
+
+Zora is an independent application. The projects above remain their respective upstream/source projects; please refer to this repository's license and third-party notices for licensing details.

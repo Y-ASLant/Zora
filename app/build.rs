@@ -1,5 +1,5 @@
 // We can use `std::process:Command` here because this is invoked within a build script,
-// _not_ within the Zap binary (where it could cause a terminal to temporarily flash on
+// _not_ within the Zora binary (where it could cause a terminal to temporarily flash on
 // Windows).
 #![allow(clippy::disallowed_types)]
 
@@ -119,9 +119,9 @@ fn main() -> Result<()> {
         if target_env == "msvc"
             && env::var("CARGO_FEATURE_WINDOWS_HIGH_PERFORMANCE_GPU_DEFAULT").is_ok()
         {
-            println!("cargo:rustc-link-arg-bin=zap-oss=/EXPORT:NvOptimusEnablement,DATA");
+            println!("cargo:rustc-link-arg-bin=zora=/EXPORT:NvOptimusEnablement,DATA");
             println!(
-                "cargo:rustc-link-arg-bin=zap-oss=/EXPORT:AmdPowerXpressRequestHighPerformance,DATA"
+                "cargo:rustc-link-arg-bin=zora=/EXPORT:AmdPowerXpressRequestHighPerformance,DATA"
             );
         }
 
@@ -168,7 +168,7 @@ fn generate_channel_config_if_needed(target_family: &str, target_os: &str) {
     let config_bin = "warp-channel-config";
 
     // Check if the config binary is available on PATH. If not, we can't generate embedded
-    // configs. This is expected for external contributors building Zap OSS.
+    // configs. This is expected for external contributors building Zora OSS.
     if Command::new(config_bin)
         .arg("--help")
         .stdout(std::process::Stdio::null())
@@ -286,7 +286,7 @@ fn copy_async_assets() {
     }
 }
 
-/// Copies the DLLs needed to run Zap on Windows.
+/// Copies the DLLs needed to run Zora on Windows.
 ///
 /// They are organized as follows:
 /// - `conpty.dll`
@@ -367,19 +367,18 @@ fn embed_resource_file(target_dir: &Path) {
     use std::io::Write;
 
     let version = env::var("GIT_RELEASE_TAG").unwrap_or("v0".to_owned());
-    // 默认值与 publisher 一致定为「Zap」,与 `script/windows/bundle.ps1` OSS 分支
-    // (`$APP_NAME = 'Zap'`) + AUMID `dev.zap.Zap` + Cargo bundle
+    // 默认值与 publisher 一致定为「Zora」,与 `script/windows/bundle.ps1` OSS 分支
+    // (`$APP_NAME = 'Zora'`) + AUMID `dev.warp.zora` + Cargo bundle
     // metadata 全局对齐。Windows 任务管理器的进程分组名实际取自 PE 资源中的
-    // `FileDescription` / `ProductName`(不是窗口标题),所以这里若回退默认 "Zap",
-    // 直接 `cargo build` 出来的 dev 二进制在任务管理器里会显示成 `Zap(N)`。
+    // `FileDescription` / `ProductName`(不是窗口标题),所以这里若回退默认 "Zora",
+    // 直接 `cargo build` 出来的 dev 二进制在任务管理器里会显示成 `Zora(N)`。
     // 上游官方流水线在调用前会显式 `export WARP_APP_NAME=...` 覆盖,不受影响。
-    let app_name = env::var("WARP_APP_NAME").unwrap_or_else(|_| "Zap".to_owned());
+    let app_name = env::var("WARP_APP_NAME").unwrap_or_else(|_| "Zora".to_owned());
     let bin_name = env::var("CARGO_BIN_NAME").unwrap_or("oss".to_owned());
-    // 以 `WARP_APP_PUBLISHER` 覆盖;默认与 installer / AUMID 一致为「Zap」。
+    // 以 `WARP_APP_PUBLISHER` 覆盖;默认与 installer 一致为「Zora」。
     // 保持 installer `MyAppPublisher`、Cargo bundle metadata `copyright`、
-    // 进程 AUMID `dev.zap.Zap` 三处全局对齐，避免 Windows Shell
-    // 因 publisher / product name fingerprint 不一致而 miss 掉 icon cache。
-    let publisher = env::var("WARP_APP_PUBLISHER").unwrap_or_else(|_| "Zap".to_owned());
+    // 进程使用新的 AUMID `dev.warp.zora`,与 publisher / product name 保持一致。
+    let publisher = env::var("WARP_APP_PUBLISHER").unwrap_or_else(|_| "Zora".to_owned());
     let (ver_major, ver_minor, ver_patch, ver_build) = parse_file_version_quad(&version);
 
     let icon_path = Path::new("channels")

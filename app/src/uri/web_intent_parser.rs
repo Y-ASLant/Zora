@@ -122,8 +122,8 @@ impl WebIntent {
     }
 }
 
-/// Attempts to rewrite a Zap web URL into a native desktop intent URL (warp://...).
-/// Returns `None` if the URL is not a recognized Zap web intent.
+/// Attempts to rewrite a Zora web URL into a native desktop intent URL (warp://...).
+/// Returns `None` if the URL is not a recognized Zora web intent.
 pub fn maybe_rewrite_web_url_to_intent(url: &Url) -> Option<Url> {
     WebIntent::try_from_url(url)
         .ok()

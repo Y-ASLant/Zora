@@ -64,8 +64,8 @@ When a panel or its parent container moves to the opposite side, all associated 
 - **Tabs panel detail sidecar:** When the tabs panel is on the left, the hover-detail sidecar opens to the right. When on the right, it opens to the left.
 - **Conversation list tooltips:** Item hover tooltips open toward the center of the screen (right when panel is on the left, left when on the right).
 - **Conversation list kebab menu:** The overflow button and its opened menu anchor toward the center.
-- **Zap Drive item kebab button:** When the tools panel is on the right, the kebab `⋮` button renders as a left-aligned overlay (flush with the left edge) instead of appending to the right end of the row. The opened menu also opens toward the center.
-- **Zap Drive hover previews and dialogs:** Hover preview sidecars and share/naming dialogs flip to open toward the center.
+- **Zora Drive item kebab button:** When the tools panel is on the right, the kebab `⋮` button renders as a left-aligned overlay (flush with the left edge) instead of appending to the right end of the row. The opened menu also opens toward the center.
+- **Zora Drive hover previews and dialogs:** Hover preview sidecars and share/naming dialogs flip to open toward the center.
 - **Vertical tabs action buttons:** The kebab/close button container appears on the opposite side of the tab group, and the right-click menu anchors accordingly.
 - **Panel borders and resize handles:** The drag bar and border line render on the edge facing the main content (right edge when panel is on the left, left edge when on the right).
 
@@ -127,10 +127,10 @@ Items that are "available" (prerequisites met + existing show/hide setting is on
 15. Moving tabs panel to the right side causes the vertical tabs sidebar to open on the right.
 16. Panel ordering within a side is respected (if tabs panel is to the right of tools panel on the left side, the tabs sidebar renders to the right of the tools panel).
 17. Notification toasts appear on the same side as the mailbox button.
-18. Zap Drive item hover previews open toward the center of the screen (left when panel is on the right).
+18. Zora Drive item hover previews open toward the center of the screen (left when panel is on the right).
 19. Conversation list tooltips and kebab menus open toward the center.
 20. Vertical tabs detail sidecar opens toward the center.
-21. Zap Drive kebab button appears as a left-edge overlay when the panel is on the right side.
+21. Zora Drive kebab button appears as a left-edge overlay when the panel is on the right side.
 
 ## Validation
 

@@ -1170,10 +1170,10 @@ fn test_command_is_not_empty_combined_grid() {
     );
 }
 
-/// Regression test (CORE-1947): checks Zap prompt case for is_command_empty. Specifically,
+/// Regression test (CORE-1947): checks Zora prompt case for is_command_empty. Specifically,
 /// even if the combined grid's content _exactly_ matches the prompt grid's content (which is used
 /// for PS1 preview), we should NOT consider the command to be empty. The underlying cursor check should
-/// be against (0, 0) in the combined grid, for the Zap prompt case, rather than checking against the
+/// be against (0, 0) in the combined grid, for the Zora prompt case, rather than checking against the
 /// prompt grid (which we do in the PS1 active case).
 #[test]
 fn test_command_is_empty_warp_prompt() {
@@ -1200,7 +1200,7 @@ fn test_command_is_empty_warp_prompt() {
     let mut prompt_grid = mock_blockgrid("abcde");
     prompt_grid.finish();
 
-    // Note that we are indicating Zap prompt, not PS1 here!
+    // Note that we are indicating Zora prompt, not PS1 here!
     let mut block = create_test_block_with_grids(
         block_index,
         prompt_and_command_grid,

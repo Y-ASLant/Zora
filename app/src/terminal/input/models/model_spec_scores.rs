@@ -30,10 +30,10 @@ pub struct ModelSpecScoresLayout {
 /// 只是行的语义不同:
 /// - Context — 上下文窗口,bar 用 log2 归一化映射到 4K..2M
 /// - Output  — 单次最大输出,bar 用 log2 归一化映射到 1K..128K
-/// - Cost    — 强制走 `BilledToApi` 分支(BYOP 用户用自己的 key,不走 Zap 计费)
+/// - Cost    — 强制走 `BilledToApi` 分支(BYOP 用户用自己的 key,不走 Zora 计费)
 ///
 /// `context_window` / `max_output_tokens` 为 0(未填) 时传 None,显示默认 "?" 占位,
-/// 与 Zap 默认面板缺失数据时的视觉行为一致。
+/// 与 Zora 默认面板缺失数据时的视觉行为一致。
 pub fn render_byop_spec_scores(
     context_window: Option<u32>,
     max_output_tokens: Option<u32>,

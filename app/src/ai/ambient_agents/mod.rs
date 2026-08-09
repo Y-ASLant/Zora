@@ -18,9 +18,9 @@ pub use task::{
 pub const OUT_OF_CREDITS_TASK_FAILURE_MESSAGE: &str =
     "Agent usage limit reached. Please try again later.";
 pub const SERVER_OVERLOADED_TASK_FAILURE_MESSAGE: &str =
-    "Zap is temporarily overloaded. Please try again shortly.";
+    "Zora is temporarily overloaded. Please try again shortly.";
 
-/// JSON payload for starting an agent run. In Zap this is only used by local UI/CLI
+/// JSON payload for starting an agent run. In Zora this is only used by local UI/CLI
 /// plumbing; no remote run endpoint is contacted.
 #[derive(Debug, Clone, Serialize)]
 pub struct SpawnAgentRequest {
@@ -73,7 +73,7 @@ impl FromStr for AmbientAgentTaskId {
 }
 
 impl AmbientAgentTaskId {
-    /// Zap(本地化,Phase 3b-4):本地生成一个 UUID v4 作为 task_id,避免本地
+    /// Zora(本地化,Phase 3b-4):本地生成一个 UUID v4 作为 task_id,避免本地
     /// harness 启动子 task 时依赖远端预创建任务接口。
     pub fn new_local() -> Self {
         let uuid = Uuid::new_v4();

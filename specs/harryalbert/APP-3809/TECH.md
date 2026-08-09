@@ -3,7 +3,7 @@
 Linear: APP-3809
 Product spec: `specs/harryalbert/APP-3809/PRODUCT.md`
 
-> **Status (2026-08-03): removed from Zap.** The described module, `HOAOnboardingFlow` flag and related assets no longer exist. This file is retained as a historical design record and must not be used as an implementation map.
+> **Status (2026-08-03): removed from Zora.** The described module, `HOAOnboardingFlow` flag and related assets no longer exist. This file is retained as a historical design record and must not be used as an implementation map.
 
 ## Problem
 

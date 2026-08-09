@@ -24,7 +24,7 @@ lazy_static! {
     static ref INSTALLER_PATH: Arc<Mutex<Option<TempPath>>> = Default::default();
 }
 
-/// Download the Inno Setup install wizard, the same one users run on the first Zap install, and
+/// Download the Inno Setup install wizard, the same one users run on the first Zora install, and
 /// place it into the "data dir".
 pub(super) async fn download_update_and_cleanup(
     version_info: &VersionInfo,
@@ -38,8 +38,8 @@ pub(super) async fn download_update_and_cleanup(
 
     let channel = ChannelState::channel();
     let installer_file_name = installer_file_name()?;
-    // openWarp:从 GitHub Release 缓存里取真实下载 URL(资产名为 ZapSetup.exe /
-    // ZapSetup-arm64.exe,见 installer_file_name())。其他 channel 走官方 base url。
+    // openWarp:从 GitHub Release 缓存里取真实下载 URL(资产名为 ZoraSetup.exe /
+    // ZoraSetup-arm64.exe,见 installer_file_name())。其他 channel 走官方 base url。
     let url = if matches!(channel, Channel::Oss) {
         if let Some(release) = github::cached_release() {
             if let Some(found) = release.find_asset(&installer_file_name) {
@@ -271,7 +271,7 @@ pub(super) fn relaunch() -> Result<()> {
     // 标准安装界面,可以亲眼确认要安装的版本号、目标目录,并通过常规 UI 取消。
     // 仍然保留 /SP- 跳过"准备完成"确认弹窗;/NORESTART 避免要求重启 Windows;
     // /update=1 给 Inno 脚本里检测升级模式用。
-    // /NOCLOSEAPPLICATIONS 让 Inno 等当前 Zap 进程自然退出(mutex poll),
+    // /NOCLOSEAPPLICATIONS 让 Inno 等当前 Zora 进程自然退出(mutex poll),
     // 不强制 RestartManager 杀进程。
     let mut cmd = Command::new(&installer_path);
     if matches!(channel, Channel::Oss) {
@@ -285,7 +285,7 @@ pub(super) fn relaunch() -> Result<()> {
         ]);
     } else {
         // 官方 channel:维持原"silent + 进度条"行为,自动安装并重启。
-        // The Inno Setup install wizard will run without user input. It will re-launch Zap after
+        // The Inno Setup install wizard will run without user input. It will re-launch Zora after
         // installing the update files.
         // https://jrsoftware.org/ishelp/index.php?topic=setupcmdline
         cmd.args([
@@ -301,8 +301,8 @@ pub(super) fn relaunch() -> Result<()> {
             "/NORESTART",
             &log_arg,
             "/update=1",
-            // Do not forcibly kill Zap via RestartManager. The installer will wait for
-            // Zap to exit naturally by polling the single-instance mutex instead.
+            // Do not forcibly kill Zora via RestartManager. The installer will wait for
+            // Zora to exit naturally by polling the single-instance mutex instead.
             "/NOCLOSEAPPLICATIONS",
             &format!("/DIR={}", install_dir.display()),
         ]);
@@ -338,13 +338,13 @@ fn installer_file_name() -> Result<String> {
 
 fn app_name_prefix(channel: Channel) -> &'static str {
     match channel {
-        Channel::Stable => "Zap",
+        Channel::Stable => "Zora",
         Channel::Preview => "WarpPreview",
         Channel::Local => "warp",
         Channel::Integration => "integration",
         Channel::Dev => "WarpDev",
-        // 与 script/windows/bundle.ps1 OSS 分支 INSTALLER_NAME=Zap+Setup 对齐,
-        // 这样 GitHub Release 资产名 ZapSetup.exe 能被 installer_file_name() 正确生成。
-        Channel::Oss => "Zap",
+        // 与 script/windows/bundle.ps1 OSS 分支 INSTALLER_NAME=Zora+Setup 对齐,
+        // 这样 GitHub Release 资产名 ZoraSetup.exe 能被 installer_file_name() 正确生成。
+        Channel::Oss => "Zora",
     }
 }

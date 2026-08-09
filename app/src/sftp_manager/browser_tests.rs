@@ -5,19 +5,21 @@
 //! author: logic
 //! date: 2026-05-27
 
-use std::path::PathBuf;
+use std::{cell::RefCell, collections::HashSet, path::PathBuf, rc::Rc};
+
+use pathfinder_geometry::vector::{vec2f, Vector2F};
 
 use warp_core::ui::appearance::Appearance;
 use warpui::platform::WindowStyle;
-use warpui::TypedActionView;
+use warpui::{Presenter, TypedActionView, WindowInvalidation};
 
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::test_util::settings::initialize_settings_for_tests;
 
-use pathfinder_geometry::vector::Vector2F;
-
 use super::browser::{SftpBrowserAction, SftpBrowserView};
-use super::types::{ConnectionState, Dialog, TransferDirection, TransferState};
+use super::types::{
+    ConnectionState, Dialog, FileEntry, FileEntryType, TransferDirection, TransferState,
+};
 use crate::editor::EditorView;
 
 /// 初始化测试所需的最小单例集合
@@ -1122,6 +1124,61 @@ fn test_confirm_overwrite_closes_dialog() {
     });
 }
 
+/// 验证批量上传选择“全部覆盖”后不再逐个弹出确认框
+#[test]
+fn test_confirm_overwrite_all_processes_remaining_batch() {
+    warpui::App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let (_, view) = create_view(&mut app);
+        let first = PathBuf::from("first.txt");
+        let second = PathBuf::from("second.txt");
+
+        view.update(&mut app, |view, ctx| {
+            view.entries = vec![
+                FileEntry {
+                    name: "first.txt".to_string(),
+                    path: PathBuf::from("/first.txt"),
+                    file_type: FileEntryType::File,
+                    size: 0,
+                    modified: None,
+                    permissions: None,
+                },
+                FileEntry {
+                    name: "second.txt".to_string(),
+                    path: PathBuf::from("/second.txt"),
+                    file_type: FileEntryType::File,
+                    size: 0,
+                    modified: None,
+                    permissions: None,
+                },
+            ];
+            view.handle_action(&SftpBrowserAction::UploadFiles(vec![first, second]), ctx);
+        });
+
+        view.read(&app, |view, _| {
+            assert!(matches!(
+                view.dialog,
+                Some(Dialog::OverwriteConfirm {
+                    direction: TransferDirection::Upload,
+                    ..
+                })
+            ));
+            assert!(view.transfers.is_empty());
+        });
+
+        view.update(&mut app, |view, ctx| {
+            view.handle_action(&SftpBrowserAction::ConfirmOverwriteAll, ctx);
+        });
+
+        view.read(&app, |view, _| {
+            assert!(view.dialog.is_none());
+            assert_eq!(view.transfers.len(), 2);
+            assert_eq!(view.transfers[0].target_path, PathBuf::from("/first.txt"));
+            assert_eq!(view.transfers[1].target_path, PathBuf::from("/second.txt"));
+        });
+    });
+}
+
 /// 验证 CloseDialog 在无 dialog 时不 panic
 #[test]
 fn test_close_dialog_when_none() {
@@ -1476,6 +1533,60 @@ fn test_render_disconnected_state() {
             assert!(view.entries.is_empty());
             assert!(view.dialog.is_none());
             assert!(view.context_menu.is_none());
+        });
+    });
+}
+
+/// 验证大目录仅构建可见文件行。
+#[test]
+fn test_render_large_directory_virtualizes_file_rows() {
+    const ENTRY_COUNT: usize = 10_000;
+    let last_index = ENTRY_COUNT - 1;
+
+    warpui::App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let (window_id, view) = create_view(&mut app);
+        view.update(&mut app, |view, _| {
+            view.connection = ConnectionState::Connected;
+            view.is_drag_hovering = true;
+            view.entries = (0..ENTRY_COUNT)
+                .map(|index| FileEntry {
+                    name: format!("file_{index}.txt"),
+                    path: PathBuf::from(format!("/file_{index}.txt")),
+                    file_type: FileEntryType::File,
+                    size: 0,
+                    modified: None,
+                    permissions: None,
+                })
+                .collect();
+        });
+
+        let root_view_id = app.root_view_id(window_id).expect("测试窗口应包含根视图");
+        let presenter = Rc::new(RefCell::new(Presenter::new(window_id)));
+        app.update({
+            let presenter = presenter.clone();
+            move |ctx| {
+                presenter.borrow_mut().invalidate(
+                    WindowInvalidation {
+                        updated: HashSet::from([root_view_id]),
+                        ..Default::default()
+                    },
+                    ctx,
+                );
+                presenter
+                    .borrow_mut()
+                    .build_scene(vec2f(800., 600.), 1., None, ctx);
+
+                let position_cache = presenter.borrow();
+                assert!(position_cache
+                    .position_cache()
+                    .get_position("sftp_row:0")
+                    .is_some());
+                assert!(position_cache
+                    .position_cache()
+                    .get_position(&format!("sftp_row:{last_index}"))
+                    .is_none());
+            }
         });
     });
 }

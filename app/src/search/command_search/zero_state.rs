@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use lazy_static::lazy_static;
 use warp_core::features::FeatureFlag;
-use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::Wrap;
 use warpui::{
     elements::{
@@ -120,29 +119,25 @@ impl CommandSearchZeroStateView {
         Hoverable::new(
             self.sample_query_to_mouse_state_handle[sample_query.as_str()].clone(),
             |mouse_state| {
+                let background = if mouse_state.is_hovered() {
+                    theme.accent_overlay()
+                } else {
+                    theme.surface_3()
+                };
                 Container::new(
                     Text::new_inline(
                         sample_query.clone(),
                         appearance.monospace_font_family(),
                         appearance.monospace_font_size(),
                     )
-                    .with_color(
-                        appearance
-                            .theme()
-                            .main_text_color(appearance.theme().surface_2())
-                            .into_solid(),
-                    )
+                    .with_color(theme.main_text_color(background).into_solid())
                     .finish(),
                 )
                 .with_padding_top(6.)
                 .with_padding_bottom(6.)
                 .with_padding_left(8.)
                 .with_padding_right(8.)
-                .with_background(if mouse_state.is_hovered() {
-                    theme.accent_overlay()
-                } else {
-                    internal_colors::neutral_3(theme).into()
-                })
+                .with_background(background)
                 .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
                 .finish()
             },

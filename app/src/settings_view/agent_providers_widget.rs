@@ -41,6 +41,7 @@ use crate::appearance::Appearance;
 use crate::editor::{
     EditorView, Event as EditorEvent, SingleLineEditorOptions, TextColors, TextOptions,
 };
+use crate::search_bar::SearchBar;
 use crate::settings::{AISettings, AgentProvider, AgentProviderApiType, AgentProviderModel};
 use strum::IntoEnumIterator;
 
@@ -269,7 +270,7 @@ pub(super) struct AgentProvidersWidget {
     refresh_catalog_button_state: MouseStateHandle,
     expand_chips_button_state: MouseStateHandle,
     /// 快速添加 chip 行的搜索框。
-    search_editor: ViewHandle<EditorView>,
+    search_bar: ViewHandle<SearchBar>,
     /// 每个 catalog provider id 一个按钮 state — chip 行使用。
     quick_add_button_states: RefCell<HashMap<String, MouseStateHandle>>,
     rows: RefCell<HashMap<String, ProviderRow>>,
@@ -310,12 +311,16 @@ impl AgentProvidersWidget {
                 ));
             }
         });
+        let search_bar = {
+            let search_editor = search_editor.clone();
+            ctx.add_typed_action_view(move |_| SearchBar::new(search_editor.clone()))
+        };
 
         Self {
             add_button_state: MouseStateHandle::default(),
             refresh_catalog_button_state: MouseStateHandle::default(),
             expand_chips_button_state: MouseStateHandle::default(),
-            search_editor,
+            search_bar,
             quick_add_button_states: RefCell::new(HashMap::new()),
             rows: RefCell::new(rows),
         }
@@ -1384,7 +1389,7 @@ fn single_line_editor_options(
             text_colors_override: Some(TextColors {
                 default_color: appearance.theme().active_ui_text_color(),
                 disabled_color: appearance.theme().disabled_ui_text_color(),
-                hint_color: appearance.theme().disabled_ui_text_color(),
+                hint_color: appearance.theme().nonactive_ui_text_color(),
             }),
             ..Default::default()
         },
@@ -1449,7 +1454,7 @@ impl AgentProvidersWidget {
         );
 
         let search_box =
-            Container::new(Clipped::new(ChildView::new(&self.search_editor).finish()).finish())
+            Container::new(Clipped::new(ChildView::new(&self.search_bar).finish()).finish())
                 .with_margin_left(8.)
                 .with_margin_right(8.)
                 .finish();

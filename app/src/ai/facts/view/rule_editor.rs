@@ -8,7 +8,7 @@ use crate::editor::{
 use crate::server::ids::SyncId;
 use crate::ui_components::buttons::icon_button;
 use crate::view_components::action_button::{ActionButton, DangerSecondaryTheme, PrimaryTheme};
-use warp_core::ui::{appearance::Appearance, theme::color::internal_colors};
+use warp_core::ui::appearance::Appearance;
 use warp_editor::editor::NavigationKey;
 use warpui::elements::{Clipped, ConstrainedBox};
 use warpui::{
@@ -73,7 +73,7 @@ pub struct RuleEditorView {
 
 impl RuleEditorView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        // Zap(本地化,Phase 2d-1):原 NetworkStatus 订阅用于在线/离线状态变化时重绘
+        // Zora(本地化,Phase 2d-1):原 NetworkStatus 订阅用于在线/离线状态变化时重绘
         // (联动 `is_delete_allowed` 谓词),本地化后该谓词永为真,订阅为死代码,移除。
         let appearance = Appearance::as_ref(ctx);
         let font_family = appearance.ui_font_family();
@@ -284,9 +284,7 @@ impl RuleEditorView {
     fn render_name_editor(&self, appearance: &Appearance) -> Box<dyn Element> {
         Container::new(Clipped::new(ChildView::new(&self.name_editor).finish()).finish())
             .with_background(appearance.theme().surface_2())
-            .with_border(
-                Border::all(1.).with_border_color(internal_colors::neutral_4(appearance.theme())),
-            )
+            .with_border(Border::all(1.).with_border_color(appearance.theme().outline().into()))
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
             .with_margin_bottom(style::ITEM_BOTTOM_MARGIN)
             .with_horizontal_padding(style::EDITOR_HORIZONTAL_PADDING)
@@ -310,9 +308,7 @@ impl RuleEditorView {
                 .finish(),
             )
             .with_background(appearance.theme().surface_2())
-            .with_border(
-                Border::all(1.).with_border_color(internal_colors::neutral_4(appearance.theme())),
-            )
+            .with_border(Border::all(1.).with_border_color(appearance.theme().outline().into()))
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
             .with_margin_bottom(style::ITEM_BOTTOM_MARGIN)
             .with_padding_left(style::EDITOR_HORIZONTAL_PADDING)
@@ -377,7 +373,7 @@ impl View for RuleEditorView {
             .with_child(self.render_header(appearance))
             .with_child(self.render_form(appearance));
 
-        // Zap(本地化,Phase 2d-1):原 `is_delete_allowed` 依赖网络在线+server_id,
+        // Zora(本地化,Phase 2d-1):原 `is_delete_allowed` 依赖网络在线+server_id,
         // 本地化后只要在编辑已有规则就可删除,谓词取消。
         if self.ai_fact.is_some() {
             col.add_child(ChildView::new(&self.delete_button).finish());

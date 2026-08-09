@@ -7,7 +7,7 @@
 //! ## 与 opencode 对齐
 //!
 //! - `webfetch` 镜像 `packages/opencode/src/tool/webfetch.ts`:
-//!   * UA 默认 Chrome,403 + `cf-mitigated: challenge` → 切回 `Zap` UA 重试一次
+//!   * UA 默认 Chrome,403 + `cf-mitigated: challenge` → 切回 `Zora` UA 重试一次
 //!   * `Accept` 头按 format 参数 q 优先级协商
 //!   * Content-Length 预检 + 实读字节双检,5 MB 上限
 //!   * timeout 默认 30s,上限 120s
@@ -42,7 +42,7 @@ pub const SEARCH_TIMEOUT_SECS: u64 = 25;
 
 pub const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
      (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
-pub const FALLBACK_UA: &str = "Zap";
+pub const FALLBACK_UA: &str = "Zora";
 
 // ---------------------------------------------------------------------------
 // webfetch

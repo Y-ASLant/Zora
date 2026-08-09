@@ -1,14 +1,14 @@
 /// Stages during the course of bootstrapping the shell.  
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum BootstrapStage {
-    /// Zap is re-parsing historical blocks for this session. We haven't yet started
+    /// Zora is re-parsing historical blocks for this session. We haven't yet started
     /// bootstrapping.
     RestoreBlocks,
-    /// Zap is writing the bootstrap script into the running shell.
+    /// Zora is writing the bootstrap script into the running shell.
     WarpInput,
     /// Execution of any shell startup scripts such as .rc or .profile files.
     ScriptExecution,
-    /// Model is fully bootstrapped (i.e the `Bootstrap` message was successfully received by Zap).   
+    /// Model is fully bootstrapped (i.e the `Bootstrap` message was successfully received by Zora).
     Bootstrapped,
     /// Model is fully bootstrapped and we've received the precmd that results from bootstrapping itself
     PostBootstrapPrecmd,

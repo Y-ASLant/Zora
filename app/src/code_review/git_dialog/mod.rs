@@ -132,7 +132,7 @@ fn show_toast(msg: impl Into<String>, ctx: &mut ViewContext<GitDialog>) {
 ///
 /// Folds the parent feature flag, the user's dedicated per-feature AI toggle
 /// (which itself requires active AI / auth / remote-session org policy to
-/// allow AI), and an enterprise check with the same Zap-plan exception and
+/// allow AI), and an enterprise check with the same Zora-plan exception and
 /// dogfood override as `share_block_modal.rs::should_send_title_gen_request`.
 ///
 /// When this returns `false`, call sites skip AI entirely: commit.rs opens

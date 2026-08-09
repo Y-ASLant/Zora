@@ -84,14 +84,14 @@ pub fn refresh_workspace_metadata<C>(
     async { Ok(()) }
 }
 
-/// Refresh Zap Drive before executing an operation.
+/// Refresh Zora Drive before executing an operation.
 pub fn refresh_warp_drive(
     ctx: &AppContext,
 ) -> impl Future<Output = anyhow::Result<()>> + Send + 'static {
     ObjectStoreModel::as_ref(ctx)
         .initial_load_complete()
         .with_timeout(WARP_DRIVE_SYNC_TIMEOUT)
-        .map_err(|_| anyhow::anyhow!("Timed out waiting for Zap Drive to sync"))
+        .map_err(|_| anyhow::anyhow!("Timed out waiting for Zora Drive to sync"))
 }
 
 /// Format an object owner for display in the CLI.

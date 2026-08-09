@@ -96,7 +96,7 @@ pub struct MCPGalleryManager {
 
 impl MCPGalleryManager {
     pub fn new(_ctx: &mut ModelContext<Self>) -> Self {
-        // Zap(本地化,Phase 2d-2):原订阅 `UpdateManager` 的 `MCPGalleryUpdated` 事件
+        // Zora(本地化,Phase 2d-2):原订阅 `UpdateManager` 的 `MCPGalleryUpdated` 事件
         // 于云端 fetch 后分发 gallery items。本地化后云端对象 fetch/fan-in 已删除，
         // 本 Phase 保持 gallery 为空并解除订阅 ——
         // gallery 在本地永远为空,由 `MCPServersListPageView` 渲染为空画布,本地 MCP 走 `file_based_manager`

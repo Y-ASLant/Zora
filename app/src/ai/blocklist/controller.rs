@@ -89,7 +89,7 @@ pub struct SessionContext {
     session_type: Option<SessionType>,
     shell: Option<ShellLaunchData>,
     current_working_directory: Option<String>,
-    /// Zap:legacy SSH session(用户在本地 PTY 手敲 `ssh xxx@yyy`,
+    /// Zora:legacy SSH session(用户在本地 PTY 手敲 `ssh xxx@yyy`,
     /// 远端没装 warp shell hook)的连接信息。`session_type` 仍是 `Local`,
     /// 但 PTY 实际跑在远端,需要在 prompt 里告知 LLM,否则模型默认在本地 OS。
     ssh_connection_info: Option<InteractiveSshCommand>,
@@ -144,12 +144,12 @@ impl SessionContext {
         matches!(self.session_type, Some(SessionType::WarpifiedRemote { .. }))
     }
 
-    /// Zap:legacy SSH 连接信息(host/port),仅在 `is_legacy_ssh()` 为 true 时有意义。
+    /// Zora:legacy SSH 连接信息(host/port),仅在 `is_legacy_ssh()` 为 true 时有意义。
     pub fn ssh_connection_info(&self) -> Option<&InteractiveSshCommand> {
         self.ssh_connection_info.as_ref()
     }
 
-    /// Zap:本会话是否为 legacy SSH(用户手敲 ssh,远端无 warp hook)。
+    /// Zora:本会话是否为 legacy SSH(用户手敲 ssh,远端无 warp hook)。
     /// 这种会话 `session_type` 仍是 `Local`,但 PTY 实际跑在远端,
     /// `host_info`/`shell` 等画像反映的是本地客户端而非远端 shell。
     pub fn is_legacy_ssh(&self) -> bool {
@@ -359,7 +359,7 @@ pub struct BlocklistAIController {
     shared_session_state: shared_session::SharedSessionState,
 
     /// Ambient agent task ID attached to this controller. This is a property of the controller, and not an individual
-    /// conversation, because the ambient agent task driver owns the entire Zap window working on a task, and any
+    /// conversation, because the ambient agent task driver owns the entire Zora window working on a task, and any
     /// sessions within it. In the future, one task may span several sessions with background processes.
     ambient_agent_task_id: Option<AmbientAgentTaskId>,
 
@@ -2983,7 +2983,7 @@ impl BlocklistAIController {
                         conversation_data.id,
                         request_params.model.clone(),
                         is_queued_prompt,
-                        "Zap couldn't save the BYOP conversation state needed to send this \
+                        "Zora couldn't save the BYOP conversation state needed to send this \
                          request. Check that conversation persistence is enabled and that there \
                          is enough disk space, then try again."
                             .to_owned(),
@@ -3339,7 +3339,7 @@ impl BlocklistAIController {
                                         );
                                     }
                                 }
-                                // Zap BYOP 本地会话压缩:在 stream finished 前拿 summarization 标志
+                                // Zora BYOP 本地会话压缩:在 stream finished 前拿 summarization 标志
                                 let summarize_overflow =
                                     response_stream.as_ref(ctx).summarization_overflow();
                                 self.handle_response_stream_finished(
@@ -3373,7 +3373,7 @@ impl BlocklistAIController {
                     }
                     Err(e) => {
                         if matches!(e.as_ref(), AIApiError::QuotaLimit) {
-                            // Zap(Phase 3c A1):删除
+                            // Zora(Phase 3c A1):删除
                             // `AIRequestUsageModel::enable_buy_credits_banner` 调用。
                             // 本地化后 BYOP 场景下不存在"购买额外 credits"业务。
                         }
@@ -3434,7 +3434,7 @@ impl BlocklistAIController {
                 let mut was_passive_request = false;
                 let mut is_any_exchange_unfinished = false;
                 let mut actions_to_queue = vec![];
-                // Zap BYOP:收集本轮新加 message id,稍后用于在 EMPTY 分支检测
+                // Zora BYOP:收集本轮新加 message id,稍后用于在 EMPTY 分支检测
                 // synthetic invalid_arguments 错误标记。**只看本轮 added** 才能避免
                 // 在历史里反复命中导致 auto-resume 死循环(标记一旦持久化就永远在)。
                 let mut newly_added_message_ids: std::collections::HashSet<MessageId> =
@@ -3500,7 +3500,7 @@ impl BlocklistAIController {
                             .join(", "),
                         conversation_id,
                     );
-                    // Zap:LRC tag-in 首轮自动授权 agent 工具执行。
+                    // Zora:LRC tag-in 首轮自动授权 agent 工具执行。
                     //
                     // 触发条件:发起本轮请求时 active_block 处于
                     // InteractionMode::User { did_user_tag_in_agent: true }。不能用当前
@@ -3523,7 +3523,7 @@ impl BlocklistAIController {
                         );
                     });
                 } else {
-                    // Zap BYOP:from_args 解析失败时,chat_stream 走 fallback emit
+                    // Zora BYOP:from_args 解析失败时,chat_stream 走 fallback emit
                     // carrier ToolCall(tool=None) + synthetic error ToolCallResult(result=None,
                     // server_message_data 是 invalid_arguments JSON)。两者都走 NoClientRepresentation,
                     // 不入 actions_to_queue,exchange 静默结束 → 模型永远收不到错误反馈,
@@ -3534,7 +3534,7 @@ impl BlocklistAIController {
                     // 修正参数重试。`can_attempt_resume_on_error=false` 防 LLM 持续输出坏 args 导致死循环。
                     // 只在本轮新加的 messages 里查找 synthetic 错误标记,避免历史持久化的
                     // 同标记反复命中导致死循环。
-                    // Zap BYOP:没有进入 AIAgentAction 队列的 synthetic
+                    // Zora BYOP:没有进入 AIAgentAction 队列的 synthetic
                     // ToolCallResult 需要 auto-resume,否则 exchange 静默结束,模型卡死等结果。
                     // 1. invalid_arguments — from_args 解析失败兜底(原始)。
                     // 2. _byop_intercepted — todowrite / webfetch / websearch 等本地拦截
@@ -3631,7 +3631,7 @@ impl BlocklistAIController {
                     stream_id,
                     conversation_id,
                 });
-                // Zap(Phase 3c A1):删除
+                // Zora(Phase 3c A1):删除
                 // `AIRequestUsageModel::refresh_request_usage_async` 与
                 // `maybe_refresh_ai_overages` 调用。两者本质都是服务端计量同步 RPC，
                 // 本地化后无作用。
@@ -3657,7 +3657,7 @@ impl BlocklistAIController {
         });
     }
 
-    // Zap(Phase 3c A1):删除 `maybe_refresh_ai_overages` 函数。
+    // Zora(Phase 3c A1):删除 `maybe_refresh_ai_overages` 函数。
     // 原实现是“本地 limit 耗尽时从服务端拉取最新 overage 状态”的调优路径，
     // BYOP 本地化后既无 limit 也无 overage，函数本体与唯一调用点都需要一起删除。
 
@@ -3670,7 +3670,7 @@ impl BlocklistAIController {
         summarize_overflow: Option<bool>,
         ctx: &mut ModelContext<Self>,
     ) {
-        // Zap BYOP 本地会话压缩:在 token_usage move 进下面 closure 前先聚合,
+        // Zora BYOP 本地会话压缩:在 token_usage move 进下面 closure 前先聚合,
         // 用于 auto overflow 检查(后面 Done 分支用)。
         let aggregate_token_count: usize = finished_event
             .token_usage
@@ -3697,7 +3697,7 @@ impl BlocklistAIController {
         let history_model = BlocklistAIHistoryModel::handle(ctx);
         match finished_event.reason {
             Some(warp_multi_agent_api::response_event::stream_finished::Reason::Done(_)) | None => {
-                // Zap BYOP 本地会话压缩 - 写回 summary
+                // Zora BYOP 本地会话压缩 - 写回 summary
                 if let Some(overflow) = summarize_overflow {
                     let compaction_cfg = crate::ai::byop_compaction::CompactionConfig::from_settings(ctx);
                     history_model.update(ctx, |history_model, _ctx| {
@@ -3719,7 +3719,7 @@ impl BlocklistAIController {
                     );
                 });
 
-                // Zap BYOP 本地会话压缩 - auto overflow 触发(对齐 opencode `processor.ts:395-403`)
+                // Zora BYOP 本地会话压缩 - auto overflow 触发(对齐 opencode `processor.ts:395-403`)
                 // 仅在本流不是摘要本身时检查,防止递归。
                 if summarize_overflow.is_none() {
                     let aggregate_count = aggregate_token_count;
@@ -4007,9 +4007,9 @@ fn get_running_command(terminal_model: &TerminalModel) -> Option<RunningCommand>
     })
 }
 
-/// Zap BYOP 专用:LRC tag-in / agent-monitored 场景下提取 RunningCommand。
+/// Zora BYOP 专用:LRC tag-in / agent-monitored 场景下提取 RunningCommand。
 ///
-/// 上游 `get_running_command` 在 `is_agent_monitoring()` 时返回 None — 因为 Zap 自家
+/// 上游 `get_running_command` 在 `is_agent_monitoring()` 时返回 None — 因为 Zora 自家
 /// 路径下 LRC 已 spawn cli subagent 后,server 端持久该状态,后续轮 client 不必重发
 /// running_command。但 BYOP 直连模型无服务端持久,**每轮都要把当前 PTY grid 内容
 /// 重新带给模型**(否则模型只能看到首轮 grid_contents 之后的盲区)。

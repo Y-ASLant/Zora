@@ -38,11 +38,11 @@ fn mock_appearance() -> Appearance {
 #[test]
 fn test_semantic_font_sizes_at_default() {
     let appearance = mock_appearance();
-    assert_eq!(appearance.ui_font_size(), 12.0);
+    assert_eq!(appearance.ui_font_size(), 13.0);
 
     assert_eq!(appearance.ui_font_overline(), 10.0);
     assert_eq!(appearance.ui_font_footnote(), 11.0);
-    assert_eq!(appearance.ui_font_body(), 12.0);
+    assert_eq!(appearance.ui_font_body(), 13.0);
     assert_eq!(appearance.ui_font_body_large(), 13.0);
     assert_eq!(appearance.ui_font_subheading(), 14.0);
     assert_eq!(appearance.ui_font_heading_3(), 16.0);
@@ -69,18 +69,18 @@ fn test_semantic_font_sizes_at_minimum() {
     appearance.set_ui_font_size_test(8.0);
 
     assert_eq!(appearance.ui_font_size(), 8.0);
-    assert_eq!(appearance.ui_font_overline(), 8.0 * 10.0 / 12.0);
-    assert_eq!(appearance.ui_font_footnote(), 8.0 * 11.0 / 12.0);
+    assert_eq!(appearance.ui_font_overline(), 8.0 * 10.0 / 13.0);
+    assert_eq!(appearance.ui_font_footnote(), 8.0 * 11.0 / 13.0);
     assert_eq!(appearance.ui_font_body(), 8.0);
-    assert_eq!(appearance.ui_font_body_large(), 8.0 * 13.0 / 12.0);
-    assert_eq!(appearance.ui_font_subheading(), 8.0 * 14.0 / 12.0);
-    assert_eq!(appearance.ui_font_heading_3(), 8.0 * 16.0 / 12.0);
-    assert_eq!(appearance.ui_font_heading_2(), 8.0 * 18.0 / 12.0);
-    assert_eq!(appearance.ui_font_heading_1(), 8.0 * 20.0 / 12.0);
-    assert_eq!(appearance.ui_font_display(), 8.0 * 24.0 / 12.0);
-    assert_eq!(appearance.ui_font_hero(), 8.0 * 36.0 / 12.0);
-    assert_eq!(appearance.header_font_size(), 8.0 * 18.0 / 12.0);
-    assert_eq!(appearance.overline_font_size(), 8.0 * 10.0 / 12.0);
+    assert_eq!(appearance.ui_font_body_large(), 8.0 * 13.0 / 13.0);
+    assert_eq!(appearance.ui_font_subheading(), 8.0 * 14.0 / 13.0);
+    assert_eq!(appearance.ui_font_heading_3(), 8.0 * 16.0 / 13.0);
+    assert_eq!(appearance.ui_font_heading_2(), 8.0 * 18.0 / 13.0);
+    assert_eq!(appearance.ui_font_heading_1(), 8.0 * 20.0 / 13.0);
+    assert_eq!(appearance.ui_font_display(), 8.0 * 24.0 / 13.0);
+    assert_eq!(appearance.ui_font_hero(), 8.0 * 36.0 / 13.0);
+    assert_eq!(appearance.header_font_size(), 8.0 * 18.0 / 13.0);
+    assert_eq!(appearance.overline_font_size(), 8.0 * 10.0 / 13.0);
 }
 
 /// 作者: logic
@@ -91,18 +91,18 @@ fn test_semantic_font_sizes_at_maximum() {
     appearance.set_ui_font_size_test(20.0);
 
     assert_eq!(appearance.ui_font_size(), 20.0);
-    assert_eq!(appearance.ui_font_overline(), 20.0 * 10.0 / 12.0);
+    assert_eq!(appearance.ui_font_overline(), 20.0 * 10.0 / 13.0);
     assert_eq!(appearance.ui_font_body(), 20.0);
-    assert_eq!(appearance.ui_font_subheading(), 20.0 * 14.0 / 12.0);
-    assert_eq!(appearance.ui_font_heading_3(), 20.0 * 16.0 / 12.0);
-    assert_eq!(appearance.ui_font_display(), 20.0 * 24.0 / 12.0);
+    assert_eq!(appearance.ui_font_subheading(), 20.0 * 14.0 / 13.0);
+    assert_eq!(appearance.ui_font_heading_3(), 20.0 * 16.0 / 13.0);
+    assert_eq!(appearance.ui_font_display(), 20.0 * 24.0 / 13.0);
 }
 
 /// 作者: logic
 /// 验证默认值常量
 #[test]
 fn test_default_constants() {
-    assert_eq!(DEFAULT_UI_FONT_SIZE, 12.0);
+    assert_eq!(DEFAULT_UI_FONT_SIZE, 13.0);
 }
 
 /// 作者: logic
@@ -161,11 +161,11 @@ fn test_semantic_font_size_ordering() {
 }
 
 /// 作者: logic
-/// 验证 dropdown 顶栏高度公式在默认字号 (12) 时为 30.0
+/// 验证 dropdown 顶栏高度公式在默认字号 (13) 时为 32.5
 #[test]
 fn test_dropdown_top_bar_height_at_default() {
     let appearance = mock_appearance();
-    assert_eq!(appearance.dropdown_top_bar_height(), 30.0);
+    assert_eq!(appearance.dropdown_top_bar_height(), 32.5);
 }
 
 /// 作者: logic
@@ -254,9 +254,8 @@ fn test_terminal_fallback_font_family_can_be_updated() {
     assert_eq!(appearance.terminal_fallback_font_family(), None);
 }
 
-/// Per-window theme override resolution: `theme()`/`ui_builder()` return the
-/// override only for the ambient render window, and the global value otherwise.
-/// Also exercises the `theme_overrides.is_empty()` zero-cost fast path.
+/// 验证按窗口解析主题覆盖：`theme()`/`ui_builder()` 只在对应环境窗口中返回覆盖值，
+/// 其他情况下返回全局值；同时验证没有主题覆盖时仍然返回全局主题与构建器。
 #[test]
 fn test_per_window_theme_override_resolution() {
     use warpui::{current_render_window, set_current_render_window, WindowId};
@@ -265,8 +264,7 @@ fn test_per_window_theme_override_resolution() {
     let window_a = WindowId::from_usize(1);
     let window_b = WindowId::from_usize(2);
 
-    // Fast path: with no overrides, the ambient window is irrelevant and the
-    // global theme/ui_builder is always returned.
+    // 没有主题覆盖时，环境窗口不会影响返回的全局主题与构建器。
     set_current_render_window(Some(window_a));
     assert!(std::ptr::eq(appearance.theme(), &appearance.theme));
     assert!(std::ptr::eq(
@@ -319,4 +317,39 @@ fn test_per_window_theme_override_resolution() {
     // Reset the thread-local ambient so it doesn't leak into other tests sharing
     // this test thread.
     set_current_render_window(None);
+}
+
+#[test]
+fn test_per_window_ui_background_opacity_resolution() {
+    use warpui::{set_current_render_window, WindowId};
+
+    let mut appearance = mock_appearance();
+    appearance.theme.set_ui_background_opacity(40);
+    let native_window = WindowId::from_usize(3);
+    let transparent_window = WindowId::from_usize(4);
+    appearance
+        .window_ui_background_opacity_overrides
+        .insert(native_window, 100);
+
+    set_current_render_window(Some(native_window));
+    assert_eq!(
+        appearance.theme().surface_2().into_solid().a,
+        255,
+        "原生装饰窗口必须使用有效透明度 100"
+    );
+    assert_eq!(
+        appearance
+            .ui_builder()
+            .warp_theme()
+            .surface_2()
+            .into_solid()
+            .a,
+        255
+    );
+
+    set_current_render_window(Some(transparent_window));
+    assert_eq!(appearance.theme().surface_2().into_solid().a, 102);
+
+    set_current_render_window(None);
+    assert_eq!(appearance.theme().surface_2().into_solid().a, 102);
 }

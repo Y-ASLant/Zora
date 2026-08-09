@@ -2,7 +2,7 @@ pub mod color;
 pub mod phenomenon;
 pub mod ui_colors;
 
-use std::path::PathBuf;
+use std::{cell::Cell, path::PathBuf};
 
 use crate::paths::themes_dir;
 
@@ -20,7 +20,10 @@ use self::color::CustomDetails;
 
 use dirs::home_dir;
 use serde::{Deserialize, Serialize};
-use warpui::{assets::asset_cache::AssetSource, color::ColorU, geometry::vector::vec2f};
+use warpui::{
+    assets::asset_cache::AssetSource, color::ColorU, current_render_window,
+    geometry::vector::vec2f, WindowId,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Image {
@@ -606,6 +609,24 @@ pub struct WarpTheme {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     ui_colors: Option<self::ui_colors::UiColors>,
+
+    #[serde(skip, default = "default_ui_background_opacity")]
+    ui_background_opacity: Opacity,
+}
+
+const DEFAULT_UI_BACKGROUND_OPACITY: Opacity = 100;
+
+thread_local! {
+    static CURRENT_WINDOW_UI_BACKGROUND_OPACITY: Cell<Option<(WindowId, Opacity)>> =
+        const { Cell::new(None) };
+}
+
+pub(crate) fn set_current_window_ui_background_opacity(value: Option<(WindowId, Opacity)>) {
+    CURRENT_WINDOW_UI_BACKGROUND_OPACITY.with(|cell| cell.set(value));
+}
+
+fn default_ui_background_opacity() -> Opacity {
+    DEFAULT_UI_BACKGROUND_OPACITY
 }
 
 impl WarpTheme {
@@ -631,6 +652,7 @@ impl WarpTheme {
             background_image,
             name,
             ui_colors,
+            ui_background_opacity: DEFAULT_UI_BACKGROUND_OPACITY,
         }
     }
 
@@ -661,6 +683,28 @@ impl WarpTheme {
     /// 获取 UI 颜色覆盖，如果未设置返回 None。
     pub fn ui_colors(&self) -> Option<&self::ui_colors::UiColors> {
         self.ui_colors.as_ref()
+    }
+
+    /// 返回当前渲染窗口的透明度；在渲染过程之外调用时返回主题中保存的透明度。
+    pub fn ui_background_opacity(&self) -> Opacity {
+        let Some(window_id) = current_render_window() else {
+            return self.ui_background_opacity;
+        };
+
+        CURRENT_WINDOW_UI_BACKGROUND_OPACITY.with(|cell| {
+            cell.get()
+                .filter(|(context_window_id, _)| *context_window_id == window_id)
+                .map(|(_, opacity)| opacity)
+                .unwrap_or(self.ui_background_opacity)
+        })
+    }
+
+    pub(crate) fn stored_ui_background_opacity(&self) -> Opacity {
+        self.ui_background_opacity
+    }
+
+    pub fn set_ui_background_opacity(&mut self, opacity: Opacity) {
+        self.ui_background_opacity = opacity;
     }
 }
 

@@ -4,24 +4,24 @@ Version=1.0
 
 Type=Application
 
-Name=Zap
+Name=Zora
 GenericName=TerminalEmulator
 
-# `zap` 在 deb/rpm 包里是 /opt/zap/zap-oss 的 symlink,
+# `zora` 在 deb/rpm 包里是 /opt/zap/zora 的 symlink,
 # 在 arch 包里是 /usr/bin/zap wrapper script —— 三者都在 PATH 上能直接调用。
-# AppImage 打包时 bundle_appimage 会用 sed 把这一行替换为 `Exec=zap-oss %U`,
+# AppImage 打包时 bundle_appimage 会用 sed 把这一行替换为 `Exec=zora %U`,
 # 直接指向 AppImage 内部的二进制。
-Exec=zap %U
-StartupWMClass=dev.zap.Zap
+Exec=zora %U
+StartupWMClass=dev.warp.zora
 
 Keywords=shell;prompt;command;commandline;cmd;
 
-Icon=dev.zap.Zap
+Icon=dev.warp.zora
 
 Categories=System;TerminalEmulator;
 
 # Don't run this application within a terminal.
 Terminal=false
 
-# Register ourselves as the handler for zap:// URLs.
-MimeType=x-scheme-handler/zap;
+# Register ourselves as the handler for zora:// URLs.
+MimeType=x-scheme-handler/zora;

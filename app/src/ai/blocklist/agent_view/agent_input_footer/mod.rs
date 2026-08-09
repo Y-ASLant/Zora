@@ -1,6 +1,6 @@
 pub(super) mod chips;
 pub mod editor;
-// Zap Wave 7-3:`environment_selector` was removed with the hosted-mode footer.
+// Zora Wave 7-3:`environment_selector` was removed with the hosted-mode footer.
 mod reasoning_depth_selector;
 pub mod toolbar_item;
 
@@ -56,7 +56,7 @@ use crate::{
     workspaces::user_workspaces::UserWorkspaces,
 };
 use toolbar_item::AgentToolbarItemKind;
-// Zap Wave 7-3:`warp_cli::agent::Harness` import was removed with the hosted-mode footer.
+// Zora Wave 7-3:`warp_cli::agent::Harness` import was removed with the hosted-mode footer.
 
 use std::sync::Arc;
 
@@ -107,7 +107,7 @@ use warpui::{
 #[cfg(not(target_family = "wasm"))]
 use warpui::r#async::Timer;
 
-// Zap Wave 7-3:`EnvironmentSelector` / `EnvironmentSelectorEvent` re-export was removed
+// Zora Wave 7-3:`EnvironmentSelector` / `EnvironmentSelectorEvent` re-export was removed
 // with the hosted-mode footer.
 pub(crate) use self::reasoning_depth_selector::{
     ReasoningDepthSelector, ReasoningDepthSelectorEvent,
@@ -124,7 +124,7 @@ use crate::view_components::ToastLink;
 #[cfg(not(target_family = "wasm"))]
 use crate::workspace::WorkspaceAction;
 
-// Zap Wave 7-3: removed the hosted-mode footer gap constant with the old footer.
+// Zora Wave 7-3: removed the hosted-mode footer gap constant with the old footer.
 
 /// Voice input state for the CLI agent footer. Unlike the editor-based voice
 /// flow (which goes through Input → EditorView), this state is self-contained
@@ -186,7 +186,7 @@ pub struct AgentInputFooter {
     context_window_button: ViewHandle<ActionButton>,
     model_selector: ViewHandle<ProfileModelSelector>,
     ftu_callout_close_button: ViewHandle<ActionButton>,
-    // Zap Wave 7-3:`environment_selector` field was removed with the hosted-mode footer.
+    // Zora Wave 7-3:`environment_selector` field was removed with the hosted-mode footer.
     reasoning_depth_selector: ViewHandle<ReasoningDepthSelector>,
     prompt_alert: ViewHandle<PromptAlertView>,
     ambient_agent_view_model: ModelHandle<AmbientAgentViewModel>,
@@ -577,7 +577,7 @@ impl AgentInputFooter {
             me.handle_profile_model_selector_event(event, ctx);
         });
 
-        // Zap Wave 7-3:`EnvironmentSelector` 初始化 + 订阅 + ambient_agent
+        // Zora Wave 7-3:`EnvironmentSelector` 初始化 + 订阅 + ambient_agent
         // Status rerender subscription was removed with the hosted-mode footer.
 
         let reasoning_depth_selector = ctx.add_typed_action_view(|ctx| {
@@ -697,7 +697,7 @@ impl AgentInputFooter {
             plugin_chip_ready: false,
             context_window_button,
             model_selector: profile_model_selector_full,
-            // Zap Wave 7-3:`environment_selector` field init was removed with hosted-mode UI.
+            // Zora Wave 7-3:`environment_selector` field init was removed with hosted-mode UI.
             // 子系统物理删。
             reasoning_depth_selector,
             prompt_alert,
@@ -746,7 +746,7 @@ impl AgentInputFooter {
             .is_some_and(|s| s.as_ref(app).is_menu_open())
     }
 
-    // Zap Wave 7-3: hosted-mode footer rendering was removed.
+    // Zora Wave 7-3: hosted-mode footer rendering was removed.
 
     fn all_display_chips(&self) -> impl Iterator<Item = &ViewHandle<DisplayChip>> {
         self.left_display_chips
@@ -1013,7 +1013,7 @@ impl AgentInputFooter {
             // executor so it runs inside the container and targets the
             // container's shell / package layout. A common use case will be
             // running a 3p harness (e.g. Claude Code) inside a sandbox and
-            // needing the Zap plugin to integrate with it.
+            // needing the Zora plugin to integrate with it.
             Some(ShellLaunchData::DockerSandbox { .. }) => return false,
         };
 
@@ -1332,7 +1332,7 @@ impl AgentInputFooter {
     }
 
     pub fn has_open_chip_menu(&self, app: &AppContext) -> bool {
-        // Zap Wave 7-3:`environment_selector` is_menu_open() check was removed with hosted-mode UI.
+        // Zora Wave 7-3:`environment_selector` is_menu_open() check was removed with hosted-mode UI.
         // 子系统物理删。
         self.all_display_chips()
             .any(|chip| chip.as_ref(app).display_chip_kind().has_open_menu())
@@ -1473,7 +1473,7 @@ impl AgentInputFooter {
 
         match &self.cli_voice_input_state {
             CLIVoiceInputState::Stopped => {
-                // Zap(Phase 3c A1):删除 `AIRequestUsageModel::can_request_voice`
+                // Zora(Phase 3c A1):删除 `AIRequestUsageModel::can_request_voice`
                 // 额度闸。本地化后语音输入不受云端额度限制，统一可发送。
 
                 let session_result = voice_input::VoiceInput::handle(ctx)
@@ -1825,7 +1825,7 @@ impl View for AgentInputFooter {
     }
 
     fn render(&self, app: &warpui::AppContext) -> Box<dyn warpui::Element> {
-        // Zap Wave 7-3: hosted-mode footer rendering was removed.
+        // Zora Wave 7-3: hosted-mode footer rendering was removed.
         // When a CLI agent session is active, render the CLI agent toolbar instead.
         if self.is_cli_agent_session_active(app) {
             return self.render_cli_mode_footer(app);
@@ -1842,7 +1842,7 @@ impl View for AgentInputFooter {
             .with_run_spacing(4.)
             .with_spacing(4.);
 
-        // Zap Wave 7-3: removed environment-selector ambient-agent chip injection.
+        // Zora Wave 7-3: removed environment-selector ambient-agent chip injection.
 
         let terminal_model = self.terminal_model.lock();
         let shared_status = terminal_model.shared_session_status();
@@ -2254,7 +2254,7 @@ pub enum AgentInputFooterEvent {
     ShowContextMenu {
         position: Vector2F,
     },
-    // Zap Wave 7-3:`OpenEnvironmentManagementPane` event was removed with hosted-mode UI.
+    // Zora Wave 7-3:`OpenEnvironmentManagementPane` event was removed with hosted-mode UI.
     // 物理删。
     PluginInstalled(CLIAgent),
     #[cfg(not(target_family = "wasm"))]
@@ -2354,7 +2354,7 @@ impl ActionButtonTheme for ActiveMicButtonTheme {
     }
 }
 
-/// Green-accented theme for the "Install Zap plugin" chip.
+/// Green-accented theme for the "Install Zora plugin" chip.
 struct InstallPluginButtonTheme;
 
 impl ActionButtonTheme for InstallPluginButtonTheme {
@@ -2394,7 +2394,7 @@ async fn write_install_log(agent: CLIAgent, err: &PluginInstallError) -> Option<
     let log_path = env::temp_dir().join("warp-plugin-install.log");
     let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
     let contents = format!(
-        "Zap plugin installation — {agent:?}\n\
+        "Zora plugin installation — {agent:?}\n\
          {now}\n\
          \n\
          {log}",

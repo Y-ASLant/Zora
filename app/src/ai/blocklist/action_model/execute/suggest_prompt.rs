@@ -52,7 +52,7 @@ impl PromptSuggestionExecutor {
             return ActionExecution::InvalidAction;
         };
 
-        // Zap:无条件 emit(原版 gate 在 PromptSuggestionsViaMAA cargo feature 下,
+        // Zora:无条件 emit(原版 gate 在 PromptSuggestionsViaMAA cargo feature 下,
         // OSS 默认不开 → chip 永远不显示 → oneshot 永挂)。BYOP 场景模型主动调
         // suggest_prompt 时,需要 view 层订阅本 event 把 chip 显示给用户,接受后
         // 调 complete_suggest_prompt_action 关 channel。详见

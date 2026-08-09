@@ -2,7 +2,7 @@
 
 ## How do migrations work?
 
-A SQLite database is a single file on the user's computer. When Zap starts,
+A SQLite database is a single file on the user's computer. When Zora starts,
 `app/src/persistence/sqlite.rs` opens the database and runs the migrations
 embedded by `crates/persistence` in a transaction.
 
@@ -30,7 +30,7 @@ This creates a directory containing `up.sql` and `down.sql`.
 
 ## Step 3: Run the migration and generate the schema
 
-Replace `<path-to-zap.sqlite>` with the database used by the local Zap build:
+Replace `<path-to-zap.sqlite>` with the database used by the local Zora build:
 
 ```shell
 diesel migration run \

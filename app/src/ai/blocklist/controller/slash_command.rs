@@ -33,7 +33,7 @@ pub enum SlashCommandRequest {
     },
     Summarize {
         prompt: Option<String>,
-        /// Zap BYOP 本地会话压缩:本次摘要是否由 token-overflow 自动触发。
+        /// Zora BYOP 本地会话压缩:本次摘要是否由 token-overflow 自动触发。
         /// chat_stream::SummarizeConversation 分支据此决定 follow-up 文案
         /// (overflow 路径会拼一段 "previous request exceeded ..." 解释)。
         /// /compact /compact-and 手动触发时为 false;auto-trigger 路径为 true。

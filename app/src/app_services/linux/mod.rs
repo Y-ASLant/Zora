@@ -64,7 +64,7 @@ pub fn pass_startup_args_to_existing_instance(
 #[derive(Debug, thiserror::Error)]
 #[cfg(feature = "release_bundle")]
 pub enum StartupArgsForwardingError {
-    /// There's no instance of Zap already running.
+    /// There's no instance of Zora already running.
     #[error("no existing instance found to forward args to")]
     NoExistingInstance,
     /// This instance was launched after an auto-update and should not forward
@@ -81,7 +81,7 @@ impl From<zbus::fdo::Error> for StartupArgsForwardingError {
     fn from(value: zbus::fdo::Error) -> Self {
         // While ServiceUnknown usually means that D-Bus doesn't know how to
         // _launch_ something to handle your message, in our case, we're not
-        // registering a service, so this really means that Zap is not already
+        // registering a service, so this really means that Zora is not already
         // running.
         if matches!(value, zbus::fdo::Error::ServiceUnknown(_)) {
             StartupArgsForwardingError::NoExistingInstance
@@ -149,17 +149,17 @@ impl ApplicationService {
     }
 }
 
-// A D-Bus client for connecting to an already-running instance of Zap and
+// A D-Bus client for connecting to an already-running instance of Zora and
 // invoking org.freedesktop.Application IPC methods.
 //
 // `default_service` / `default_path` 在调用处 (`pass_startup_args_to_existing_instance`) 通过
 // `.destination(well_known_name())` / `.path(application_service_path())` 在 builder 上覆盖,
 // 所以这里的常量不会被实际使用;但为避免误导未来通过 `Proxy::new` 直接使用 default 的调用方,
-// 这里仍指向 OSS 默认的 `dev.zap.Zap`。
+// 这里指向 Zora OSS 的默认 `dev.warp.zora`。
 #[proxy(
     interface = "org.freedesktop.Application",
-    default_service = "dev.zap.Zap",
-    default_path = "/dev/zap/Zap",
+    default_service = "dev.warp.zora",
+    default_path = "/dev/warp/zora",
     gen_blocking = false
 )]
 trait ExistingApplication {

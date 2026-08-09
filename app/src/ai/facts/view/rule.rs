@@ -25,10 +25,7 @@ use markdown_parser::{
 };
 use std::fmt::Debug;
 use std::path::PathBuf;
-use warp_core::ui::{
-    appearance::{Appearance, AppearanceEvent},
-    theme::color::internal_colors,
-};
+use warp_core::ui::{appearance::Appearance, theme::color::internal_colors};
 use warpui::elements::Shrinkable;
 use warpui::platform::FilePickerConfiguration;
 use warpui::ui_components::button::ButtonVariant;
@@ -146,7 +143,7 @@ pub struct RuleView {
 
 impl RuleView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        // Zap(本地化,Phase 2d-1):原 UpdateManager 订阅用来接收云端创建/更新的 ack
+        // Zora(本地化,Phase 2d-1):原 UpdateManager 订阅用来接收云端创建/更新的 ack
         // 事件、以及网络状态驱动的面板重绘。本地化后 ObjectStoreEvent 已覆盖本地写入后的
         // UI 刷新需求(2c-2/2c-3 在 update_object/create_object 里发送),UpdateManager 与
         // NetworkStatus 订阅为死代码,一并移除。
@@ -209,16 +206,6 @@ impl RuleView {
         });
 
         let appearance = Appearance::handle(ctx);
-        ctx.subscribe_to_model(&appearance, move |me, _, event, ctx| {
-            if let AppearanceEvent::ThemeChanged = event {
-                let appearance = Appearance::as_ref(ctx);
-                let search_bar_styles = style::search_bar(appearance);
-                me.search_bar.update(ctx, |search_bar, _| {
-                    search_bar.with_style(search_bar_styles)
-                });
-            }
-        });
-
         let search_editor_text = TextOptions::ui_text(None, appearance.as_ref(ctx));
         let search_editor = {
             let options = SingleLineEditorOptions {
@@ -536,6 +523,7 @@ impl RuleView {
         let banner_prefix = crate::t!("rules-disabled-banner-prefix");
         let banner_link = crate::t!("rules-disabled-banner-link");
         let banner_suffix = crate::t!("rules-disabled-banner-suffix");
+        let banner_background = appearance.theme().accent_overlay();
         let mut link = FormattedTextFragment::hyperlink(banner_link, "Settings > AI");
         link.styles.weight = Some(CustomWeight::Bold);
 
@@ -548,10 +536,7 @@ impl RuleView {
             style::SUBTEXT_FONT_SIZE,
             appearance.ui_font_family(),
             appearance.ui_font_family(),
-            appearance
-                .theme()
-                .sub_text_color(appearance.theme().background())
-                .into(),
+            appearance.theme().sub_text_color(banner_background).into(),
             self.disabled_banner_highlight_index.clone(),
         )
         .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
@@ -568,9 +553,7 @@ impl RuleView {
                         ConstrainedBox::new(
                             Icon::Info
                                 .to_warpui_icon(
-                                    appearance
-                                        .theme()
-                                        .sub_text_color(appearance.theme().background()),
+                                    appearance.theme().sub_text_color(banner_background),
                                 )
                                 .finish(),
                         )
@@ -584,7 +567,7 @@ impl RuleView {
                 .with_child(Expanded::new(1., formatted_text.finish()).finish())
                 .finish(),
         )
-        .with_background(appearance.theme().accent_overlay())
+        .with_background(banner_background)
         .with_corner_radius(CornerRadius::with_all(warpui::elements::Radius::Pixels(4.)))
         .with_uniform_padding(style::BANNER_PADDING)
         .with_margin_bottom(style::ITEM_BOTTOM_MARGIN)
@@ -604,7 +587,7 @@ impl RuleView {
             .finish()
     }
 
-    // Zap(本地化,Phase 2d-1):原 `render_sync_status_icon` 依赖 `SyncQueue::is_dequeueing()`
+    // Zora(本地化,Phase 2d-1):原 `render_sync_status_icon` 依赖 `SyncQueue::is_dequeueing()`
     // 与 `is_syncing` 谓词,本地化后永不会出现 "同步中" 状态,整体移除。
 
     fn render_project_based_row(
@@ -646,12 +629,9 @@ impl RuleView {
 
         Some(
             Container::new(row.finish())
-                .with_background(internal_colors::neutral_1(appearance.theme()))
+                .with_background(appearance.theme().surface_1())
                 .with_corner_radius(CornerRadius::with_all(warpui::elements::Radius::Pixels(4.)))
-                .with_border(
-                    Border::all(1.)
-                        .with_border_color(internal_colors::neutral_2(appearance.theme())),
-                )
+                .with_border(Border::all(1.).with_border_color(appearance.theme().outline().into()))
                 .with_horizontal_padding(style::ROW_HORIZONTAL_PADDING)
                 .with_vertical_padding(style::RULE_VERTICAL_PADDING)
                 .with_margin_bottom(style::ITEM_BOTTOM_MARGIN)
@@ -714,25 +694,22 @@ impl RuleView {
             .with_child(Expanded::new(1., fact_text).finish());
 
         let hoverable = Hoverable::new(ai_row.mouse_states.hover.clone(), |state| {
-            let mut bg_color = internal_colors::neutral_1(appearance.theme());
+            let mut bg_color = appearance.theme().surface_1();
             if state.is_hovered() {
-                bg_color = internal_colors::neutral_4(appearance.theme());
+                bg_color = appearance.theme().surface_2();
             }
 
             Container::new(row.finish())
                 .with_background(bg_color)
                 .with_corner_radius(CornerRadius::with_all(warpui::elements::Radius::Pixels(4.)))
-                .with_border(
-                    Border::all(1.)
-                        .with_border_color(internal_colors::neutral_2(appearance.theme())),
-                )
+                .with_border(Border::all(1.).with_border_color(appearance.theme().outline().into()))
                 .with_horizontal_padding(style::ROW_HORIZONTAL_PADDING)
                 .with_vertical_padding(style::RULE_VERTICAL_PADDING)
                 .with_margin_bottom(style::ITEM_BOTTOM_MARGIN)
                 .finish()
         });
 
-        // Zap(本地化,Phase 2d-1):原 `is_edit_allowed` 依赖网络在线+server_id 两个纬度,
+        // Zora(本地化,Phase 2d-1):原 `is_edit_allowed` 依赖网络在线+server_id 两个纬度,
         // 本地化后规则永远可编辑,点击动作无条件挂载。
         hoverable
             .with_cursor(Cursor::PointingHand)
@@ -808,9 +785,7 @@ impl RuleView {
             .with_height(style::ZERO_STATE_HEIGHT)
             .finish(),
         )
-        .with_border(
-            Border::all(1.).with_border_color(internal_colors::neutral_2(appearance.theme())),
-        )
+        .with_border(Border::all(1.).with_border_color(appearance.theme().outline().into()))
         .with_margin_bottom(style::SECTION_MARGIN)
         .finish()
     }

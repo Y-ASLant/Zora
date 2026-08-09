@@ -626,7 +626,7 @@ pub fn test_suggestions_menu_positioning() -> Builder {
                 ),
         )
         .with_step(
-            new_step_with_default_assertions("Open Zap Drive")
+            new_step_with_default_assertions("Open Zora Drive")
                 .with_click_on_saved_position("workspace:toggle_left_panel")
                 .add_assertion(assert_is_left_panel_open()),
         )
@@ -6734,7 +6734,7 @@ pub fn test_context_chips_prompt_at_bootstrap() -> Builder {
             (String::from("SavedPrompt"), String::from("Default")),
         ]))
         .with_step(
-            new_step_with_default_assertions("Check Zap prompt")
+            new_step_with_default_assertions("Check Zora prompt")
                 .add_assertion(assert_working_dir_is_present(0)),
         )
 }

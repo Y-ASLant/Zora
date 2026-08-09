@@ -248,7 +248,7 @@ impl MinidumpGuard {
         })
         .context("Failed to attach crash signal handler")?;
 
-        // Ensure that the crash server process can ptrace Zap.
+        // Ensure that the crash server process can ptrace Zora.
         #[cfg(target_os = "linux")]
         crash_handler.set_ptracer(Some(child.id()));
 

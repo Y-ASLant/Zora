@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="assets/zap-logo.svg" alt="Zap" width="128" />
+<img src="assets/zap-logo.svg" alt="Zora" width="128" />
 
-# Zap
+# Zora
 
 [English](./README.md) · [日本語](./README.ja.md)
 
@@ -10,7 +10,7 @@
 
 </div>
 
-Zap 是一个开放、本地优先的终端,带一等公民的 AI 与 Agent 体验。接入任意 AI 提供商、接入任意 CLI Agent、在终端内管理 SSH 主机 —— 密钥、历史与 Agent 状态默认留在本地。
+Zora 是一个开放、本地优先的终端,带一等公民的 AI 与 Agent 体验。接入任意 AI 提供商、接入任意 CLI Agent、在终端内管理 SSH 主机 —— 密钥、历史与 Agent 状态默认留在本地。
 
 ## 相比官方 Warp 多出的功能
 
@@ -26,7 +26,7 @@ Zap 是一个开放、本地优先的终端,带一等公民的 AI 与 Agent 体�
 
 ## 从 OpenWarp 或 Warp 迁移过来
 
-如果你在项目改名 Zap 之前就一直在用(那时还叫 **OpenWarp**),
+如果你在项目改名 Zora 之前就一直在用(那时还叫 **OpenWarp**),
 或者你是从上游 **Warp** 切过来的,参见
 [docs/migrate-from-warp.zh-CN.md](docs/migrate-from-warp.zh-CN.md) 把设置带过来。
 
@@ -58,5 +58,7 @@ make clean
 
 ## 鸣谢
 
-- [Warp](https://github.com/warpdotdev/warp) —— Zap 所基于的上游终端。
-- [DeepSeek-TUI](https://github.com/Hmbown/DeepSeek-TUI) —— 深度适配的 CLI Agent 合作伙伴。
+- [Warp](https://github.com/warpdotdev/warp) —— Zora 所基于的上游开源终端代码库与核心平台。
+- [Zap](https://github.com/zerx-lab/zap) —— 相关开源项目，Zora 的部分功能与实现思路来自或参考了该项目。
+
+Zora 是一个独立应用。上述项目仍分别属于各自的上游/来源项目；许可证和第三方声明请以本仓库的相关文件为准。

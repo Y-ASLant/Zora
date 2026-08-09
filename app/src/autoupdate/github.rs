@@ -1,4 +1,4 @@
-// openWarp(Channel::Oss)autoupdate 走 GitHub Releases API,而非 Zap 官方
+// openWarp(Channel::Oss)autoupdate 走 GitHub Releases API,而非 Zora 官方
 // channel_versions / GCS。本模块只负责"取最新 release 元数据" + "按文件名挑资产";
 // 实际的下载落盘 + 打开目录由 windows.rs / mac.rs 完成。
 
@@ -13,7 +13,7 @@ const REPO_OWNER: &str = "Y-ASLant";
 const REPO_NAME: &str = "zap";
 
 // GitHub 强制要求 User-Agent;同时显式声明 API 版本避免未来 default 漂移。
-const USER_AGENT: &str = "Zap-Autoupdate";
+const USER_AGENT: &str = "Zora-Autoupdate";
 const ACCEPT: &str = "application/vnd.github+json";
 const API_VERSION: &str = "2022-11-28";
 

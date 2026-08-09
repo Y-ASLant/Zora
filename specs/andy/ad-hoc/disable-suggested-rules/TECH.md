@@ -76,7 +76,7 @@ This is the single chokepoint where `SuggestionChipView::new_rule_chip` instance
       column.add_child(self.render_rule_suggestions_toggle(view, ai_settings, app));
   }
   ```
-  Insert this between the rules toggle + "Manage rules" button and the Zap Drive context toggle.
+  Insert this between the rules toggle + "Manage rules" button and the Zora Drive context toggle.
 
 The toggle renders with `is_any_ai_enabled` as the `is_toggleable` argument (not `is_active_ai_enabled`), consistent with other Knowledge-section toggles like `ToggleRules`.
 

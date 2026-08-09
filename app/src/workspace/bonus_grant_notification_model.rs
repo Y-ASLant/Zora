@@ -54,7 +54,7 @@ impl BonusGrantNotificationModel {
         let mut grants_to_persist_to_settings = Vec::new();
 
         for grant in bonus_grants {
-            // Only notify about Zap-granted credits (cost = 0), not user purchases
+            // Only notify about Zora-granted credits (cost = 0), not user purchases
             if grant.cost_cents != 0 {
                 continue;
             }

@@ -1,9 +1,7 @@
 use markdown_parser::{
     FormattedText, FormattedTextFragment, FormattedTextLine, FormattedTextStyles, Hyperlink,
 };
-use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
-use warp_core::ui::theme::{phenomenon::PhenomenonStyle, Fill};
 use warpui::elements::{
     Align, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
     Empty, Expanded, Flex, FormattedTextElement, HighlightedHyperlink, MainAxisSize,
@@ -17,7 +15,7 @@ use warpui::{
 
 use crate::appearance::Appearance;
 use crate::ui_components::icons::Icon;
-use crate::view_components::action_button::{ActionButton, ActionButtonTheme, ButtonSize};
+use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme, PrimaryTheme};
 
 const MODAL_WIDTH: f32 = 420.;
 const HERO_HEIGHT: f32 = 92.;
@@ -84,44 +82,6 @@ pub enum ZapLaunchModalEvent {
     Close,
 }
 
-struct CloseButtonTheme;
-
-impl ActionButtonTheme for CloseButtonTheme {
-    fn background(&self, hovered: bool, _appearance: &Appearance) -> Option<Fill> {
-        if hovered {
-            Some(Fill::Solid(PhenomenonStyle::modal_close_button_hover()))
-        } else {
-            None
-        }
-    }
-
-    fn text_color(
-        &self,
-        _hovered: bool,
-        _background: Option<Fill>,
-        _appearance: &Appearance,
-    ) -> ColorU {
-        PhenomenonStyle::modal_close_button_text()
-    }
-}
-
-struct CtaButtonTheme;
-
-impl ActionButtonTheme for CtaButtonTheme {
-    fn background(&self, hovered: bool, _appearance: &Appearance) -> Option<Fill> {
-        Some(PhenomenonStyle::modal_button_background_fill(hovered))
-    }
-
-    fn text_color(
-        &self,
-        _hovered: bool,
-        _background: Option<Fill>,
-        _appearance: &Appearance,
-    ) -> ColorU {
-        PhenomenonStyle::modal_button_text()
-    }
-}
-
 pub struct ZapLaunchModal {
     close_button: ViewHandle<ActionButton>,
     cta_button: ViewHandle<ActionButton>,
@@ -130,14 +90,14 @@ pub struct ZapLaunchModal {
 impl ZapLaunchModal {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         let close_button = ctx.add_view(|_ctx| {
-            ActionButton::new("", CloseButtonTheme)
+            ActionButton::new("", NakedTheme)
                 .with_icon(Icon::X)
                 .with_size(ButtonSize::Small)
                 .on_click(|ctx| ctx.dispatch_typed_action(ZapLaunchModalAction::Close))
         });
 
         let cta_button = ctx.add_view(|_ctx| {
-            ActionButton::new(crate::t!("zap-launch-visit-repo"), CtaButtonTheme)
+            ActionButton::new(crate::t!("zap-launch-visit-repo"), PrimaryTheme)
                 .with_full_width(true)
                 .on_click(|ctx| ctx.dispatch_typed_action(ZapLaunchModalAction::VisitRepo))
         });
@@ -148,10 +108,10 @@ impl ZapLaunchModal {
         }
     }
 
-    fn render_hero(&self) -> Box<dyn Element> {
+    fn render_hero(&self, appearance: &Appearance) -> Box<dyn Element> {
         let hero = ConstrainedBox::new(
             Container::new(Empty::new().finish())
-                .with_background(Fill::Solid(PhenomenonStyle::modal_background()))
+                .with_background(appearance.theme().surface_2())
                 .with_corner_radius(CornerRadius::with_top(Radius::Pixels(8.)))
                 .finish(),
         )
@@ -179,36 +139,39 @@ impl ZapLaunchModal {
     }
 
     fn render_badge(appearance: &Appearance) -> Box<dyn Element> {
+        let theme = appearance.theme();
         Container::new(
             Text::new_inline(crate::t!("common-new"), appearance.ui_font_family(), 14.)
-                .with_color(PhenomenonStyle::modal_badge_text())
+                .with_color(theme.main_text_color(theme.accent()).into_solid())
                 .finish(),
         )
         .with_horizontal_padding(8.)
         .with_vertical_padding(2.)
         .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
-        .with_background(Fill::Solid(PhenomenonStyle::modal_badge_background()))
+        .with_background(theme.accent())
         .finish()
     }
 
     fn render_title(appearance: &Appearance) -> Box<dyn Element> {
+        let theme = appearance.theme();
         Text::new(
             crate::t!("zap-launch-title"),
             appearance.ui_font_family(),
             20.,
         )
-        .with_color(PhenomenonStyle::modal_title_text())
+        .with_color(theme.main_text_color(theme.surface_2()).into_solid())
         .with_style(Properties::default().weight(Weight::Semibold))
         .finish()
     }
 
     fn render_description(appearance: &Appearance) -> Box<dyn Element> {
+        let theme = appearance.theme();
         Text::new(
             crate::t!("zap-launch-description"),
             appearance.ui_font_family(),
             14.,
         )
-        .with_color(PhenomenonStyle::modal_feature_description_text())
+        .with_color(theme.sub_text_color(theme.surface_2()).into_solid())
         .finish()
     }
 
@@ -238,9 +201,13 @@ impl ZapLaunchModal {
     }
 
     fn render_feature_description(item: &FeatureItem, appearance: &Appearance) -> Box<dyn Element> {
+        let description_color = appearance
+            .theme()
+            .sub_text_color(appearance.theme().surface_2())
+            .into_solid();
         let Some(link) = &item.inline_link else {
             return Text::new(item.description.clone(), appearance.ui_font_family(), 14.)
-                .with_color(PhenomenonStyle::modal_feature_description_text())
+                .with_color(description_color)
                 .finish();
         };
 
@@ -272,14 +239,14 @@ impl ZapLaunchModal {
             14.,
             appearance.ui_font_family(),
             appearance.monospace_font_family(),
-            PhenomenonStyle::modal_feature_description_text(),
+            description_color,
             HighlightedHyperlink::default(),
         )
         .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .with_line_height_ratio(1.2)
         // Render the inline link in the same color as the description text so it
         // blends in; the underline (applied via FormattedTextStyles) still signals it's a link.
-        .with_hyperlink_font_color(PhenomenonStyle::modal_feature_description_text())
+        .with_hyperlink_font_color(description_color)
         .register_default_click_handlers(|link, _ctx, app| {
             app.open_url(&link.url);
         })
@@ -289,9 +256,11 @@ impl ZapLaunchModal {
     fn render_feature_row(item: &FeatureItem, appearance: &Appearance) -> Box<dyn Element> {
         let icon_el = ConstrainedBox::new(
             item.icon
-                .to_warpui_icon(Fill::Solid(
-                    PhenomenonStyle::modal_feature_description_text(),
-                ))
+                .to_warpui_icon(
+                    appearance
+                        .theme()
+                        .sub_text_color(appearance.theme().surface_2()),
+                )
                 .finish(),
         )
         .with_width(16.)
@@ -303,7 +272,12 @@ impl ZapLaunchModal {
             .with_spacing(2.)
             .with_child(
                 Text::new_inline(item.title.to_string(), appearance.ui_font_family(), 14.)
-                    .with_color(PhenomenonStyle::modal_feature_title_text())
+                    .with_color(
+                        appearance
+                            .theme()
+                            .main_text_color(appearance.theme().surface_2())
+                            .into_solid(),
+                    )
                     .finish(),
             )
             .with_child(Self::render_feature_description(item, appearance))
@@ -349,7 +323,7 @@ impl ZapLaunchModal {
         )
         .with_horizontal_padding(32.)
         .with_vertical_padding(32.)
-        .with_background(Fill::Solid(PhenomenonStyle::modal_background()))
+        .with_background(appearance.theme().surface_2())
         .with_corner_radius(CornerRadius::with_bottom(Radius::Pixels(8.)))
         .finish()
     }
@@ -376,11 +350,11 @@ impl View for ZapLaunchModal {
                 Flex::column()
                     .with_main_axis_size(MainAxisSize::Min)
                     .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-                    .with_child(self.render_hero())
+                    .with_child(self.render_hero(appearance))
                     .with_child(self.render_body(appearance))
                     .finish(),
             )
-            .with_background(Fill::Solid(PhenomenonStyle::modal_background()))
+            .with_background(appearance.theme().surface_2())
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
             .finish(),
         )
@@ -388,7 +362,7 @@ impl View for ZapLaunchModal {
         .finish();
 
         Container::new(Align::new(card).finish())
-            .with_background_color(ColorU::new(18, 18, 18, 128))
+            .with_background(appearance.theme().blurred_background_overlay())
             .finish()
     }
 }

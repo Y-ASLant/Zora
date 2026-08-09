@@ -423,7 +423,7 @@ impl WorkflowModal {
     #[allow(dead_code)]
     fn populate(&mut self, workflow: Workflow, ctx: &mut ViewContext<Self>) {
         // Sanitize the arguments generated for the workflow by removing any illegal characters.
-        // Necessary since Zap AI command search sometimes provides arguments in an invalid argument format.
+        // Necessary since Zora AI command search sometimes provides arguments in an invalid argument format.
         let mut sanitized_content = workflow.content().to_string();
         let sanitized_arguments = workflow
             .arguments()
@@ -1230,7 +1230,7 @@ impl WorkflowModal {
                                         width: Some(ARGUMENT_INPUT_WIDTH),
                                         height: None,
                                         dropdown_background: |appearance| {
-                                            appearance.theme().background()
+                                            appearance.theme().surface_2()
                                         },
                                         border_color: |appearance| appearance.theme().outline(),
                                         border_radius: 0.0,
@@ -1504,7 +1504,7 @@ impl WorkflowModal {
                 .finish(),
         )
         .with_uniform_padding(COMMAND_EDITOR_PADDING)
-        .with_background(appearance.theme().background())
+        .with_background(appearance.theme().surface_2())
         .finish()
     }
 
@@ -1537,7 +1537,7 @@ impl WorkflowModal {
                                 .with_width(ARGUMENT_INPUT_WIDTH)
                                 .finish(),
                         )
-                        .with_background(appearance.theme().background())
+                        .with_background(appearance.theme().surface_2())
                         .with_border(Border::all(1.).with_border_fill(appearance.theme().outline()))
                         .with_uniform_padding(ARGUMENT_INPUT_PADDING)
                         .with_margin_left(ARGUMENT_INPUT_MARGIN)
@@ -1562,8 +1562,8 @@ impl WorkflowModal {
                     .with_children(children)
                     .finish(),
                 SCROLLBAR_WIDTH,
-                theme.background().into(),
-                theme.main_text_color(theme.background()).into(),
+                theme.surface_2().into(),
+                theme.main_text_color(theme.surface_2()).into(),
                 theme.surface_1().into(),
             )
             .finish(),
@@ -1579,7 +1579,7 @@ impl WorkflowModal {
             font_color: Some(
                 appearance
                     .theme()
-                    .main_text_color(appearance.theme().background())
+                    .main_text_color(appearance.theme().surface_1())
                     .into(),
             ),
             font_weight: Some(Weight::Bold),
@@ -1614,7 +1614,7 @@ impl WorkflowModal {
             font_color: Some(
                 appearance
                     .theme()
-                    .disabled_text_color(appearance.theme().background())
+                    .disabled_text_color(appearance.theme().surface_3())
                     .into(),
             ),
             ..primary_button_styles

@@ -433,7 +433,7 @@ impl super::TerminalView {
 // where we can spawn a local tty.
 #[cfg(feature = "local_fs")]
 impl super::TerminalView {
-    /// Zap:判断给定会话是否是 remote-server(SSH)会话。
+    /// Zora:判断给定会话是否是 remote-server(SSH)会话。
     ///
     /// 当 `local_tty` 未启用 / 在 wasm 上 / `SshRemoteServer` feature flag 关闭时,
     /// 一律返回 `false`,即保持本地行为完全不变。
@@ -463,7 +463,7 @@ impl super::TerminalView {
         false
     }
 
-    /// Zap:取得远端会话某个 cwd 的目录列表校验上下文。
+    /// Zora:取得远端会话某个 cwd 的目录列表校验上下文。
     ///
     /// 命中缓存则直接返回 `Remote(Some(..))`;未命中则异步发起 daemon
     /// `ListDirectory` RPC 拉取该目录列表,本轮返回 `Remote(None)`(不高亮),
@@ -578,7 +578,7 @@ impl super::TerminalView {
     ) {
         use crate::util::file::LinkValidationContext;
 
-        // Zap:判断被悬停 block 所属会话是否是 remote-server 会话。
+        // Zora:判断被悬停 block 所属会话是否是 remote-server 会话。
         // 远端会话的文件不在本地磁盘上,需要用 `LinkValidationContext::Remote`
         // 携带 daemon 拉取来的真实目录列表做精确校验。
         let block_session_id = match position {
@@ -595,7 +595,7 @@ impl super::TerminalView {
         // For AltScreen we scan for relative path with the current working directory.
         // For BlockList we scan for relative path with the pwd of the hovered block.
         //
-        // Zap:远端会话的 block `pwd()` 是 shell-integration 上报的远端 cwd,
+        // Zora:远端会话的 block `pwd()` 是 shell-integration 上报的远端 cwd,
         // 拼接后即得到正确的远端绝对路径,因此远端 block 也参与扫描(不再跳过)。
         let pwd_to_scan_for = match position {
             WithinModel::AltScreen(_) => {
@@ -614,7 +614,7 @@ impl super::TerminalView {
                 .and_then(|block| block.pwd().map(String::from)),
         };
 
-        // Zap:远端会话用缓存的 cwd 目录列表精确校验;本地会话保持 `Local`。
+        // Zora:远端会话用缓存的 cwd 目录列表精确校验;本地会话保持 `Local`。
         let validation_ctx = match (&pwd_to_scan_for, block_session_id) {
             #[cfg(all(feature = "local_tty", not(target_family = "wasm")))]
             (Some(cwd), Some(session_id)) if is_remote => {

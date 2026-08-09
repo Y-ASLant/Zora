@@ -1,4 +1,4 @@
-//! Fluent-based localization layer for Zap Desktop.
+//! Fluent-based localization layer for Zora Desktop.
 //!
 //! 加载链:
 //!   1. `init()` 在启动时调用一次(idempotent),用 `RustEmbed` 加载 `app/i18n/{locale}/*.ftl`

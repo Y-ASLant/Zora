@@ -18,7 +18,7 @@ pub const DEFAULT_MONOSPACE_FALLBACK_FONT_NAME: &str = "";
 // Markdown 标题字号倍率的合法区间（与 UI 层 clamp 保持一致）
 pub const MARKDOWN_HEADING_SCALE_MIN: f32 = 0.1;
 pub const MARKDOWN_HEADING_SCALE_MAX: f32 = 5.0;
-pub const DEFAULT_MONOSPACE_FONT_SIZE: f32 = 13.0;
+pub const DEFAULT_MONOSPACE_FONT_SIZE: f32 = 14.0;
 pub const DEFAULT_MONOSPACE_FONT_WEIGHT: Weight = Weight::Normal;
 
 pub const DEFAULT_UI_FONT_NAME: &str = "";

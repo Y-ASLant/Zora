@@ -8,11 +8,11 @@ fn test_data_dir_path() {
     // ChannelState, by default, is configured for Channel::Oss.
     cfg_if::cfg_if! {
         if #[cfg(target_os = "macos")] {
-            assert_eq!(data_dir(), home_dir.join(".zap"));
+            assert_eq!(data_dir(), home_dir.join(".zora"));
         } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
-            assert_eq!(data_dir(), home_dir.join(".local/share/zap"));
+            assert_eq!(data_dir(), home_dir.join(".local/share/zora"));
         } else if #[cfg(windows)] {
-            assert_eq!(data_dir(), home_dir.join("AppData\\Roaming\\zap\\Zap\\data"));
+            assert_eq!(data_dir(), home_dir.join("AppData\\Roaming\\warp\\zora\\data"));
         } else {
             unimplemented!("Need to update tests for current platform!");
         }
@@ -25,11 +25,11 @@ fn test_config_local_dir_path() {
     // ChannelState, by default, is configured for Channel::Oss.
     cfg_if::cfg_if! {
         if #[cfg(target_os = "macos")] {
-            assert_eq!(config_local_dir(), home_dir.join(".zap"));
+            assert_eq!(config_local_dir(), home_dir.join(".zora"));
         } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
-            assert_eq!(config_local_dir(), home_dir.join(".config/zap"));
+            assert_eq!(config_local_dir(), home_dir.join(".config/zora"));
         } else if #[cfg(windows)] {
-            assert_eq!(config_local_dir(), home_dir.join("AppData\\Local\\zap\\Zap\\config"));
+            assert_eq!(config_local_dir(), home_dir.join("AppData\\Local\\warp\\zora\\config"));
         } else {
             unimplemented!("Need to update tests for current platform!");
         }
@@ -40,8 +40,8 @@ fn test_config_local_dir_path() {
 fn test_warp_home_config_dir_path() {
     let home_dir = home_dir().expect("Should be able to compute home directory");
     let expected_dir_name = match ChannelState::data_profile() {
-        Some(data_profile) => format!(".zap-{data_profile}"),
-        None => ".zap".to_string(),
+        Some(data_profile) => format!(".zora-{data_profile}"),
+        None => ".zora".to_string(),
     };
 
     assert_eq!(
@@ -68,11 +68,11 @@ fn test_cache_dir_path() {
     // ChannelState, by default, is configured for Channel::Oss.
     cfg_if::cfg_if! {
         if #[cfg(target_os = "macos")] {
-            assert_eq!(cache_dir(), home_dir.join("Library/Application Support/dev.zap.Zap"));
+            assert_eq!(cache_dir(), home_dir.join("Library/Application Support/dev.warp.zora"));
         } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
-            assert_eq!(cache_dir(), home_dir.join(".cache/zap"));
+            assert_eq!(cache_dir(), home_dir.join(".cache/zora"));
         } else if #[cfg(windows)] {
-            assert_eq!(cache_dir(), home_dir.join("AppData\\Local\\zap\\Zap\\cache"));
+            assert_eq!(cache_dir(), home_dir.join("AppData\\Local\\warp\\zora\\cache"));
         } else {
             unimplemented!("Need to update tests for current platform!");
         }
@@ -85,11 +85,11 @@ fn test_state_dir_path() {
     cfg_if::cfg_if! {
         // ChannelState, by default, is configured for Channel::Oss.
         if #[cfg(target_os = "macos")] {
-            assert_eq!(state_dir(), home_dir.join("Library/Application Support/dev.zap.Zap"));
+            assert_eq!(state_dir(), home_dir.join("Library/Application Support/dev.warp.zora"));
         } else if #[cfg(any(target_os = "linux", target_os = "freebsd"))] {
-            assert_eq!(state_dir(), home_dir.join(".local/state/zap"));
+            assert_eq!(state_dir(), home_dir.join(".local/state/zora"));
         } else if #[cfg(windows)] {
-            assert_eq!(state_dir(), home_dir.join("AppData\\Local\\zap\\Zap\\data"));
+            assert_eq!(state_dir(), home_dir.join("AppData\\Local\\warp\\zora\\data"));
         } else {
             unimplemented!("Need to update tests for current platform!");
         }

@@ -40,9 +40,9 @@ const THUMBNAIL_MARGIN: f32 = 10.;
 )]
 #[schemars(description = "The color theme.", rename_all = "snake_case")]
 pub enum ThemeKind {
+    #[default]
     #[schemars(description = "Adeberry")]
     Adeberry,
-    #[default]
     #[schemars(description = "Dark")]
     Dark,
     #[schemars(description = "Dracula")]

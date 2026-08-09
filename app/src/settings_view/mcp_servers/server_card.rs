@@ -5,7 +5,7 @@ use warp_core::{
     ui::{
         external_product_icon::ExternalProductIcon,
         icons::{Icon, ICON_DIMENSIONS},
-        theme::{color::internal_colors, AnsiColorIdentifier},
+        theme::AnsiColorIdentifier,
     },
 };
 use warpui::{
@@ -413,12 +413,14 @@ impl ServerCardView {
                 border_radius: Some(CornerRadius::with_all(Radius::Percentage(50.))),
                 font_family_id: Some(appearance.ui_font_family()),
                 font_weight: Some(Weight::Bold),
-                background: Some(appearance.theme().background().into()),
+                background: Some(appearance.theme().surface_2().into()),
                 font_size: Some(20.),
-                font_color: Some(blended_colors::text_main(
-                    appearance.theme(),
-                    appearance.theme().background(),
-                )),
+                font_color: Some(
+                    appearance
+                        .theme()
+                        .main_text_color(appearance.theme().surface_2())
+                        .into_solid(),
+                ),
                 ..Default::default()
             },
         );
@@ -457,6 +459,7 @@ impl ServerCardView {
         tools
             .iter()
             .map(|tool| {
+                let chip_background = appearance.theme().surface_3();
                 Chip::new(
                     tool.to_string(),
                     UiComponentStyles {
@@ -468,11 +471,13 @@ impl ServerCardView {
                         }),
                         font_family_id: Some(appearance.ui_font_family()),
                         font_size: Some(appearance.ui_font_body()),
-                        font_color: Some(blended_colors::text_main(
-                            appearance.theme(),
-                            internal_colors::neutral_4(appearance.theme()),
-                        )),
-                        background: Some(internal_colors::neutral_4(appearance.theme()).into()),
+                        font_color: Some(
+                            appearance
+                                .theme()
+                                .main_text_color(chip_background)
+                                .into_solid(),
+                        ),
+                        background: Some(chip_background.into()),
                         border_radius: Some(CornerRadius::with_all(Radius::Pixels(5.))),
                         ..Default::default()
                     },

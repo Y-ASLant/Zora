@@ -184,6 +184,7 @@ fn render_confirm_dialog(
     description: &str,
     confirm_label: &str,
     confirm_action: SftpBrowserAction,
+    additional_button: Option<Box<dyn Element>>,
     appearance: &Appearance,
     confirm_btn_state: MouseStateHandle,
     cancel_btn_state: MouseStateHandle,
@@ -214,13 +215,16 @@ fn render_confirm_dialog(
     );
     let cancel_btn = render_cancel_button(appearance, cancel_btn_state);
 
-    let buttons = Flex::row()
+    let mut buttons = Flex::row()
         .with_cross_axis_alignment(CrossAxisAlignment::Center)
         .with_main_axis_alignment(MainAxisAlignment::End)
-        .with_spacing(8.0)
-        .with_child(confirm_btn)
-        .with_child(cancel_btn)
-        .finish();
+        .with_spacing(8.0);
+    buttons.add_child(confirm_btn);
+    if let Some(additional_button) = additional_button {
+        buttons.add_child(additional_button);
+    }
+    buttons.add_child(cancel_btn);
+    let buttons = buttons.finish();
 
     let content = Flex::column()
         .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
@@ -272,6 +276,7 @@ fn render_delete_confirm(
         &desc,
         "删除",
         SftpBrowserAction::ConfirmDelete,
+        None,
         appearance,
         confirm_btn_state,
         cancel_btn_state,
@@ -525,6 +530,7 @@ fn render_move_dialog(
         &desc,
         "移动",
         SftpBrowserAction::ConfirmMove,
+        None,
         appearance,
         confirm_btn_state,
         cancel_btn_state,
@@ -538,8 +544,10 @@ fn render_overwrite_confirm(
     target: &PathBuf,
     _file_size: u64,
     direction: TransferDirection,
+    show_overwrite_all: bool,
     appearance: &Appearance,
     confirm_btn_state: MouseStateHandle,
+    overwrite_all_btn_state: MouseStateHandle,
     cancel_btn_state: MouseStateHandle,
     close_btn_state: MouseStateHandle,
 ) -> Box<dyn Element> {
@@ -551,12 +559,24 @@ fn render_overwrite_confirm(
         TransferDirection::Upload => format!("远程文件 {target_name} 已存在，是否覆盖？"),
         TransferDirection::Download => format!("目标文件 {target_name} 已存在，是否覆盖？"),
     };
+    let overwrite_all_button =
+        (show_overwrite_all && direction == TransferDirection::Upload).then(|| {
+            render_button(
+                "全部覆盖",
+                false,
+                appearance,
+                SftpBrowserAction::ConfirmOverwriteAll,
+                overwrite_all_btn_state,
+                Some("sftp_btn:dialog_overwrite_all"),
+            )
+        });
 
     render_confirm_dialog(
         "确认覆盖",
         &desc,
         "覆盖",
         SftpBrowserAction::ConfirmOverwrite,
+        overwrite_all_button,
         appearance,
         confirm_btn_state,
         cancel_btn_state,
@@ -572,7 +592,9 @@ pub fn render_dialog(
     rename_editor: &ViewHandle<EditorView>,
     new_folder_editor: &ViewHandle<EditorView>,
     appearance: &Appearance,
+    show_overwrite_all: bool,
     confirm_btn_state: MouseStateHandle,
+    overwrite_all_btn_state: MouseStateHandle,
     cancel_btn_state: MouseStateHandle,
     close_btn_state: MouseStateHandle,
 ) -> Box<dyn Element> {
@@ -620,8 +642,10 @@ pub fn render_dialog(
             target,
             *file_size,
             *direction,
+            show_overwrite_all,
             appearance,
             confirm_btn_state,
+            overwrite_all_btn_state,
             cancel_btn_state,
             close_btn_state,
         ),
@@ -630,6 +654,7 @@ pub fn render_dialog(
             "有正在进行的传输任务，关闭将中断所有传输并清空记录。确定要关闭吗？",
             "关闭",
             SftpBrowserAction::ConfirmCloseTransferPanel,
+            None,
             appearance,
             confirm_btn_state,
             cancel_btn_state,

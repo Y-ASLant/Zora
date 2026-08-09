@@ -180,7 +180,7 @@ impl CLISubagentController {
                     .and_then(|result| snapshot_block_id_for_action_result(&result.result))
                     .cloned();
 
-                // Zap BYOP fallback: agent 自起 LRC 后,上游 server 路径会推
+                // Zora BYOP fallback: agent 自起 LRC 后,上游 server 路径会推
                 // `BlocklistAIHistoryEvent::CreatedSubtask` 触发
                 // `handle_history_model_event` 把 block 升级为 monitored 态;BYOP 没有
                 // 这条 server 事件源,如果不补,active_block 永远停在
@@ -305,7 +305,7 @@ impl CLISubagentController {
                     });
                 }
 
-                // Zap BYOP: silent_create_for_byop 不 emit CreatedSubtask,这里手动
+                // Zora BYOP: silent_create_for_byop 不 emit CreatedSubtask,这里手动
                 // 触发 SpawnedSubagent 让 terminal_view 创建 CLISubagentView 浮窗。
                 // active_subagents_by_block.task_id 同步更新,确保 BlockCompleted 钩子在
                 // LRC 结束时正确清理。

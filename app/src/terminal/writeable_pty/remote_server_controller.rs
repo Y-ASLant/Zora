@@ -12,7 +12,7 @@ use crate::terminal::warpify::settings::SshExtensionInstallMode;
 
 use crate::remote_server::manager::{RemoteServerManager, RemoteServerManagerEvent};
 use crate::remote_server::ssh_transport::SshTransport;
-// Zap Wave 3-1:`ServerApiProvider` 不再被本文件使用 — `auth_client`
+// Zora Wave 3-1:`ServerApiProvider` 不再被本文件使用 — `auth_client`
 // 调用点随 AuthClient 一同物理删。
 use crate::terminal::model::session::{IsLegacySSHSession, SessionInfo};
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};

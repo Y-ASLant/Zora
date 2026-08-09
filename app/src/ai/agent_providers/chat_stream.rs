@@ -217,7 +217,7 @@ fn render_lrc_request_context(params: &RequestParams) -> Option<String> {
         })
 }
 
-/// Zap:渲染 SSH 会话状态块,append 到 system prompt 末尾。
+/// Zora:渲染 SSH 会话状态块,append 到 system prompt 末尾。
 ///
 /// 触发条件:`SessionContext.is_legacy_ssh()` 为 true(用户在本地 PTY 手敲
 /// `ssh xx@xx` 进入远端,远端没装 warp shell hook)。这种会话:
@@ -463,7 +463,7 @@ fn build_user_message_with_binaries(
     let mut error_replacements: Vec<(String, String)> = Vec::new();
     for bin in binaries {
         if !caps.supports_mime(&bin.content_type) {
-            // Zap 对齐 opencode `unsupportedParts`(packages/opencode/src/provider/transform.ts:305-341):
+            // Zora 对齐 opencode `unsupportedParts`(packages/opencode/src/provider/transform.ts:305-341):
             // 模型不支持的 mime 不静默 drop,改成插入一条 ERROR 文本 part,让 LLM 自己告诉用户。
             // 文案严格照抄 opencode 的 `ERROR: Cannot read {name} (this model does not support
             // {modality} input). Inform the user.`,modality 由 mime 前缀映射,name 优先用文件名。
@@ -1259,7 +1259,7 @@ fn build_chat_request(
         plan_mode,
         &params.user_rules,
     );
-    // Zap:legacy SSH 会话画像补丁。`render_system` 走 AIAgentContext,
+    // Zora:legacy SSH 会话画像补丁。`render_system` 走 AIAgentContext,
     // 拿到的 OS/shell 是本地客户端;legacy SSH 下 PTY 实际在远端,
     // 追加一段 SSH 状态块矫正 LLM 推断。
     if let Some(ssh_block) = render_ssh_session_block(&params.session_context) {
@@ -1280,7 +1280,7 @@ fn build_chat_request(
     // 末尾、或 LRC subagent 副本导致重复)。详见该函数文档。
     let all_msgs: Vec<&api::Message> = collect_linearized_task_messages(&params.tasks);
 
-    // Zap BYOP 本地会话压缩:把 conversation.compaction_state 应用到 message 序列。
+    // Zora BYOP 本地会话压缩:把 conversation.compaction_state 应用到 message 序列。
     //   1. 过滤已被某次压缩覆盖的 (user, assistant) 对(`hidden_message_ids`)
     //   2. 在被隐去区间的位置插入一对合成的 (user "已压缩,以下为摘要" + assistant 摘要文本) message —
     //      这一步通过 `summary_inserts` 索引在主 loop 里就近 emit
@@ -1374,12 +1374,12 @@ fn build_chat_request(
     )?;
 
     let mut buf = AssistantBuffer::new(force_echo_reasoning);
-    // Zap:历史里被 skip 掉的 subagent ToolCall 对应的 call_id —— 它们的
+    // Zora:历史里被 skip 掉的 subagent ToolCall 对应的 call_id —— 它们的
     // ToolCallResult 也必须 skip,否则会成为孤儿 tool_response,Anthropic 直接 400
     // `unexpected tool_use_id ... no corresponding tool_use block`。
     let mut skipped_subagent_call_ids: std::collections::HashSet<String> =
         std::collections::HashSet::new();
-    // Zap:仅在"同一 task_id 下真的落地过结构化 ToolCall"时才允许剥离 AgentOutput
+    // Zora:仅在"同一 task_id 下真的落地过结构化 ToolCall"时才允许剥离 AgentOutput
     // 里的疑似 tool JSON——避免用全历史范围的证据误伤跨轮(不同 task_id)的纯文本回答。
     let tasks_with_tool_call: std::collections::HashSet<&str> = all_msgs
         .iter()
@@ -1410,7 +1410,7 @@ fn build_chat_request(
         match inner {
             api::message::Message::UserQuery(u) => {
                 flush_assistant_buffer(&mut buf, &mut messages, &mut outbound_tool_groups);
-                // Zap:历史轮多模态保活。warp 自家路径靠云端 server 重注入 InputContext,
+                // Zora:历史轮多模态保活。warp 自家路径靠云端 server 重注入 InputContext,
                 // BYOP 直连没有那层,所以 `make_user_query_message` 持久化时把所有 binary
                 // (image / pdf / audio)塞进了 `UserQuery.context.images`,这里反向恢复成
                 // UserBinary 走 `build_user_message_with_binaries`,使后续轮模型仍能看到先前
@@ -1498,7 +1498,7 @@ fn build_chat_request(
                 buf.text = Some(a.text.clone());
             }
             api::message::Message::ToolCall(tc) => {
-                // Zap BYOP:**虚拟 subagent tool_call 不发给上游模型**。
+                // Zora BYOP:**虚拟 subagent tool_call 不发给上游模型**。
                 // LRC tag-in 场景下,我们在 chat_stream 流头合成 `Tool::Subagent { metadata: Cli }`
                 // 写入 root.task.messages,只用于触发 conversation 创建 cli subtask + spawn 浮窗,
                 // 它不是模型实际产出的工具调用,模型看到会 confused(多余 tool call + 没法回应)。
@@ -1539,7 +1539,7 @@ fn build_chat_request(
             }
             api::message::Message::ToolCallResult(tcr) => {
                 flush_assistant_buffer(&mut buf, &mut messages, &mut outbound_tool_groups);
-                // Zap:对应 ToolCall 已被 skip(subagent 虚拟 call)→ result 也 skip,
+                // Zora:对应 ToolCall 已被 skip(subagent 虚拟 call)→ result 也 skip,
                 // 否则留下孤儿 tool_response 导致上游 400。
                 if skipped_subagent_call_ids.contains(&tcr.tool_call_id) {
                     continue;
@@ -1585,7 +1585,7 @@ fn build_chat_request(
                 // 环境型 context(env / git / skills / ...)由 prompt_renderer 渲染进 system,
                 // 与本路径不重叠。
                 //
-                // Zap：LRC tag-in 场景下，`running_command: Some(...)` 含完整 PTY 上下文
+                // Zora：LRC tag-in 场景下，`running_command: Some(...)` 含完整 PTY 上下文
                 // （alt-screen grid_contents + command + is_alt_screen_active 标志），用
                 // `render_running_command_context` 渲成 `<attached_running_command>` XML 块。
                 // 模型据此决定调 write_to_long_running_shell_command。
@@ -1698,7 +1698,7 @@ fn build_chat_request(
                 prompt,
                 overflow: _,
             } => {
-                // Zap BYOP 本地会话压缩入口 — 1:1 对齐 opencode `compaction.ts processCompaction`。
+                // Zora BYOP 本地会话压缩入口 — 1:1 对齐 opencode `compaction.ts processCompaction`。
                 //
                 // 此前 messages loop 已根据 `summarize_head_end` 把序列切到 head(去掉 tail);
                 // 这里追加最后一条 user message:`build_prompt(previous_summary, plugin_context)`,
@@ -2688,7 +2688,7 @@ fn is_plan_mode_turn(input: &[AIAgentInput]) -> bool {
 /// 工具不在 tool list 里就调用不到(provider 协议层会直接拒绝 unknown function)。
 ///
 /// **没被 BLOCK 的写类工具**:`create_documents` / `edit_documents`。它们只动
-/// Zap Drive 本地文档存储(AIDocumentModel),不碰文件系统、不跑命令,语义上
+/// Zora Drive 本地文档存储(AIDocumentModel),不碰文件系统、不跑命令,语义上
 /// 恰好是 Plan Mode 的产出归档动作 —— 模型把最终 plan 沉淀为 Drive 文档,
 /// 用户后续可在 Drive UI 中查看 / 编辑 / 拖入自建的 PLAN 文件夹复用。
 ///
@@ -2742,7 +2742,7 @@ pub fn available_tool_names(params: &RequestParams) -> Vec<String> {
 }
 
 fn build_tools_array(params: &RequestParams) -> Vec<GenaiTool> {
-    // Zap A2:LRC tag-in 场景剔除 `run_shell_command`,迫使模型选 PTY 操作类工具。
+    // Zora A2:LRC tag-in 场景剔除 `run_shell_command`,迫使模型选 PTY 操作类工具。
     //
     // 在 alt-screen 长命令(nvim/htop)+ 用户 tag-in 状态下,**模型最容易犯的错**是
     // 调 `run_shell_command` 跑 `taskkill nvim` / `Stop-Process nvim`(开新进程),
@@ -2759,7 +2759,7 @@ fn build_tools_array(params: &RequestParams) -> Vec<GenaiTool> {
     let is_lrc = params.lrc_command_id.is_some();
     let web_enabled = params.web_search_enabled;
     let plan_mode = is_plan_mode_turn(&params.input);
-    // Zap BYOP:`suggest_prompt` chip UI 已通过 view 层订阅
+    // Zora BYOP:`suggest_prompt` chip UI 已通过 view 层订阅
     // PromptSuggestionExecutorEvent 恢复(见 `terminal/view.rs::
     // handle_suggest_prompt_executor_event`),可以暴露给模型。
     // `suggest_new_conversation` 仍 filter:UX 没有现成弹窗组件,executor 已改为
@@ -2782,7 +2782,7 @@ fn build_tools_array(params: &RequestParams) -> Vec<GenaiTool> {
             {
                 return false;
             }
-            // suggest_new_conversation:无 UI 实现,executor 在 Zap 改为
+            // suggest_new_conversation:无 UI 实现,executor 在 Zora 改为
             // fast-fail Cancelled。这里 filter 掉避免模型调用产生无意义的
             // tool_call→cancelled 往返(纯 token 浪费)。
             if t.name == "suggest_new_conversation" {
@@ -3016,7 +3016,7 @@ pub(super) fn build_client(
         },
     );
 
-    // Zap BYOP:SSE 流必须不带 gzip。`Accept-Encoding: gzip` 会让 nginx
+    // Zora BYOP:SSE 流必须不带 gzip。`Accept-Encoding: gzip` 会让 nginx
     // 类代理把响应压缩,server 必须 flush 完整 deflate frame 客户端才能解出
     // 明文,流式语义被破坏成 ~K 字节 burst,体感"几百毫秒一卡"。zed/opencode
     // 用 native fetch / std HTTP 不主动协商 gzip on SSE,所以同代理无问题。
@@ -3024,7 +3024,7 @@ pub(super) fn build_client(
     // 这里显式构造 reqwest 0.13 client,保持 BYOP 的 gzip、超时和代理策略。
     //
     // User-Agent 动态绑定当前应用名(取自 `ChannelState::app_id().application_name()`,
-    // 由入口 bin 注册:`bin/oss.rs` → "Zap";其它 channel 自带各自名称)。
+    // OSS 的旧 AppId 仍由入口 bin 注册,其它 channel 自带各自名称。
     // 这样上游服务能识别请求来自哪个分支构建,后续若改名也会自动跟随。
     let mut headers = HeaderMap::new();
     if let Ok(value) = build_user_agent_header() {
@@ -3110,15 +3110,15 @@ pub(super) fn build_client(
 }
 
 /// 构造 BYOP 出站请求的 `User-Agent` 头,值形如:
-/// - `Zap/<git-tag>` —— release 构建有 `GIT_RELEASE_TAG` 注入时
-/// - `Zap` —— Dev / 本地构建无版本时
+/// - `Zora/<git-tag>` —— release 构建有 `GIT_RELEASE_TAG` 注入时
+/// - `Zora` —— OSS / 本地构建无版本时
 ///
 /// 应用名一律从 `ChannelState::app_id().application_name()` 取,确保与入口 bin
-/// 注册的 `AppId` 一致(`bin/oss.rs` 注册 "Zap")。
+/// 注册的 `AppId` 一致;OSS 的旧 AppId 仅用于兼容已有数据。
 fn build_user_agent_header() -> Result<HeaderValue, reqwest_013::header::InvalidHeaderValue> {
     let app_name = warp_core::channel::ChannelState::app_id()
         .application_name()
-        .to_owned();
+        .replace("Zap", "Zora");
     let ua = match warp_core::channel::ChannelState::app_version() {
         Some(v) if !v.is_empty() => format!("{app_name}/{v}"),
         _ => app_name,
@@ -3197,7 +3197,7 @@ fn dashscope_needs_enable_thinking(
 /// `opencode*` 这五个 provider 会下发。其余 provider(含所有 OpenAI 兼容
 /// 中转 / 本地服务 / 大部分国内云)一律不发。
 ///
-/// Zap 这边没有 `providerID` 这个维度,只有用户自由填写的 `base_url`。
+/// Zora 这边没有 `providerID` 这个维度,只有用户自由填写的 `base_url`。
 /// 因此通过 `base_url` 反推:
 /// - `api.openai.com`           → "openai"
 /// - `*.openai.azure.com`       → "azure"
@@ -3253,7 +3253,7 @@ fn build_chat_options(
     //    `openai` / `azure` / `openrouter` / `venice` / `opencode`。其余 provider
     //    (含所有 OpenAI 兼容中转 / 国内云 / 本地服务)一律不发。
     //
-    //    opencode 用 `providerID`(用户 config 选的字符串)做判定;Zap 这边没有
+    //    opencode 用 `providerID`(用户 config 选的字符串)做判定;Zora 这边没有
     //    `providerID`,只能用 `base_url` 反推 → 见 `opencode_compatible_cache_provider`。
     //    这是 base_url 唯一的语义用途,不要扩展到决定 cache 之外的行为。
     //
@@ -3459,7 +3459,7 @@ pub async fn generate_byop_output(
     // 仅对已知把 reasoning 夹在 <think> 标签里的模型(如 MiniMax M3)激活流式提取。
     // 其他模型保持原始 Chunk 输出行为,避免误吞含字面量 <think> 的正常文本。
     let use_think_extraction = super::reasoning::model_uses_think_tags_in_content(&model_id);
-    // Zap:请求 shaping(Anthropic cache_control / system-in-messages 布局)必须跟随
+    // Zora:请求 shaping(Anthropic cache_control / system-in-messages 布局)必须跟随
     // 实际出线的 adapter 而非用户配置的 api_type——OpenAi + 官方 Anthropic host + claude
     // 模型会被 effective_adapter_kind_for 路由到 Anthropic adapter,若仍按 OpenAi shaping
     // 则丢掉全部 prompt cache breakpoint,agentic 多轮成本显著上升。对 Ollama 等其余
@@ -3513,7 +3513,7 @@ pub async fn generate_byop_output(
     //
     // emit 时机必须在 CreateTask 之后(任务已升级为 Server 状态),
     // 在模型响应开始之前(UI 顺序:user 显示 → thinking/answer)。
-    // Zap:历史轮多模态保活。除 query 文本外,把当前轮 UserQuery.context 里的所有
+    // Zora:历史轮多模态保活。除 query 文本外,把当前轮 UserQuery.context 里的所有
     // multimodal binary(image / pdf / audio / ...)一并打包进 `UserQuery.context.images`
     // 持久化(proto 字段叫 images,语义上是通用 BinaryFile —— `bytes data + mime_type`,
     // 跟 opencode FilePart 等价),使 build_chat_request 下一轮重建 messages 时能从历史
@@ -3770,7 +3770,7 @@ pub async fn generate_byop_output(
             //    走 `Task::new_subtask` 路径,自动绑定 SubagentParams。
             yield Ok(create_subtask_event(&subtask_id, &task_id));
 
-            // c) Zap A1:把当前轮的 UserQuery 也复制一份到 subtask,初始化 subtask 的
+            // c) Zora A1:把当前轮的 UserQuery 也复制一份到 subtask,初始化 subtask 的
             //    exchange.output.messages。否则 CLISubagentView 渲染时 subtask 的 exchanges
             //    output 为空,浮窗永远只显示 49.6 高度的空对话框,看不到任何内容。
             //    上游云端在 cli subagent 任务上有完整 ClientAction 序列填 exchange.output,
@@ -4223,7 +4223,7 @@ pub async fn generate_byop_output(
             }
         }
 
-        // Zap:content→tool 提取 fallback 只对 Ollama 生效,与 :1412 的历史过滤对称——
+        // Zora:content→tool 提取 fallback 只对 Ollama 生效,与 :1412 的历史过滤对称——
         // 云端 provider(OpenAI/Anthropic/...)的正文如果恰好长得像 tool JSON(比如模型在
         // 讲解一段 JSON 示例),不应该被误当成真实 ToolCall 执行。
         if tool_bufs.is_empty() && api_type == AgentProviderApiType::Ollama {
@@ -4389,7 +4389,7 @@ pub async fn generate_byop_output(
                 );
             }
 
-            // Zap BYOP todowrite 拦截:不映射到 protobuf executor,合成
+            // Zora BYOP todowrite 拦截:不映射到 protobuf executor,合成
             // `Message::UpdateTodos` 直接写 conversation.todo_lists 触发 chip + popup
             // UI(对齐 server-side ClientAction::AddMessagesToTask::UpdateTodos 路径)。
             // 然后追加 carrier ToolCall + ToolCallResult 给模型 unblock。
@@ -4479,7 +4479,7 @@ pub async fn generate_byop_output(
                 continue;
             }
 
-            // Zap BYOP web 工具拦截:webfetch / websearch 不映射到 protobuf
+            // Zora BYOP web 工具拦截:webfetch / websearch 不映射到 protobuf
             // executor variant,在这里直接跑本地 HTTP,合成 (carrier ToolCall,
             // ToolCallResult) 一对消息,绕开 parse_incoming_tool_call。
             //
@@ -5080,7 +5080,7 @@ fn make_user_query_message(
     query: String,
     binaries: &[user_context::UserBinary],
 ) -> api::Message {
-    // Zap:把 multimodal binary(image / pdf / audio 等)写进 `UserQuery.context.images`
+    // Zora:把 multimodal binary(image / pdf / audio 等)写进 `UserQuery.context.images`
     // (InputContext 字段,proto Image 实际是 `bytes data + string mime_type` 通用容器,
     // 字段名叫 images 历史原因)。UserBinary.data 是 base64 字符串,proto.data 是 raw bytes,
     // 这里 decode 一次;decode 失败的条目跳过,不阻塞模型流(decode 失败本来就意味着这条
@@ -5999,7 +5999,7 @@ mod cache_boundary_stability_tests {
     fn build_three_turn_conversation() -> Vec<ChatMessage> {
         vec![
             ChatMessage::system(
-                "You are a helpful coding assistant for Zap BYOP.\n\
+                "You are a helpful coding assistant for Zora BYOP.\n\
                  Guidelines: be concise, prefer code over prose.",
             ),
             ChatMessage::user("What is rust borrow checker?"),

@@ -100,11 +100,11 @@ pub enum SettingsPageViewHandle {
     Keybindings(ViewHandle<KeybindingsView>),
     About(ViewHandle<AboutPageView>),
     Code(ViewHandle<CodeSettingsPageView>),
-    // Zap Wave 3-1:`OzCloudAPIKeys` variant 随 `platform_page` 一同物理删。
-    // 云端 API key 管理 UI 完全代表 Zap Inc 云端账号,与 BYOP 无关。
-    // Zap Wave 6-8:`SharedBlocks` / `Referrals` variant 随 `ShowBlocksView` /
+    // Zora Wave 3-1:`OzCloudAPIKeys` variant 随 `platform_page` 一同物理删。
+    // 云端 API key 管理 UI 完全代表 Zora Inc 云端账号,与 BYOP 无关。
+    // Zora Wave 6-8:`SharedBlocks` / `Referrals` variant 随 `ShowBlocksView` /
     // `ReferralsPageView` 与对应 ServerApi client trait 物理删。
-    // Zap Wave 7-3:`CloudEnvironments` variant 随 ambient-agent UI 子系统物理删。
+    // Zora Wave 7-3:`CloudEnvironments` variant 随 ambient-agent UI 子系统物理删。
     Warpify(ViewHandle<WarpifyPageView>),
     AI(ViewHandle<AISettingsPageView>),
     MCPServers(ViewHandle<MCPServersSettingsPageView>),
@@ -124,9 +124,9 @@ impl SettingsPageViewHandle {
             Keybindings(view_handle) => ChildView::new(view_handle).finish(),
             About(view_handle) => ChildView::new(view_handle).finish(),
             Code(view_handle) => ChildView::new(view_handle).finish(),
-            // Zap Wave 3-1:`OzCloudAPIKeys` arm 随 `platform_page` 一同物理删。
-            // Zap Wave 6-8:`SharedBlocks` / `Referrals` arm 随 variant 物理删。
-            // Zap Wave 7-3:`CloudEnvironments` arm 随 ambient-agent UI 一同物理删。
+            // Zora Wave 3-1:`OzCloudAPIKeys` arm 随 `platform_page` 一同物理删。
+            // Zora Wave 6-8:`SharedBlocks` / `Referrals` arm 随 variant 物理删。
+            // Zora Wave 7-3:`CloudEnvironments` arm 随 ambient-agent UI 一同物理删。
             Warpify(view_handle) => ChildView::new(view_handle).finish(),
             AI(view_handle) => ChildView::new(view_handle).finish(),
             MCPServers(view_handle) => ChildView::new(view_handle).finish(),
@@ -193,7 +193,7 @@ impl SettingsPage {
 pub enum SettingsPageEvent {
     FocusModal,
     Pane(PaneEventWrapper),
-    // Zap Wave 7-3:`EnvironmentSetupModeSelectorToggled` /
+    // Zora Wave 7-3:`EnvironmentSetupModeSelectorToggled` /
     // `AgentAssistedEnvironmentModalToggled` 随 ambient-agent UI 子系统物理删。
 }
 
@@ -400,21 +400,12 @@ pub fn render_full_pane_width_ai_button(
     action: AISettingsPageAction,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
-    let (text_color, bg, icon_bg) = if is_any_ai_enabled {
-        (
-            appearance
-                .theme()
-                .main_text_color(appearance.theme().background())
-                .into(),
-            internal_colors::neutral_3(appearance.theme()),
-            appearance.theme().background(),
-        )
+    let (text_color, bg) = if is_any_ai_enabled {
+        let bg = appearance.theme().surface_3();
+        (appearance.theme().main_text_color(bg).into_solid(), bg)
     } else {
-        (
-            appearance.theme().disabled_ui_text_color().into(),
-            internal_colors::neutral_2(appearance.theme()),
-            appearance.theme().disabled_ui_text_color(),
-        )
+        let bg = appearance.theme().surface_2();
+        (appearance.theme().disabled_ui_text_color().into_solid(), bg)
     };
 
     let mut button = Hoverable::new(mouse_state, |_| {
@@ -442,7 +433,7 @@ pub fn render_full_pane_width_ai_button(
                 .with_child(
                     ConstrainedBox::new(
                         Icon::ChevronRight
-                            .to_warpui_icon(appearance.theme().main_text_color(icon_bg))
+                            .to_warpui_icon(appearance.theme().main_text_color(bg))
                             .finish(),
                     )
                     .with_width(16.)
@@ -452,9 +443,7 @@ pub fn render_full_pane_width_ai_button(
                 .finish(),
         )
         .with_background(bg)
-        .with_border(
-            Border::new(1.).with_border_fill(internal_colors::neutral_4(appearance.theme())),
-        )
+        .with_border(Border::new(1.).with_border_fill(appearance.theme().outline()))
         .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
         .with_horizontal_padding(16.)
         .with_vertical_padding(11.)
@@ -1693,11 +1682,13 @@ impl<V: warpui::View> PageType<V> {
         width_percentage: Option<f32>,
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
-        let page = match self.get_filtered() {
+        let (page, center_vertically) = match self.get_filtered() {
             FilteredPageType::Monolith { widget, title, .. } => {
                 let mut page = Empty::new().finish();
+                let mut center_vertically = false;
                 if let Some(widget) = widget {
                     if widget.should_render(app) {
+                        center_vertically = widget.center_vertically();
                         if let Some(title) = title {
                             let col = Flex::column()
                                 .with_child(render_page_title(title, appearance))
@@ -1708,7 +1699,7 @@ impl<V: warpui::View> PageType<V> {
                         }
                     }
                 }
-                page
+                (page, center_vertically)
             }
             FilteredPageType::Uncategorized {
                 widgets,
@@ -1727,7 +1718,7 @@ impl<V: warpui::View> PageType<V> {
                         page.add_child(widget.render_widget(view, highlighted, appearance, app));
                     }
                 }
-                page.finish()
+                (page.finish(), false)
             }
             FilteredPageType::Categorized {
                 categories,
@@ -1768,7 +1759,7 @@ impl<V: warpui::View> PageType<V> {
                         page.add_child(render_separator(appearance));
                     }
                 }
-                page.finish()
+                (page.finish(), false)
             }
         };
 
@@ -1783,7 +1774,13 @@ impl<V: warpui::View> PageType<V> {
             None => page,
         };
 
-        Container::new(Align::new(page).top_center().finish())
+        let page = if center_vertically {
+            Align::new(page).finish()
+        } else {
+            Align::new(page).top_center().finish()
+        };
+
+        Container::new(page)
             .with_uniform_padding(PAGE_PADDING)
             .finish()
     }
@@ -1944,6 +1941,11 @@ pub(super) trait SettingsWidget {
 
     fn should_render(&self, _app: &AppContext) -> bool {
         true
+    }
+
+    /// 是否在设置内容区域内垂直居中显示。
+    fn center_vertically(&self) -> bool {
+        false
     }
 
     fn render_widget(

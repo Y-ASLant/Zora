@@ -28,12 +28,12 @@ version:
 	@echo $(RELEASE_TAG)
 
 install:
-	@echo Installing Zap build and release dependencies...
+	@echo Installing Zora build and release dependencies...
 	@powershell.exe -NoProfile -ExecutionPolicy Bypass -File "script/windows/install_build_deps.ps1"
 	@bash script/install_cargo_release_deps --no-build-deps
 
 build:
-	@echo Building Zap $(RELEASE_TAG) for Windows...
+	@echo Building Zora $(RELEASE_TAG) for Windows...
 	@powershell.exe -NoProfile -ExecutionPolicy Bypass -File "script/windows/bundle.ps1" -CHANNEL "$(CHANNEL)" -RELEASE_TAG "$(RELEASE_TAG)" $(if $(strip $(WINDOWS_BUILD_ARCH)),-ARCH "$(WINDOWS_BUILD_ARCH)")
 
 else
@@ -46,11 +46,11 @@ version:
 	@printf '%s\n' "$(RELEASE_TAG)"
 
 install:
-	@echo "Installing Zap build and release dependencies..."
+	@echo "Installing Zora build and release dependencies..."
 	@./script/install_cargo_release_deps
 
 build:
-	@echo "Building Zap $(RELEASE_TAG) for macOS..."
+	@echo "Building Zora $(RELEASE_TAG) for macOS..."
 	@./script/bundle --channel "$(CHANNEL)" --release-tag "$(RELEASE_TAG)" --nosign --nouniversal
 
 else ifeq ($(UNAME_S),Linux)
@@ -59,11 +59,11 @@ version:
 	@printf '%s\n' "$(RELEASE_TAG)"
 
 install:
-	@echo "Installing Zap build and release dependencies..."
+	@echo "Installing Zora build and release dependencies..."
 	@./script/install_cargo_release_deps
 
 build:
-	@echo "Building Zap $(RELEASE_TAG) for Linux..."
+	@echo "Building Zora $(RELEASE_TAG) for Linux..."
 	@./script/bundle --channel "$(CHANNEL)" --release-tag "$(RELEASE_TAG)" --packages "$(PACKAGES)"
 
 else

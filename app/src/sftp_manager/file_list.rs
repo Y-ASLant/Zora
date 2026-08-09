@@ -4,18 +4,17 @@
 //! author: logic
 //! date: 2026-05-26
 
-use std::collections::HashSet;
-
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
     ConstrainedBox, Container, CrossAxisAlignment, Fill, Flex, Hoverable, MouseStateHandle,
-    ParentElement, SavePosition, Shrinkable, Text,
+    ParentElement, SavePosition, ScrollableElement, Shrinkable, Text, UniformList,
+    UniformListState,
 };
 use warpui::platform::Cursor;
-use warpui::Element;
+use warpui::{Element, SingletonEntity, WeakViewHandle};
 
-use crate::sftp_manager::browser::SftpBrowserAction;
+use crate::sftp_manager::browser::{SftpBrowserAction, SftpBrowserView};
 use crate::sftp_manager::types::{format_size, FileEntry, FileEntryType};
 use crate::ui_components::icons::Icon;
 
@@ -212,25 +211,42 @@ pub fn render_header(appearance: &Appearance) -> Box<dyn Element> {
         .finish()
 }
 
-/// 渲染文件行列表
+/// 渲染虚拟化文件行列表
 pub fn render_file_rows(
-    entries: &[FileEntry],
-    filtered_indices: &[usize],
-    selected: &HashSet<usize>,
-    mouse_handles: &[MouseStateHandle],
-    appearance: &Appearance,
-) -> Box<dyn Element> {
-    let mut col = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
+    filtered_indices: Vec<usize>,
+    list_state: UniformListState,
+    view_handle: WeakViewHandle<SftpBrowserView>,
+) -> Box<dyn ScrollableElement> {
+    let item_count = filtered_indices.len();
 
-    for &index in filtered_indices {
-        let entry = &entries[index];
-        let is_selected = selected.contains(&index);
-        let mouse_handle = mouse_handles.get(index).cloned().unwrap_or_default();
-        let row = render_file_row(entry, index, is_selected, mouse_handle, appearance);
-        let position_id = format!("sftp_row:{index}");
-        let positioned = SavePosition::new(row, &position_id).finish();
-        col.add_child(positioned);
-    }
+    UniformList::new(list_state, item_count, move |range, app| {
+        let view_handle = view_handle
+            .upgrade(app)
+            .expect("SFTP browser view dropped during file list render");
+        let view = view_handle.as_ref(app);
+        let appearance = Appearance::as_ref(app);
 
-    col.finish()
+        range
+            .filter_map(|filtered_index| {
+                let index = *filtered_indices.get(filtered_index)?;
+                let entry = view.entries.get(index)?;
+                let mouse_handle = view
+                    .row_mouse_handles
+                    .get(index)
+                    .cloned()
+                    .unwrap_or_default();
+                let row = render_file_row(
+                    entry,
+                    index,
+                    view.selected.contains(&index),
+                    mouse_handle,
+                    appearance,
+                );
+                let position_id = format!("sftp_row:{index}");
+                Some(SavePosition::new(row, &position_id).finish())
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+    })
+    .finish_scrollable()
 }

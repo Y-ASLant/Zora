@@ -66,7 +66,7 @@ use crate::workflows::local_workflows::LocalWorkflows;
 use crate::ObjectActions;
 use crate::{experiments, workspace, GlobalResourceHandlesProvider};
 
-// Zap(本地化,Phase 5):`PreferencesSyncer` 已物理删除。
+// Zora(本地化,Phase 5):`PreferencesSyncer` 已物理删除。
 
 use crate::terminal::shared_session::protocol::SessionId;
 use ai::project_context::model::ProjectContextModel;
@@ -111,7 +111,7 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(NotebookKeybindings::new);
     app.add_singleton_model(TerminalKeybindings::new);
     app.add_singleton_model(NotebookManager::mock);
-    // Zap(本地化,Phase 5):`PreferencesSyncer` 已物理删除,test singleton 不再需要。
+    // Zora(本地化,Phase 5):`PreferencesSyncer` 已物理删除,test singleton 不再需要。
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
     app.add_singleton_model(AgentConversationsModel::new);
@@ -131,7 +131,7 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(|ctx| {
         AIExecutionProfilesModel::new(&crate::LaunchMode::new_for_unit_test(), ctx)
     });
-    // Zap:RepoOutlines 已删除,不再注册。
+    // Zora:RepoOutlines 已删除,不再注册。
     #[cfg(feature = "voice_input")]
     app.add_singleton_model(voice_input::VoiceInput::new);
     app.add_singleton_model(BlocklistAIPermissions::new);
@@ -303,7 +303,7 @@ fn test_worktree_sidecar_search_editor_enter_executes_selection() {
 /// RAII guard that removes tab config TOML files whose name starts with
 /// `prefix` from `~/.warp/tab_configs/` on drop. Because `Drop` runs even
 /// when a test panics, this prevents stale worktree configs from leaking
-/// into Zap dev.
+/// into Zora dev.
 #[cfg(feature = "local_fs")]
 struct TabConfigCleanupGuard {
     prefix: &'static str,
@@ -1305,7 +1305,7 @@ fn test_open_or_toggle_warp_drive() {
 
         let workspace = mock_workspace(&mut app);
         workspace.update(&mut app, |workspace, ctx| {
-            // First, unconditionally open Zap Drive as a system action. WD should be open and welcome tips should not have opening zap drive.
+            // First, unconditionally open Zora Drive as a system action. WD should be open and welcome tips should not have opening zap drive.
             workspace.open_or_toggle_warp_drive(
                 false, /* toggle */
                 false, /* explicit_user_action */
@@ -1313,7 +1313,7 @@ fn test_open_or_toggle_warp_drive() {
             );
             assert!(
                 workspace.current_workspace_state.is_warp_drive_open,
-                "Zap Drive should be open"
+                "Zora Drive should be open"
             );
             assert!(
                 !workspace
@@ -1321,7 +1321,7 @@ fn test_open_or_toggle_warp_drive() {
                     .as_ref(ctx)
                     .features_used
                     .contains(&Tip::Action(TipAction::ZapDrive)),
-                "Zap drive welcome tip should not be completed"
+                "Zora drive welcome tip should not be completed"
             );
 
             // Next, toggle zap drive as a user action. WD should be closed and tip should not be filled out.
@@ -1332,7 +1332,7 @@ fn test_open_or_toggle_warp_drive() {
             );
             assert!(
                 !workspace.current_workspace_state.is_warp_drive_open,
-                "Zap Drive should be closed"
+                "Zora Drive should be closed"
             );
             assert!(
                 !workspace
@@ -1340,7 +1340,7 @@ fn test_open_or_toggle_warp_drive() {
                     .as_ref(ctx)
                     .features_used
                     .contains(&Tip::Action(TipAction::ZapDrive)),
-                "Zap drive welcome tip should not be completed"
+                "Zora drive welcome tip should not be completed"
             );
 
             // Finally, toggle zap drive again as a user action. WD should be open and tip filled out.
@@ -1351,7 +1351,7 @@ fn test_open_or_toggle_warp_drive() {
             );
             assert!(
                 workspace.current_workspace_state.is_warp_drive_open,
-                "Zap Drive should be open"
+                "Zora Drive should be open"
             );
             assert!(
                 workspace
@@ -1359,7 +1359,7 @@ fn test_open_or_toggle_warp_drive() {
                     .as_ref(ctx)
                     .features_used
                     .contains(&Tip::Action(TipAction::ZapDrive)),
-                "Zap drive welcome tip should not be completed"
+                "Zora drive welcome tip should not be completed"
             );
         });
     });
@@ -1448,7 +1448,7 @@ fn test_switch_focus_panels() {
         workspace.update(&mut app, |view, ctx| {
             assert!(
                 view.left_panel_view.is_self_or_child_focused(ctx),
-                "Expected Zap Drive panel to be focused"
+                "Expected Zora Drive panel to be focused"
             );
         });
 
@@ -2475,3 +2475,183 @@ fn test_standard_tab_context_menu_shows_hover_only_tab_bar() {
 
 // 已删:test_open_ambient_agent_setup_guide_action_opens_management_view_and_is_idempotent
 // agent_management_view 字段连同 agent setup guide 整片功能在 Phase 2c 已删。
+
+mod toast_positioning_tests {
+    use std::{cell::RefCell, collections::HashSet, rc::Rc};
+
+    use pathfinder_geometry::vector::{vec2f, Vector2F};
+    use warpui::{
+        elements::{
+            ChildAnchor, ConstrainedBox, Empty, OffsetPositioning, ParentAnchor, ParentElement,
+            ParentOffsetBounds, SavePosition, Stack,
+        },
+        platform::WindowStyle,
+        App, AppContext, Element, Entity, Presenter, SingletonEntity, TypedActionView, View,
+        ViewContext, WindowInvalidation,
+    };
+
+    use super::*;
+
+    const INPUT_POSITION_ID: &str = "toast-positioning-test-input";
+    const GLOBAL_TOAST_POSITION_ID: &str = "toast-positioning-test-global";
+    const AGENT_TOAST_POSITION_ID: &str = "toast-positioning-test-agent";
+    const UPDATE_TOAST_POSITION_ID: &str = "toast-positioning-test-update";
+    const INPUT_TOP: f32 = 280.0;
+    const INPUT_BOTTOM: f32 = 320.0;
+
+    fn saved_placeholder(position_id: &str, width: f32, height: f32) -> Box<dyn Element> {
+        SavePosition::new(
+            ConstrainedBox::new(Empty::new().finish())
+                .with_width(width)
+                .with_height(height)
+                .finish(),
+            position_id,
+        )
+        .finish()
+    }
+
+    struct ToastPositioningTestView {
+        global_toast_positioning: OffsetPositioning,
+        agent_toast_positioning: OffsetPositioning,
+        update_toast_positioning: OffsetPositioning,
+    }
+
+    impl Entity for ToastPositioningTestView {
+        type Event = ();
+    }
+
+    impl TypedActionView for ToastPositioningTestView {
+        type Action = ();
+
+        fn handle_action(&mut self, _: &Self::Action, _: &mut ViewContext<Self>) {}
+    }
+
+    impl View for ToastPositioningTestView {
+        fn ui_name() -> &'static str {
+            "ToastPositioningTestView"
+        }
+
+        fn render(&self, _app: &AppContext) -> Box<dyn Element> {
+            let input = saved_placeholder(INPUT_POSITION_ID, 160.0, 40.0);
+            let global_toast = saved_placeholder(GLOBAL_TOAST_POSITION_ID, 200.0, 60.0);
+            let agent_toast = saved_placeholder(AGENT_TOAST_POSITION_ID, 200.0, 60.0);
+            let update_toast = saved_placeholder(UPDATE_TOAST_POSITION_ID, 200.0, 60.0);
+
+            Stack::new()
+                .with_child(
+                    ConstrainedBox::new(Empty::new().finish())
+                        .with_width(800.0)
+                        .with_height(600.0)
+                        .finish(),
+                )
+                .with_positioned_overlay_child(
+                    input,
+                    OffsetPositioning::offset_from_parent(
+                        vec2f(0.0, 0.0),
+                        ParentOffsetBounds::ParentByPosition,
+                        ParentAnchor::Center,
+                        ChildAnchor::Center,
+                    ),
+                )
+                .with_positioned_overlay_child(global_toast, self.global_toast_positioning.clone())
+                .with_positioned_overlay_child(agent_toast, self.agent_toast_positioning.clone())
+                .with_positioned_overlay_child(update_toast, self.update_toast_positioning.clone())
+                .finish()
+        }
+    }
+
+    fn toast_origins(input_mode: InputMode) -> [Vector2F; 3] {
+        let origins = Rc::new(RefCell::new(None));
+        let origins_for_test = origins.clone();
+
+        App::test((), move |mut app| {
+            let origins = origins_for_test.clone();
+            async move {
+                crate::test_util::settings::initialize_settings_for_tests(&mut app);
+                app.update(|ctx| {
+                    InputModeSettings::handle(ctx).update(ctx, |settings, ctx| {
+                        let _ = settings.input_mode.set_value(input_mode, ctx);
+                    });
+                });
+
+                let (window_id, _) =
+                    app.add_window(WindowStyle::NotStealFocus, |ctx| ToastPositioningTestView {
+                        global_toast_positioning: Workspace::global_toast_positioning(
+                            Some(INPUT_POSITION_ID),
+                            ctx,
+                        ),
+                        agent_toast_positioning: Workspace::agent_toast_positioning(
+                            Some(INPUT_POSITION_ID),
+                            ctx,
+                        ),
+                        update_toast_positioning: Workspace::update_toast_positioning(
+                            INPUT_POSITION_ID,
+                            ctx,
+                        ),
+                    });
+                let root_view_id = app.root_view_id(window_id).expect("测试窗口应包含根视图");
+                let presenter = Rc::new(RefCell::new(Presenter::new(window_id)));
+
+                app.update({
+                    let origins = origins.clone();
+                    let presenter = presenter.clone();
+                    move |ctx| {
+                        presenter.borrow_mut().invalidate(
+                            WindowInvalidation {
+                                updated: HashSet::from([root_view_id]),
+                                ..Default::default()
+                            },
+                            ctx,
+                        );
+                        presenter
+                            .borrow_mut()
+                            .build_scene(vec2f(800.0, 600.0), 1.0, None, ctx);
+
+                        let position_cache = presenter.borrow();
+                        *origins.borrow_mut() = Some([
+                            position_cache
+                                .position_cache()
+                                .get_position(GLOBAL_TOAST_POSITION_ID)
+                                .expect("全局提示必须渲染")
+                                .origin(),
+                            position_cache
+                                .position_cache()
+                                .get_position(AGENT_TOAST_POSITION_ID)
+                                .expect("代理提示必须渲染")
+                                .origin(),
+                            position_cache
+                                .position_cache()
+                                .get_position(UPDATE_TOAST_POSITION_ID)
+                                .expect("更新提示必须渲染")
+                                .origin(),
+                        ]);
+                    }
+                });
+            }
+        });
+
+        let origins = origins
+            .borrow_mut()
+            .take()
+            .expect("提示位置必须在场景构建后可用");
+        origins
+    }
+
+    #[test]
+    fn positions_all_toasts_around_the_input_mode() {
+        let pinned_to_bottom = toast_origins(InputMode::PinnedToBottom);
+        let pinned_to_top = toast_origins(InputMode::PinnedToTop);
+        let waterfall = toast_origins(InputMode::Waterfall);
+
+        for origin in pinned_to_bottom {
+            assert!(origin.y() < INPUT_TOP);
+        }
+        for origin in pinned_to_top {
+            assert!(origin.y() > INPUT_BOTTOM);
+        }
+        for origin in waterfall {
+            assert!(origin.y() > INPUT_BOTTOM);
+        }
+        assert!(waterfall[0].y() > pinned_to_top[0].y());
+    }
+}

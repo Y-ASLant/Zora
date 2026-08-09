@@ -18,7 +18,7 @@
 //! `update_todo_list_from_todo_op` 会把第二条命中的项从 pending 移到 completed
 //! (`mark_todos_complete` 在 pending 里 lookup id),最终 `AIAgentTodoList` 状态:
 //! `completed_items = [completed]`、`pending_items = [pending + in_progress]`。
-//! Zap UI `in_progress_item()` 拿 `pending_items.first()`,所以 in_progress 的
+//! Zora UI `in_progress_item()` 拿 `pending_items.first()`,所以 in_progress 的
 //! todo 应该是 `todos` 数组里第一个 `status != completed/cancelled` 的项。
 //!
 //! 然后再合成一对 `Message::ToolCall`(carrier,tool=None) + `Message::ToolCallResult`
@@ -47,7 +47,7 @@ pub struct TodoArg {
     /// 解析时按未识别值兜底为 `pending`。
     #[serde(default)]
     pub status: String,
-    /// opencode 协议带 priority,Zap 数据模型不区分,这里收下但不用,
+    /// opencode 协议带 priority,Zora 数据模型不区分,这里收下但不用,
     /// 保留是为了让模型按 opencode 习惯发参数不报错。
     #[serde(default, rename = "priority")]
     pub _priority: Option<String>,

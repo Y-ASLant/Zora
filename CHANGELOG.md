@@ -1,6 +1,6 @@
 # Changelog
 
-本文档记录 Zap 各个发布版本的关键变更。仅收录功能性 commit,省略 dev / stable 等内部滚动 tag。
+本文档记录 Zora 各个发布版本的关键变更。仅收录功能性 commit,省略 dev / stable 等内部滚动 tag。
 
 ## [Unreleased]
 
@@ -77,9 +77,9 @@
 
 ## [v2026.04.30.preview] — 2026-04-30
 
-Zap 社区分支首个预览版本。
+Zora 社区分支首个预览版本。
 
-- **品牌与定位**:Zap 改名 + logo 重制 + 社区分支 README
+- **品牌与定位**:Zora 改名 + logo 重制 + 社区分支 README
 - **BYOP**
   - `async-openai` → `genai`,支持 5 种原生协议显式绑定
   - Providers 子页 + models.dev 数据源 + 快速添加搜索框

@@ -41,12 +41,16 @@ use crate::workspaces::user_workspaces::UserWorkspacesEvent;
 use ::ai::api_keys::ApiKeyManager;
 use enum_iterator::all;
 use itertools::Itertools;
+use pathfinder_color::ColorU;
 use regex::Regex;
 use settings::{Setting, ToggleableSetting};
 use strum::IntoEnumIterator;
 use warp_core::context_flag::ContextFlag;
 use warp_core::features::FeatureFlag;
-use warp_core::ui::theme::color::internal_colors;
+use warp_core::ui::{
+    color::{blend::Blend, contrast::MinimumAllowedContrast, ContrastingColor},
+    theme::{color::internal_colors, Fill as ThemeFill},
+};
 use warpui::elements::{
     Border, ChildView, ConstrainedBox, CornerRadius, CrossAxisAlignment, Dismiss, Empty, Expanded,
     Fill, Hoverable, HyperlinkLens, MainAxisAlignment, MainAxisSize, MouseStateHandle, Radius,
@@ -672,7 +676,7 @@ impl AISettingsPageView {
         });
         // The coding agent footer command editor is always enabled,
         // independent of the global AI toggle, because it controls
-        // third-party coding agents rather than Zap's own AI.
+        // third-party coding agents rather than Zora's own AI.
         Self::update_editor_interaction_state(
             cli_agent_footer_command_editor.as_ref(ctx).editor().clone(),
             true,
@@ -3797,8 +3801,8 @@ fn render_ai_feature_switch(
         .check(is_setting_enabled)
         .with_disabled(!is_setting_toggleable)
         .with_disabled_styles(UiComponentStyles {
-            background: Some(Fill::Solid(internal_colors::neutral_4(appearance.theme()))),
-            foreground: Some(Fill::Solid(internal_colors::neutral_5(appearance.theme()))),
+            background: Some(appearance.theme().surface_3().into()),
+            foreground: Some(appearance.theme().disabled_ui_text_color().into()),
             ..Default::default()
         })
         .build()
@@ -5066,7 +5070,7 @@ impl AgentsWidget {
         let subtext = {
             let subtext_fragments = vec![
                 FormattedTextFragment::plain_text(
-                    "You haven't added any MCP servers yet. Once you do, you'll be able to control how much autonomy the Zap Agent has when interacting with them. ",
+                    "You haven't added any MCP servers yet. Once you do, you'll be able to control how much autonomy the Zora Agent has when interacting with them. ",
                 ),
                 FormattedTextFragment::hyperlink_action(
                     crate::t!("settings-ai-add-server"),
@@ -5552,7 +5556,7 @@ impl SettingsWidget for MCPServersWidget {
 
         let mcp_description = vec![
             FormattedTextFragment::plain_text(
-                "Add MCP servers to extend the Zap Agent's capabilities. \
+                "Add MCP servers to extend the Zora Agent's capabilities. \
             MCP servers expose data sources or tools to agents through a standardized interface, essentially acting like plugins. ",
             ),
             FormattedTextFragment::hyperlink(
@@ -5794,7 +5798,7 @@ impl SettingsWidget for AIFactWidget {
             column.add_child(self.render_rule_suggestions_toggle(view, ai_settings, app));
         }
 
-        // 去中心化分支:不再渲染 "Zap Drive as agent context" 开关。
+        // 去中心化分支:不再渲染 "Zora Drive as agent context" 开关。
         let _ = self;
         let _ = view;
         column.with_child(button).finish()
@@ -6107,7 +6111,7 @@ impl SettingsWidget for CLIAgentWidget {
 
         // The Coding Agents section is always enabled, independent of the
         // global AI toggle, because these settings control third-party coding
-        // agents (Claude Code, Codex, Gemini CLI) rather than Zap's own AI.
+        // agents (Claude Code, Codex, Gemini CLI) rather than Zora's own AI.
         let cli_agent_footer_toggle = render_ai_setting_toggle::<ShouldRenderCLIAgentToolbar>(
             crate::t!("settings-ai-show-coding-agent-toolbar"),
             AISettingsPageAction::ToggleCLIAgentToolbar,
@@ -6367,6 +6371,40 @@ impl SettingsWidget for CLIAgentWidget {
     }
 }
 
+fn cli_agent_visibility_chip_style(
+    is_enabled: bool,
+    is_clickable: bool,
+    is_hovered: bool,
+    appearance: &Appearance,
+) -> (ThemeFill, Fill, ColorU) {
+    let theme = appearance.theme();
+    let background = match (is_enabled, is_clickable && is_hovered) {
+        (true, true) => internal_colors::accent_overlay_4(theme),
+        (true, false) => internal_colors::accent_overlay_2(theme),
+        (false, true) => internal_colors::fg_overlay_2(theme),
+        (false, false) => internal_colors::fg_overlay_1(theme),
+    };
+    let visible_background = theme
+        .surface_1()
+        .into_solid()
+        .blend(&background.into_solid());
+    let preferred_text_color = if is_clickable {
+        theme.foreground().into_solid()
+    } else {
+        internal_colors::neutral_5(theme)
+    };
+    let text_color =
+        preferred_text_color.on_background(visible_background, MinimumAllowedContrast::Text);
+    let preferred_border_color = match (is_enabled, is_clickable) {
+        (true, true) => theme.accent().into_solid(),
+        (true, false) => internal_colors::neutral_5(theme),
+        (false, true) | (false, false) => internal_colors::neutral_4(theme),
+    };
+    let border_color =
+        preferred_border_color.on_background(visible_background, MinimumAllowedContrast::NonText);
+    (background, Fill::Solid(border_color), text_color)
+}
+
 impl CLIAgentWidget {
     fn render_per_agent_settings_section(
         &self,
@@ -6509,23 +6547,6 @@ impl CLIAgentWidget {
         dimension: PerAgentDimension,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
-        let theme = appearance.theme();
-        let background = if is_enabled {
-            internal_colors::accent_overlay_2(theme)
-        } else {
-            internal_colors::fg_overlay_1(theme)
-        };
-        let border_fill = if is_enabled {
-            Fill::Solid(theme.accent().into_solid())
-        } else {
-            Fill::Solid(pathfinder_color::ColorU::transparent_black())
-        };
-        let text_color = if is_enabled && is_clickable {
-            internal_colors::text_main(theme, theme.background().into_solid())
-        } else {
-            internal_colors::text_sub(theme, theme.background().into_solid())
-        };
-        let icon_color = warp_core::ui::theme::Fill::Solid(text_color);
         let ui_font_family = appearance.ui_font_family();
         let mouse = self
             .per_agent_chip_states
@@ -6534,7 +6555,14 @@ impl CLIAgentWidget {
             .or_insert_with(MouseStateHandle::default)
             .clone();
 
-        let mut chip = Hoverable::new(mouse, move |_| {
+        let mut chip = Hoverable::new(mouse, move |state| {
+            let (background, border_fill, text_color) = cli_agent_visibility_chip_style(
+                is_enabled,
+                is_clickable,
+                state.is_hovered(),
+                appearance,
+            );
+            let icon_color = ThemeFill::Solid(text_color);
             let mut content = Flex::row()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .with_main_axis_alignment(MainAxisAlignment::Center);
@@ -7073,3 +7101,7 @@ mod styles {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "ai_page_tests.rs"]
+mod tests;

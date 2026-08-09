@@ -659,6 +659,8 @@ pub fn render_citation(
 ) -> Option<Box<dyn Element>> {
     let appearance = Appearance::as_ref(app);
     let theme = appearance.theme();
+    let citation_background = theme.surface_3();
+    let citation_text_color = theme.main_text_color(citation_background);
 
     let (icon, name) = match citation {
         AIAgentCitation::WarpDriveObject { uid } => {
@@ -666,18 +668,18 @@ pub fn render_citation(
                 .get_by_uid(uid)?
                 .to_warp_drive_item(appearance)?;
             (
-                item.icon(appearance, Some(theme.active_ui_text_color())),
+                item.icon(appearance, Some(citation_text_color)),
                 item.display_name().unwrap_or(String::from("Untitled")),
             )
         }
         AIAgentCitation::WarpDocumentation { .. } => {
-            let icon = Icon::Zap.to_warpui_icon(theme.foreground()).finish();
-            let name = String::from("Zap Docs");
+            let icon = Icon::Zap.to_warpui_icon(citation_text_color).finish();
+            let name = String::from("Zora Docs");
             (Some(icon), name)
         }
         AIAgentCitation::WebPage { url } => {
             let icon = Icon::LinkExternal
-                .to_warpui_icon(theme.foreground())
+                .to_warpui_icon(citation_text_color)
                 .finish();
             let name = url.clone();
             (Some(icon), name)
@@ -704,7 +706,7 @@ pub fn render_citation(
     }
     row.add_child(
         Text::new_inline(shortened_name, appearance.ui_font_family(), font_size)
-            .with_color(theme.active_ui_text_color().into())
+            .with_color(citation_text_color.into())
             .with_selectable(false)
             .finish(),
     );
@@ -712,7 +714,7 @@ pub fn render_citation(
     let chip = Container::new(row.finish())
         .with_uniform_padding(padding)
         .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
-        .with_background(blended_colors::neutral_3(theme))
+        .with_background(citation_background)
         .finish();
     let citation_clone = citation.clone();
     Some(

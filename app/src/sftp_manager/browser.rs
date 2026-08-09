@@ -16,17 +16,17 @@ use warp_core::ui::appearance::Appearance;
 use warp_core::ui::icons::Icon;
 use warp_ssh_manager::{KeychainSecretStore, SshRepository};
 use warpui::elements::{
-    Align, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ClippedScrollable,
-    ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DispatchEventResult, Element,
-    EventHandler, Fill, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle,
-    OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius, SavePosition,
-    ScrollbarWidth, Shrinkable, Stack, Text,
+    Align, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container,
+    CornerRadius, CrossAxisAlignment, DispatchEventResult, Element, EventHandler, Fill, Flex,
+    Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
+    ParentElement, ParentOffsetBounds, Radius, SavePosition, ScrollStateHandle, Scrollable,
+    ScrollbarWidth, Shrinkable, Stack, Text, UniformListState,
 };
 use warpui::platform::{Cursor, FilePickerConfiguration, SaveFilePickerConfiguration};
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::{
     AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
+    ViewHandle, WeakViewHandle, WindowId,
 };
 
 use crate::editor::{
@@ -109,6 +109,8 @@ pub enum SftpBrowserAction {
     ConfirmNewFolder,
     /// 确认覆盖
     ConfirmOverwrite,
+    /// 确认当前覆盖，并覆盖批量上传中剩余的同名文件
+    ConfirmOverwriteAll,
     /// 弹出右键菜单
     ContextMenu { index: usize, position: Vector2F },
     /// 关闭右键菜单
@@ -135,6 +137,8 @@ pub enum SftpBrowserAction {
     DragAndDropFiles(Vec<PathBuf>),
     /// 执行上传
     ExecuteUpload(String),
+    /// 批量执行上传
+    UploadFiles(Vec<PathBuf>),
     /// 执行保存下载（用户已选择路径）
     DownloadSaveAs { index: usize, local_path: String },
     /// 批量下载到用户选择的目录
@@ -162,6 +166,8 @@ pub enum SftpBrowserAction {
 pub struct SftpBrowserView {
     /// 关联的 SSH 服务器节点 ID
     node_id: String,
+    /// 当前所属窗口，用于按窗口高度限制传输面板。
+    window_id: WindowId,
     /// pane 配置句柄
     pane_configuration: ModelHandle<PaneConfiguration>,
     /// 焦点句柄
@@ -223,6 +229,8 @@ pub struct SftpBrowserView {
     new_folder_btn: MouseStateHandle,
     /// 对话框确认按钮
     dialog_confirm_btn: MouseStateHandle,
+    /// 批量覆盖按钮
+    dialog_overwrite_all_btn: MouseStateHandle,
     /// 对话框取消按钮
     dialog_cancel_btn: MouseStateHandle,
     /// 对话框关闭按钮（标题栏 X 按钮）
@@ -232,6 +240,8 @@ pub struct SftpBrowserView {
     transfer_panel_hidden: bool,
     /// 传输面板关闭按钮
     transfer_panel_close_btn: MouseStateHandle,
+    /// 传输记录滚动状态
+    transfer_scroll_state: ClippedScrollStateHandle,
     // ---- 对话框编辑器 ----
     /// 重命名编辑器
     pub(crate) rename_editor: ViewHandle<EditorView>,
@@ -239,13 +249,15 @@ pub struct SftpBrowserView {
     pub(crate) new_folder_editor: ViewHandle<EditorView>,
     /// 搜索过滤编辑器
     search_editor: ViewHandle<EditorView>,
-    // ---- 文件行鼠标句柄 ----
+    // ---- 文件列表 ----
     /// 每行文件条目的鼠标状态句柄
-    row_mouse_handles: Vec<MouseStateHandle>,
-    // ---- 滚动 ----
-    /// 滚动状态句柄
-    scroll_state: ClippedScrollStateHandle,
-    // ---- 异步任务 ----
+    pub(super) row_mouse_handles: Vec<MouseStateHandle>,
+    /// 虚拟文件列表状态
+    file_list_state: UniformListState,
+    /// 文件列表滚动条状态
+    scroll_state: ScrollStateHandle,
+    /// 供虚拟列表按需读取当前视图状态的弱句柄
+    view_handle: WeakViewHandle<Self>,
     /// 当前连接任务的 future handle
     connect_handle: Option<SpawnedFutureHandle>,
     /// 当前刷新目录的 future handle
@@ -256,7 +268,7 @@ pub struct SftpBrowserView {
     transfer_handles: HashMap<usize, SpawnedFutureHandle>,
     /// 传输快照轮询任务
     transfer_progress_poll_handle: Option<SpawnedFutureHandle>,
-    /// 拖拽批量上传时的待处理队列
+    /// 批量上传的待处理队列
     pending_uploads: Vec<PathBuf>,
 }
 
@@ -313,6 +325,7 @@ impl SftpBrowserView {
 
         let mut me = Self {
             node_id,
+            window_id: ctx.window_id(),
             pane_configuration,
             focus_handle: None,
             connection: ConnectionState::Disconnected,
@@ -341,15 +354,19 @@ impl SftpBrowserView {
             upload_folder_btn: MouseStateHandle::default(),
             new_folder_btn: MouseStateHandle::default(),
             dialog_confirm_btn: MouseStateHandle::default(),
+            dialog_overwrite_all_btn: MouseStateHandle::default(),
             dialog_cancel_btn: MouseStateHandle::default(),
             dialog_close_btn: MouseStateHandle::default(),
             transfer_panel_hidden: false,
             transfer_panel_close_btn: MouseStateHandle::default(),
+            transfer_scroll_state: ClippedScrollStateHandle::default(),
             rename_editor,
             new_folder_editor,
             search_editor,
             row_mouse_handles: Vec::new(),
-            scroll_state: ClippedScrollStateHandle::default(),
+            file_list_state: UniformListState::new(),
+            scroll_state: ScrollStateHandle::default(),
+            view_handle: ctx.handle(),
             connect_handle: None,
             refresh_handle: None,
             refresh_generation: 0,
@@ -1309,13 +1326,20 @@ impl SftpBrowserView {
 
         // 文件行
         let rows = super::file_list::render_file_rows(
-            &self.entries,
-            &filtered_indices,
-            &self.selected,
-            &self.row_mouse_handles,
-            appearance,
+            filtered_indices,
+            self.file_list_state.clone(),
+            self.view_handle.clone(),
         );
-
+        let rows = Scrollable::vertical(
+            self.scroll_state.clone(),
+            rows,
+            ScrollbarWidth::Auto,
+            theme.disabled_text_color(theme.background()).into(),
+            theme.main_text_color(theme.background()).into(),
+            Fill::None,
+        )
+        .with_overlayed_scrollbar()
+        .finish();
         let rows = EventHandler::new(rows)
             .with_always_handle()
             .on_left_mouse_down(|ctx, _, position| {
@@ -1335,24 +1359,37 @@ impl SftpBrowserView {
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(header)
-            .with_child(rows)
+            .with_child(Shrinkable::new(1.0, rows).finish())
             .finish()
     }
 
     /// 渲染传输面板
-    fn render_transfers(&self, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_transfers(&self, appearance: &Appearance, max_height: f32) -> Box<dyn Element> {
         super::transfer_panel::render_transfer_panel(
             &self.transfers,
             appearance,
+            max_height,
+            self.transfer_scroll_state.clone(),
             self.transfer_panel_close_btn.clone(),
         )
     }
 
-    /// 执行上传操作（公共入口，供拖拽上传和文件选择上传共用）
-    ///
-    /// 先检查远程目录是否已存在同名文件，若存在则弹出覆盖确认对话框，
-    /// 用户确认后通过 `execute_upload_confirmed` 执行实际上传。
+    /// 执行上传操作（公共入口，供拖拽上传和文件选择上传共用）。
     fn execute_upload(&mut self, local_path: &Path, ctx: &mut ViewContext<Self>) {
+        self.execute_upload_with_conflict_check(local_path, true, ctx);
+    }
+
+    /// 执行已选择“全部覆盖”的批量上传项，不再逐项询问同名文件。
+    fn execute_upload_overwriting(&mut self, local_path: &Path, ctx: &mut ViewContext<Self>) {
+        self.execute_upload_with_conflict_check(local_path, false, ctx);
+    }
+
+    fn execute_upload_with_conflict_check(
+        &mut self,
+        local_path: &Path,
+        check_for_conflict: bool,
+        ctx: &mut ViewContext<Self>,
+    ) {
         let file_name = local_path
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
@@ -1370,13 +1407,11 @@ impl SftpBrowserView {
             return;
         }
 
-        // 检查远程目录中是否已存在同名文件
-        let existing = self
+        let target_exists = self
             .entries
             .iter()
-            .find(|e| e.name == file_name && matches!(e.file_type, FileEntryType::File));
-
-        if existing.is_some() {
+            .any(|entry| entry.name == file_name && entry.file_type == FileEntryType::File);
+        if check_for_conflict && target_exists {
             let local_size = std::fs::metadata(local_path).map(|m| m.len()).unwrap_or(0);
             self.dialog = Some(Dialog::OverwriteConfirm {
                 source: local_path.to_path_buf(),
@@ -1388,24 +1423,66 @@ impl SftpBrowserView {
             return;
         }
 
-        // 无冲突，直接执行上传
         self.execute_upload_confirmed(local_path, &remote_path, ctx);
     }
 
-    /// 处理待上传队列，逐个上传直到遇到冲突或队列清空
-    ///
-    /// 拖拽批量上传时，将所有文件入队后逐个处理。
-    /// 遇到同名文件冲突时暂停队列并弹出覆盖确认对话框，
-    /// 用户确认后由 ConfirmOverwrite 继续调用本方法。
-    /// author: logic
-    /// date: 2026-06-01
+    /// 将一批本地路径按选择顺序加入上传队列。
+    fn queue_uploads(&mut self, paths: &[PathBuf], ctx: &mut ViewContext<Self>) {
+        self.pending_uploads = paths.iter().rev().cloned().collect();
+        self.process_pending_uploads(ctx);
+    }
+
+    /// 逐项处理上传队列，遇到同名文件时暂停并等待用户选择。
     fn process_pending_uploads(&mut self, ctx: &mut ViewContext<Self>) {
         while let Some(local_path) = self.pending_uploads.pop() {
             self.execute_upload(&local_path, ctx);
             if self.dialog.is_some() {
-                // 遇到冲突，暂停队列等待用户确认
                 return;
             }
+        }
+    }
+
+    fn confirm_overwrite(
+        &mut self,
+        overwrite_remaining_uploads: bool,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let (source, target, file_size, direction) = match &self.dialog {
+            Some(Dialog::OverwriteConfirm {
+                source,
+                target,
+                file_size,
+                direction,
+            }) => (source.clone(), target.clone(), *file_size, *direction),
+            Some(Dialog::DeleteConfirm { .. })
+            | Some(Dialog::Rename { .. })
+            | Some(Dialog::CreateFolder { .. })
+            | Some(Dialog::Move { .. })
+            | Some(Dialog::FileDetails { .. })
+            | Some(Dialog::CloseTransferPanelConfirm)
+            | None => {
+                self.dialog = None;
+                ctx.notify();
+                return;
+            }
+        };
+
+        self.dialog = None;
+        match direction {
+            TransferDirection::Download => {
+                self.execute_download(&source, &target, file_size, ctx);
+            }
+            TransferDirection::Upload => {
+                self.execute_upload_confirmed(&source, &target, ctx);
+            }
+        }
+
+        if overwrite_remaining_uploads && direction == TransferDirection::Upload {
+            while let Some(local_path) = self.pending_uploads.pop() {
+                self.execute_upload_overwriting(&local_path, ctx);
+            }
+        } else {
+            self.process_pending_uploads(ctx);
         }
     }
 
@@ -1842,9 +1919,8 @@ impl TypedActionView for SftpBrowserView {
                 ctx.open_file_picker(
                     move |result, ctx: &mut ViewContext<SftpBrowserView>| match result {
                         Ok(paths) => {
-                            for path in paths {
-                                ctx.dispatch_typed_action(&SftpBrowserAction::ExecuteUpload(path));
-                            }
+                            let paths = paths.into_iter().map(PathBuf::from).collect();
+                            ctx.dispatch_typed_action(&SftpBrowserAction::UploadFiles(paths));
                         }
                         Err(e) => {
                             log::warn!("sftp: file picker failed: {e}");
@@ -1973,39 +2049,10 @@ impl TypedActionView for SftpBrowserView {
                 }
             }
             SftpBrowserAction::ConfirmOverwrite => {
-                // 从对话框中提取路径和传输方向
-                let (source, target, file_size, direction) = match &self.dialog {
-                    Some(Dialog::OverwriteConfirm {
-                        source,
-                        target,
-                        file_size,
-                        direction,
-                    }) => (source.clone(), target.clone(), *file_size, *direction),
-                    Some(Dialog::DeleteConfirm { .. })
-                    | Some(Dialog::Rename { .. })
-                    | Some(Dialog::CreateFolder { .. })
-                    | Some(Dialog::Move { .. })
-                    | Some(Dialog::FileDetails { .. })
-                    | Some(Dialog::CloseTransferPanelConfirm)
-                    | None => {
-                        self.dialog = None;
-                        ctx.notify();
-                        return;
-                    }
-                };
-
-                // 关闭对话框
-                self.dialog = None;
-                match direction {
-                    TransferDirection::Download => {
-                        self.execute_download(&source, &target, file_size, ctx);
-                    }
-                    TransferDirection::Upload => {
-                        self.execute_upload_confirmed(&source, &target, ctx);
-                    }
-                }
-                // 批量上传队列：确认当前文件后继续处理下一个
-                self.process_pending_uploads(ctx);
+                self.confirm_overwrite(false, ctx);
+            }
+            SftpBrowserAction::ConfirmOverwriteAll => {
+                self.confirm_overwrite(true, ctx);
             }
             SftpBrowserAction::ContextMenu { index, position } => {
                 let index = *index;
@@ -2193,9 +2240,10 @@ impl TypedActionView for SftpBrowserView {
             }
             SftpBrowserAction::DragAndDropFiles(paths) => {
                 self.is_drag_hovering = false;
-                // 逆序入队，使得 pop() 按原始顺序取出
-                self.pending_uploads = paths.iter().rev().cloned().collect();
-                self.process_pending_uploads(ctx);
+                self.queue_uploads(paths, ctx);
+            }
+            SftpBrowserAction::UploadFiles(paths) => {
+                self.queue_uploads(paths, ctx);
             }
             SftpBrowserAction::ExecuteUpload(local_path_str) => {
                 let local_path = PathBuf::from(local_path_str);
@@ -2285,19 +2333,7 @@ impl View for SftpBrowserView {
         if self.is_loading {
             col.add_child(Shrinkable::new(1.0, self.render_loading(appearance)).finish());
         } else {
-            let file_list = self.render_file_list(appearance);
-            let scrollbar_color = theme.disabled_text_color(theme.background()).into();
-            let scrollbar_thumb_hover = theme.main_text_color(theme.background()).into();
-            let scrollable = ClippedScrollable::vertical(
-                self.scroll_state.clone(),
-                file_list,
-                ScrollbarWidth::Auto,
-                scrollbar_color,
-                scrollbar_thumb_hover,
-                Fill::None,
-            )
-            .finish();
-            col.add_child(Shrinkable::new(1.0, scrollable).finish());
+            col.add_child(Shrinkable::new(1.0, self.render_file_list(appearance)).finish());
         }
 
         // 7. 传输面板（浮动在底部）
@@ -2305,7 +2341,12 @@ impl View for SftpBrowserView {
 
         // 8. 传输面板浮动层
         if !self.transfers.is_empty() && !self.transfer_panel_hidden {
-            let panel_el = Container::new(self.render_transfers(appearance))
+            let max_height = app
+                .window_bounds(&self.window_id)
+                .map(|bounds| bounds.height() / 3.0)
+                .filter(|height| *height > 0.0)
+                .unwrap_or(f32::INFINITY);
+            let panel_el = Container::new(self.render_transfers(appearance, max_height))
                 .with_padding_left(PANEL_PADDING)
                 .with_padding_right(PANEL_PADDING)
                 .with_padding_bottom(PANEL_PADDING)
@@ -2346,7 +2387,9 @@ impl View for SftpBrowserView {
                 &self.rename_editor,
                 &self.new_folder_editor,
                 appearance,
+                !self.pending_uploads.is_empty(),
                 self.dialog_confirm_btn.clone(),
+                self.dialog_overwrite_all_btn.clone(),
                 self.dialog_cancel_btn.clone(),
                 self.dialog_close_btn.clone(),
             );
@@ -2407,6 +2450,15 @@ impl View for SftpBrowserView {
 
         // 13. 拖拽事件拦截
         super::drop_target::SftpDropTargetElement::new(key_handler.finish()).finish()
+    }
+
+    fn on_window_transferred(
+        &mut self,
+        _source_window_id: WindowId,
+        target_window_id: WindowId,
+        _ctx: &mut ViewContext<Self>,
+    ) {
+        self.window_id = target_window_id;
     }
 }
 

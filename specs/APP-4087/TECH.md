@@ -28,7 +28,7 @@ Add purpose-specific helpers in `warp_core::paths`:
 - Dev: `.warp-dev`
 - Local: `.warp-local`
 - Integration: `.warp-integration`
-- Zap: `.zap`
+- Zora: `.zap`
 - Debug data profile: append `-<profile>` to the base name
 `warp_home_config_dir()` joins that name to `dirs::home_dir()`. This intentionally differs from non-macOS `data_dir()` and `config_local_dir()`, which use `ProjectDirs` and therefore produce XDG/AppData paths.
 ## Watch roots

@@ -1382,15 +1382,48 @@ impl SshManagerPanel {
         if self.nodes.is_empty() {
             let theme = appearance.theme();
             let muted = theme.sub_text_color(theme.background());
+            let icon = |icon: crate::ui_components::icons::Icon| {
+                ConstrainedBox::new(icon.to_warpui_icon(muted).finish())
+                    .with_width(ITEM_ICON_SIZE)
+                    .with_height(ITEM_ICON_SIZE)
+                    .finish()
+            };
             col.add_child(
                 Container::new(
-                    Text::new_inline(
-                        crate::t!("workspace-left-panel-ssh-manager-tree-empty"),
-                        appearance.ui_font_family(),
-                        appearance.ui_font_subheading(),
-                    )
-                    .with_color(muted.into())
-                    .finish(),
+                    Flex::row()
+                        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                        .with_main_axis_alignment(MainAxisAlignment::Center)
+                        .with_spacing(4.)
+                        .with_child(
+                            Text::new_inline(
+                                crate::t!("workspace-left-panel-ssh-manager-tree-empty-prefix"),
+                                appearance.ui_font_family(),
+                                appearance.ui_font_subheading(),
+                            )
+                            .with_color(muted.into())
+                            .finish(),
+                        )
+                        .with_child(icon(crate::ui_components::icons::Icon::Folder))
+                        .with_child(
+                            Text::new_inline(
+                                crate::t!("workspace-left-panel-ssh-manager-tree-empty-between"),
+                                appearance.ui_font_family(),
+                                appearance.ui_font_subheading(),
+                            )
+                            .with_color(muted.into())
+                            .finish(),
+                        )
+                        .with_child(icon(crate::ui_components::icons::Icon::Plus))
+                        .with_child(
+                            Text::new_inline(
+                                crate::t!("workspace-left-panel-ssh-manager-tree-empty-suffix"),
+                                appearance.ui_font_family(),
+                                appearance.ui_font_subheading(),
+                            )
+                            .with_color(muted.into())
+                            .finish(),
+                        )
+                        .finish(),
                 )
                 .with_padding_top(20.0)
                 .with_padding_bottom(20.0)

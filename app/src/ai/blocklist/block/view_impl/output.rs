@@ -1171,7 +1171,7 @@ fn renderable_action(
     let is_blocked_on_user = status.as_ref().is_some_and(|s| s.is_blocked());
     if is_blocked_on_user {
         requested_action =
-            requested_action.with_background_color(appearance.theme().background().into_solid())
+            requested_action.with_background_color(appearance.theme().surface_2().into_solid())
     } else {
         if (props.model.status(app).is_streaming()
             && !props.model.is_first_action_in_output(id, app))
@@ -1419,7 +1419,7 @@ fn render_read_files(
                 app,
             ))
             .with_highlighted_border()
-            .with_background_color(appearance.theme().background().into_solid());
+            .with_background_color(appearance.theme().surface_2().into_solid());
     } else {
         if (props.model.status(app).is_streaming()
             && !props.model.is_first_action_in_output(id, app))
@@ -2185,7 +2185,7 @@ fn render_file_retrieval_tool(
                 app,
             ))
             .with_highlighted_border()
-            .with_background_color(appearance.theme().background().into_solid());
+            .with_background_color(appearance.theme().surface_2().into_solid());
     } else {
         if (props.model.status(app).is_streaming()
             && !props.model.is_first_action_in_output(action_id, app))
@@ -2302,7 +2302,7 @@ fn render_read_mcp_resource(
                 app,
             ))
             .with_highlighted_border()
-            .with_background_color(appearance.theme().background().into_solid());
+            .with_background_color(appearance.theme().surface_2().into_solid());
     } else {
         if (props.model.status(app).is_streaming()
             && !props.model.is_first_action_in_output(action_id, app))

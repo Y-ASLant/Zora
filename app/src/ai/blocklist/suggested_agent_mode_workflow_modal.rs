@@ -233,7 +233,7 @@ impl View for SuggestedAgentModeWorkflowModal {
         if let Some(modal) = &self.modal {
             ChildView::new(modal).finish()
         } else {
-            // Zap:此 view 始终挂在 workspace 树里,默认 modal=None 是常态
+            // Zora:此 view 始终挂在 workspace 树里,默认 modal=None 是常态
             // (云端 ShowSuggestions 已禁用,chip 不会出现,modal 不会被填充)。
             // 不打 warn,避免每帧污染日志。
             Empty::new().finish()

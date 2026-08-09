@@ -236,12 +236,12 @@ where
         .finish()
 }
 
-/// Returns whether "Open in Zap" should be offered for the given file path.
+/// Returns whether "Open in Zora" should be offered for the given file path.
 ///
 /// This checks:
-/// - Whether Zap is already the default editor (skip if so)
-/// - Whether this file is openable in Zap (skips binary files and directories)
-/// - Whether Zap is an OS-level default editor (skips Markdown files)
+/// - Whether Zora is already the default editor (skip if so)
+/// - Whether this file is openable in Zora (skips binary files and directories)
+/// - Whether Zora is an OS-level default editor (skips Markdown files)
 #[cfg(feature = "local_fs")]
 pub fn should_show_open_in_warp_link(path: &Path, app: &AppContext) -> bool {
     use crate::{

@@ -90,14 +90,14 @@ impl PromptAlertView {
             return PromptAlertState::NoAlert;
         }
 
-        // Zap: BYOP/本地 provider 自行处理连接状态,包括 Ollama 这类 localhost
+        // Zora: BYOP/本地 provider 自行处理连接状态,包括 Ollama 这类 localhost
         // provider。全局离线状态只阻止内置云端用量。
         if !NetworkStatus::as_ref(app).is_online() {
             return PromptAlertState::NoConnection;
         }
 
         let request_usage_model = AIRequestUsageModel::as_ref(app);
-        // Zap(Phase 3c A1):`has_requests_remaining` 本地化后恒为 true,
+        // Zora(Phase 3c A1):`has_requests_remaining` 本地化后恒为 true,
         // 原有的 if/else 二分只有 SoftGate 分支可达达,直接则使用 true 分支。
         let auth_state = AuthStateProvider::as_ref(app).get();
 

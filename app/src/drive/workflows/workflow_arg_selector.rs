@@ -511,11 +511,11 @@ impl WorkflowArgSelector {
         let editor_font_color = match should_show_placeholder {
             true => appearance
                 .theme()
-                .hint_text_color(appearance.theme().background())
+                .hint_text_color(appearance.theme().surface_2())
                 .into(),
             false => appearance
                 .theme()
-                .main_text_color(appearance.theme().background())
+                .main_text_color(appearance.theme().surface_2())
                 .into(),
         };
 
@@ -539,7 +539,7 @@ impl WorkflowArgSelector {
             .with_padding_bottom(self.styles.editor_padding.bottom)
             .with_padding_left(self.styles.editor_padding.left)
             .with_padding_right(self.styles.editor_padding.right)
-            .with_background(appearance.theme().background());
+            .with_background(appearance.theme().surface_2());
 
         let hoverable = Hoverable::new(self.editor_mouse_state.clone(), |_| container.finish())
             .with_cursor(Cursor::IBeam)
@@ -558,7 +558,7 @@ impl WorkflowArgSelector {
             font_color: Some(
                 appearance
                     .theme()
-                    .main_text_color(appearance.theme().background())
+                    .main_text_color(appearance.theme().surface_2())
                     .into(),
             ),
             ..Default::default()
@@ -582,7 +582,7 @@ impl WorkflowArgSelector {
             .with_padding_bottom(self.styles.editor_padding.bottom)
             .with_padding_left(self.styles.editor_padding.left)
             .with_padding_right(self.styles.editor_padding.right)
-            .with_background(appearance.theme().background());
+            .with_background(appearance.theme().surface_2());
 
         let hoverable = Hoverable::new(self.editor_mouse_state.clone(), |state| {
             if state.is_hovered() {
@@ -645,7 +645,7 @@ impl WorkflowArgSelector {
             .with_padding_bottom(self.styles.editor_padding.bottom)
             .with_padding_left(self.styles.editor_padding.left)
             .with_padding_right(self.styles.editor_padding.right)
-            .with_background(appearance.theme().background())
+            .with_background(appearance.theme().surface_2())
             .finish()
     }
 
@@ -862,8 +862,8 @@ impl WorkflowArgSelector {
                             .with_margin_left(MENU_ITEM_HORIZONTAL_MARGIN)
                             .finish(),
                         ScrollbarWidth::Auto,
-                        theme.disabled_text_color(theme.background()).into(),
-                        theme.main_text_color(theme.background()).into(),
+                        theme.disabled_text_color(theme.surface_2()).into(),
+                        theme.main_text_color(theme.surface_2()).into(),
                         warpui::elements::Fill::None,
                     )
                     .finish(),
