@@ -743,9 +743,9 @@ fn render_hide_responses_button(
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let button_text = if should_hide_responses {
-        "Show responses"
+        crate::t!("ai-block-show-responses")
     } else {
-        "Hide responses"
+        crate::t!("ai-block-hide-responses")
     };
     let text = Container::new(
         Text::new(
@@ -759,9 +759,9 @@ fn render_hide_responses_button(
     .finish();
 
     let tooltip_text = if should_hide_responses {
-        "Show agent responses"
+        crate::t!("ai-block-show-agent-responses-tooltip")
     } else {
-        "Hide agent responses"
+        crate::t!("ai-block-hide-agent-responses-tooltip")
     };
 
     render_warping_indicator_button(
@@ -823,7 +823,7 @@ fn render_stop_button(props: ButtonProps, appearance: &Appearance) -> Box<dyn El
         appearance,
         stop_icon,
         props.keystroke,
-        "Stop agent task".to_string(),
+        crate::t!("ai-block-stop-agent-task-tooltip"),
         props.is_active,
         |ctx: &mut EventContext<'_>| {
             ctx.dispatch_typed_action(BlocklistAIStatusBarAction::Stop);
@@ -850,9 +850,9 @@ fn render_queue_next_prompt_button(
     .finish();
 
     let tooltip_text = if props.is_active {
-        "Auto-queue is on: your next prompt will be queued"
+        crate::t!("ai-block-auto-queue-on-tooltip")
     } else {
-        "Auto-queue next prompt while agent is responding"
+        crate::t!("ai-block-auto-queue-next-tooltip")
     };
 
     render_warping_indicator_button(
@@ -887,9 +887,9 @@ fn render_auto_approve_button(props: ButtonProps, appearance: &Appearance) -> Bo
     .finish();
 
     let tooltip_text = if props.is_active {
-        "Turn off auto-approve all agent actions"
+        crate::t!("ai-block-turn-off-auto-approve-tooltip")
     } else {
-        "Auto-approve all agent actions for this task"
+        crate::t!("ai-block-auto-approve-task-tooltip")
     };
 
     render_warping_indicator_button(

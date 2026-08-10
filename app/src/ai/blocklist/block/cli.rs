@@ -10,8 +10,8 @@ use warpui::elements::new_scrollable::SingleAxisConfig;
 use warpui::elements::{
     resizable_state_handle, ClippedScrollStateHandle, ConstrainedBox, DispatchEventResult,
     DragBarSide, Empty, EventHandler, Fill, FormattedTextElement, Highlight, HighlightedHyperlink,
-    Hoverable, MainAxisAlignment, MainAxisSize, NewScrollable, Resizable, ResizableStateHandle,
-    SavePosition, ScrollTarget, ScrollToPositionMode, SelectableArea, SizeConstraintCondition,
+    MainAxisAlignment, MainAxisSize, NewScrollable, Resizable, ResizableStateHandle, SavePosition,
+    ScrollTarget, ScrollToPositionMode, SelectableArea, SizeConstraintCondition,
     SizeConstraintSwitch,
 };
 use warpui::fonts::Weight;
@@ -126,7 +126,6 @@ const MAX_RESIZABLE_WINDOW_RATIO: f32 = 0.75;
 const AVATAR_RIGHT_MARGIN: f32 = 8.;
 const CONTENT_PADDING: f32 = 12.;
 const ALLOW_ACTION_POSITION_ID: &str = "allow-action-position-id";
-const USER_QUERY_POSITION_ID: &str = "cli-subagent-user-query-position-id";
 const CONVERSATION_SCROLL_BOTTOM_POSITION_ID: &str = "cli-subagent-conversation-bottom-position-id";
 
 fn cli_subagent_width_bounds(window_width: f32) -> (f32, f32) {
@@ -409,8 +408,6 @@ struct StateHandles {
     speedbump_checkbox_handle: MouseStateHandle,
     ai_settings_link: HighlightedHyperlink,
     conversation_scroll_state: ClippedScrollStateHandle,
-    input_hover_state: MouseStateHandle,
-    dismiss_input_mouse_state: MouseStateHandle,
 }
 
 pub struct CLISubagentView {
@@ -1552,24 +1549,11 @@ impl View for CLISubagentView {
                     .with_margin_bottom(8.)
                     .finish();
 
-                    let dismissable_stack = render_dismissable_container(
-                        DismissableContainerProps {
-                            child: query_container,
-                            hover_state: self.state_handles.input_hover_state.clone(),
-                            dismiss_mouse_state: self
-                                .state_handles
-                                .dismiss_input_mouse_state
-                                .clone(),
-                            position_id: USER_QUERY_POSITION_ID.to_string(),
-                        },
-                        app,
-                    );
-
                     if cli_subagent_should_render_user_input(
                         should_hide_responses,
                         self.is_input_dismissed,
                     ) {
-                        conversation_items.add_child(dismissable_stack);
+                        conversation_items.add_child(query_container);
                     }
                 }
             }
@@ -2067,7 +2051,6 @@ pub enum CLISubagentAction {
     ToggleAllowMenu,
     ToggleAlwaysAllowWriteToPty,
     ToggleAlwaysAllowReadFiles,
-    DismissInput,
     SelectText,
     CopyOnSelect(String),
     CopyDebugId(String),
@@ -2160,20 +2143,6 @@ impl TypedActionView for CLISubagentView {
                     }
                 });
                 ctx.notify();
-            }
-            CLISubagentAction::DismissInput => {
-                self.is_input_dismissed = true;
-                if let Some(handle) = self.input_dismiss_timer_handle.take() {
-                    handle.abort();
-                }
-                ctx.notify();
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::CLISubagentInputDismissed {
-                        conversation_id: self.conversation_id,
-                        block_id: self.block_id.clone(),
-                    },
-                    ctx
-                );
             }
             CLISubagentAction::SelectText => {
                 self.clear_other_selections(None, ctx);
@@ -2312,69 +2281,6 @@ fn render_web_search(query: Option<String>, app: &AppContext) -> Box<dyn Element
         .finish()
 }
 
-struct DismissableContainerProps {
-    child: Box<dyn Element>,
-    hover_state: MouseStateHandle,
-    dismiss_mouse_state: MouseStateHandle,
-    position_id: String,
-}
-
-fn render_dismissable_container(
-    props: DismissableContainerProps,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let DismissableContainerProps {
-        child,
-        hover_state,
-        dismiss_mouse_state,
-        position_id,
-    } = props;
-
-    let hoverable = Hoverable::new(hover_state, |mouse_state| {
-        let mut stack = Stack::new().with_child(SavePosition::new(child, &position_id).finish());
-        if mouse_state.is_hovered() {
-            let appearance = Appearance::as_ref(app);
-            let theme = appearance.theme();
-            let ui_builder = appearance.ui_builder();
-
-            let dismiss_button = Container::new(
-                ui_builder
-                    .close_button(16., dismiss_mouse_state.clone())
-                    .with_style(UiComponentStyles {
-                        font_color: Some(blended_colors::text_main(theme, theme.surface_1())),
-                        background: Some(internal_colors::accent_bg(theme).into()),
-                        border_radius: Some(CornerRadius::with_all(Radius::Percentage(50.))),
-                        border_width: Some(1.),
-                        border_color: Some(theme.accent().into()),
-                        padding: Some(Coords::uniform(2.)),
-                        ..Default::default()
-                    })
-                    .build()
-                    .on_click(move |ctx, _, _| {
-                        ctx.dispatch_typed_action(CLISubagentAction::DismissInput);
-                    })
-                    .finish(),
-            )
-            .finish();
-
-            stack.add_positioned_child(
-                dismiss_button,
-                OffsetPositioning::offset_from_save_position_element(
-                    position_id,
-                    vec2f(-4., 4.),
-                    PositionedElementOffsetBounds::WindowByPosition,
-                    PositionedElementAnchor::TopRight,
-                    ChildAnchor::TopRight,
-                ),
-            );
-        }
-        stack.finish()
-    });
-
-    hoverable
-        .with_hover_out_delay(Duration::from_millis(500))
-        .finish()
-}
 struct FramedContainerProps {
     child: Box<dyn Element>,
     background_color: ColorU,
