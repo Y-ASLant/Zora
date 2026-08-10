@@ -1425,7 +1425,7 @@ fn field_block(
 
 impl AgentProvidersWidget {
     /// 渲染 "来自 models.dev 的已知 provider 快速添加" 区:
-    /// - 标题 + "刷新目录" 按钮
+    /// - 搜索框 + "刷新目录" 按钮
     /// - 一行 chip(每个对应一个 catalog provider id),点击即新建本地 provider 并预填模型
     /// - 目录尚未加载时,显示 "正在拉取..."
     fn render_models_dev_section(
@@ -1435,16 +1435,7 @@ impl AgentProvidersWidget {
     ) -> Box<dyn Element> {
         use crate::ai::agent_providers::models_dev;
 
-        let label_color = appearance.theme().active_ui_text_color();
         let dim_color = appearance.theme().disabled_ui_text_color();
-
-        let title = Text::new(
-            crate::t!("settings-agent-providers-quick-add-title"),
-            appearance.ui_font_family(),
-            appearance.ui_font_size(),
-        )
-        .with_color(label_color.into())
-        .finish();
 
         let refresh_button = Self::render_card_button(
             crate::t!("settings-agent-providers-refresh-catalog"),
@@ -1460,8 +1451,7 @@ impl AgentProvidersWidget {
                 .finish();
 
         let header_row = Flex::row()
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(title)
+            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(Expanded::new(1., search_box).finish())
             .with_child(refresh_button)
             .finish();

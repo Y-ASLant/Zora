@@ -1479,7 +1479,6 @@ settings-agent-providers-description = OpenAI 互換 (DeepSeek、Zhipu GLM、Moo
 settings-agent-providers-empty = プロバイダーがまだ構成されていません。右上の [+ プロバイダー追加] をクリックして追加してください。
 settings-agent-providers-add-button = + プロバイダー追加
 settings-agent-providers-search-placeholder = プロバイダーを検索…
-settings-agent-providers-quick-add-title = クイック追加
 settings-agent-providers-refresh-catalog = カタログを更新
 settings-agent-providers-loading-catalog = models.dev カタログを読み込み中… (初回読み込みは数秒かかる場合があります)
 settings-agent-providers-catalog-empty = models.dev カタログが空です。[カタログを更新] をクリックして再試行してください。

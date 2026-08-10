@@ -10,10 +10,13 @@ fn test_laid_out_text_height() {
     App::test((), |mut app| async move {
         app.update(|_ctx| {
             let text_frame = TextFrame::mock("foo\nbar\nbaz");
-            let line_count = text_frame.lines().len();
+            let expected = text_frame
+                .lines()
+                .iter()
+                .map(|line| line.font_size * line.line_height_ratio)
+                .sum::<f32>();
             let laid_out_text = LaidOutText::Frame(Arc::new(text_frame));
             let height = laid_out_text.height();
-            let expected = 13. * 1.2 * line_count as f32;
             assert_approx_eq!(f32, height, expected);
         });
     });
@@ -27,11 +30,10 @@ fn test_laid_out_line_height() {
     App::test((), |mut app| async move {
         app.update(|_ctx| {
             let line = Line::mock_from_str("foo");
+            let expected = line.font_size * line.line_height_ratio;
             let laid_out_line = LaidOutText::Line(Arc::new(line));
             let height = laid_out_line.height();
 
-            // 13 and 1.2 are the default font size and line height ratios, respectively.
-            let expected = 13. * 1.2;
             assert_approx_eq!(f32, height, expected);
         });
     });

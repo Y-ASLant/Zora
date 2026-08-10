@@ -1549,7 +1549,6 @@ settings-agent-providers-description = 配置自定义 Agent 提供商，支持�
 settings-agent-providers-empty = 尚未配置任何提供商。点击右上角 [+ 添加提供商] 按钮添加。
 settings-agent-providers-add-button = + 添加提供商
 settings-agent-providers-search-placeholder = 搜索提供商…
-settings-agent-providers-quick-add-title = 快速添加
 settings-agent-providers-refresh-catalog = 刷新目录
 settings-agent-providers-loading-catalog = 正在拉取 models.dev 目录…（第一次可能需要几秒）
 settings-agent-providers-catalog-empty = models.dev 目录为空，点 [刷新目录] 重试。
