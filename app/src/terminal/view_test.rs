@@ -18,7 +18,7 @@ use crate::ai::blocklist::block::cli_controller::{
     CLISubagentEvent, LongRunningCommandControlState, UserTakeOverReason,
 };
 use crate::ai::blocklist::SerializedBlockListItem;
-use warpui::App;
+use warpui::{keymap::Keystroke, App};
 
 use crate::pane_group::focus_state::PaneGroupFocusState;
 use crate::pane_group::{BackingView, TerminalPaneId};
@@ -5641,5 +5641,101 @@ fn selecting_use_agent_from_warpify_footer_focuses_input() {
         });
 
         assert!(editor.read(&app, |editor, _| editor.is_focused()));
+    })
+}
+
+#[test]
+fn ctrl_shift_enter_uses_agent_from_warpify_footer_when_input_is_in_responder_chain() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        app.update(init::init);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
+        let (window_id, terminal) = add_window_with_id_and_terminal(&mut app, None);
+
+        terminal.update(&mut app, |view, ctx| {
+            view.use_agent_footer.update(ctx, |footer, ctx| {
+                footer.set_warpify_mode(
+                    WarpificationMode::Subshell {
+                        command: "ssh root@10.0.2.73".to_string(),
+                    },
+                    ctx,
+                );
+            });
+        });
+
+        terminal.read(&app, |view, ctx| {
+            let keymap_context = view.keymap_context(ctx);
+            assert!(keymap_context
+                .set
+                .contains(init::USE_AGENT_FOOTER_VISIBLE_KEY));
+            assert!(keymap_context.set.contains("SubshellBanner"));
+        });
+
+        let (input_id, editor_id) = terminal.read(&app, |view, ctx| {
+            let input = view.input();
+            let editor = input.as_ref(ctx).editor();
+            (input.id(), editor.id())
+        });
+
+        let handled = app
+            .dispatch_keystroke(
+                window_id,
+                &[terminal.id(), input_id, editor_id],
+                &Keystroke::parse("ctrl-shift-enter").expect("valid keystroke"),
+                false,
+            )
+            .expect("keystroke dispatch should not fail");
+
+        assert!(handled);
+        terminal.read(&app, |view, ctx| {
+            assert!(view
+                .input()
+                .as_ref(ctx)
+                .ai_input_model()
+                .as_ref(ctx)
+                .is_ai_input_enabled());
+        });
+    })
+}
+
+#[test]
+fn ctrl_shift_enter_from_input_without_use_agent_footer_is_not_handled() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        app.update(init::init);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
+        let (window_id, terminal) = add_window_with_id_and_terminal(&mut app, None);
+
+        terminal.read(&app, |view, ctx| {
+            assert!(!view
+                .keymap_context(ctx)
+                .set
+                .contains(init::USE_AGENT_FOOTER_VISIBLE_KEY));
+        });
+
+        let (input_id, editor_id) = terminal.read(&app, |view, ctx| {
+            let input = view.input();
+            let editor = input.as_ref(ctx).editor();
+            (input.id(), editor.id())
+        });
+
+        let handled = app
+            .dispatch_keystroke(
+                window_id,
+                &[terminal.id(), input_id, editor_id],
+                &Keystroke::parse("ctrl-shift-enter").expect("valid keystroke"),
+                false,
+            )
+            .expect("keystroke dispatch should not fail");
+
+        assert!(!handled);
+        terminal.read(&app, |view, ctx| {
+            assert!(!view
+                .input()
+                .as_ref(ctx)
+                .ai_input_model()
+                .as_ref(ctx)
+                .is_ai_input_enabled());
+        });
     })
 }

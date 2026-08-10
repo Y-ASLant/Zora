@@ -25221,6 +25221,7 @@ impl View for TerminalView {
         // Also set the warpify context when the footer (flag-gated replacement
         // for the in-block banner) is active, so the ctrl-i keybinding works.
         if let Some(warpify_mode) = self.use_agent_footer.as_ref(app).warpify_mode(app) {
+            context.set.insert(init::USE_AGENT_FOOTER_VISIBLE_KEY);
             if warpify_mode.is_ssh() {
                 context.set.insert("SshWarpificationBanner");
             } else {
