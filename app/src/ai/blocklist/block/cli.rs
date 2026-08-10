@@ -123,10 +123,8 @@ pub(crate) const CLI_SUBAGENT_MIN_RESIZABLE_WIDTH: f32 = 360.0;
 const MIN_RESIZABLE_WIDTH: f32 = CLI_SUBAGENT_MIN_RESIZABLE_WIDTH;
 // CLI agent 浮窗的最小高度，保留一行以上内容和拖拽命中区域。
 const MIN_RESIZABLE_HEIGHT: f32 = 40.0;
-// 横向缩放时给窗口边缘保留的少量可见宽度。
-const MIN_REMAINING_WINDOW_WIDTH: f32 = 16.0;
-// 纵向缩放时给窗口边缘保留的少量可见高度。
-const MIN_REMAINING_WINDOW_HEIGHT: f32 = 16.0;
+// CLI agent 浮窗最大拖拽到终端窗口尺寸的 75%，避免覆盖过多终端内容。
+const MAX_RESIZABLE_WINDOW_RATIO: f32 = 0.75;
 const AVATAR_RIGHT_MARGIN: f32 = 8.;
 const CONTENT_PADDING: f32 = 12.;
 const ALLOW_ACTION_POSITION_ID: &str = "allow-action-position-id";
@@ -134,14 +132,12 @@ const USER_QUERY_POSITION_ID: &str = "cli-subagent-user-query-position-id";
 const CONVERSATION_SCROLL_BOTTOM_POSITION_ID: &str = "cli-subagent-conversation-bottom-position-id";
 
 fn cli_subagent_width_bounds(window_width: f32) -> (f32, f32) {
-    // 最大宽度接近整窗，允许右下角浮窗向左覆盖大部分终端区域。
-    let max = (window_width - MIN_REMAINING_WINDOW_WIDTH).max(MIN_RESIZABLE_WIDTH);
+    let max = (window_width * MAX_RESIZABLE_WINDOW_RATIO).max(MIN_RESIZABLE_WIDTH);
     (MIN_RESIZABLE_WIDTH, max)
 }
 
 fn cli_subagent_height_bounds(window_height: f32) -> (f32, f32) {
-    // 最大高度接近整窗，允许右下角浮窗向上覆盖大部分终端区域。
-    let max = (window_height - MIN_REMAINING_WINDOW_HEIGHT).max(MIN_RESIZABLE_HEIGHT);
+    let max = (window_height * MAX_RESIZABLE_WINDOW_RATIO).max(MIN_RESIZABLE_HEIGHT);
     (MIN_RESIZABLE_HEIGHT, max)
 }
 
@@ -2372,7 +2368,7 @@ fn render_dismissable_container(
                 dismiss_button,
                 OffsetPositioning::offset_from_save_position_element(
                     position_id,
-                    vec2f(4., -4.),
+                    vec2f(-4., 4.),
                     PositionedElementOffsetBounds::WindowByPosition,
                     PositionedElementAnchor::TopRight,
                     ChildAnchor::TopRight,
@@ -2891,8 +2887,8 @@ mod tests {
     }
 
     #[test]
-    fn cli_subagent_resize_width_bounds_allow_nearly_full_window() {
-        assert_eq!(cli_subagent_width_bounds(1000.0), (360.0, 984.0));
+    fn cli_subagent_resize_width_bounds_cap_at_seventy_five_percent() {
+        assert_eq!(cli_subagent_width_bounds(1000.0), (360.0, 750.0));
     }
 
     #[test]
@@ -2901,8 +2897,8 @@ mod tests {
     }
 
     #[test]
-    fn cli_subagent_resize_height_bounds_allow_nearly_full_window() {
-        assert_eq!(cli_subagent_height_bounds(700.0), (40.0, 684.0));
+    fn cli_subagent_resize_height_bounds_cap_at_seventy_five_percent() {
+        assert_eq!(cli_subagent_height_bounds(700.0), (40.0, 525.0));
     }
 
     #[test]

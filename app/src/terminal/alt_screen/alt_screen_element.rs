@@ -53,6 +53,7 @@ use warpui::{ClipBounds, EntityId, ModelHandle};
 
 const CLI_SUBAGENT_HORIZONTAL_MARGIN: f32 = 8.;
 const CLI_SUBAGENT_VERTICAL_MARGIN: f32 = 8.;
+const CLI_SUBAGENT_MAX_WINDOW_RATIO: f32 = 0.75;
 
 pub struct AltScreenElement {
     model: Arc<FairMutex<TerminalModel>>,
@@ -657,8 +658,8 @@ impl Element for AltScreenElement {
                 SizeConstraint {
                     min: vec2f(0., 0.),
                     max: vec2f(
-                        constraint.max.x() * 0.3 - CLI_SUBAGENT_HORIZONTAL_MARGIN,
-                        constraint.max.y() - CLI_SUBAGENT_VERTICAL_MARGIN * 3.,
+                        (constraint.max.x() * CLI_SUBAGENT_MAX_WINDOW_RATIO).max(0.),
+                        (constraint.max.y() * CLI_SUBAGENT_MAX_WINDOW_RATIO).max(0.),
                     ),
                 },
                 ctx,
