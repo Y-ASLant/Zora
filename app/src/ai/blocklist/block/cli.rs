@@ -46,11 +46,9 @@ use warpui::{
 
 use crate::ai::agent::{AIAgentPtyWriteMode, CancellationReason};
 use crate::ai::blocklist::block::view_impl::common::{
-    render_query_text, UserQueryProps, BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB,
-    BLOCKED_ACTION_MESSAGE_FOR_READING_FILES,
-    BLOCKED_ACTION_MESSAGE_FOR_WRITE_TO_LONG_RUNNING_SHELL_COMMAND,
-    LOAD_OUTPUT_MESSAGE_FOR_FILE_GLOB, LOAD_OUTPUT_MESSAGE_FOR_GREP,
-    LOAD_OUTPUT_MESSAGE_FOR_READING_FILES, LOAD_OUTPUT_MESSAGE_FOR_WEB_SEARCH,
+    render_query_text, UserQueryProps, LOAD_OUTPUT_MESSAGE_FOR_FILE_GLOB,
+    LOAD_OUTPUT_MESSAGE_FOR_GREP, LOAD_OUTPUT_MESSAGE_FOR_READING_FILES,
+    LOAD_OUTPUT_MESSAGE_FOR_WEB_SEARCH,
 };
 use crate::ai::blocklist::permissions::is_agent_mode_autonomy_allowed;
 use crate::ai::control_code_parser::{parse_control_codes_from_bytes, ParsedControlCodeOutput};
@@ -295,7 +293,6 @@ lazy_static! {
 const HAS_PENDING_CLI_ACTION_CONTEXT_KEY: &str = "HasPendingCLIAgentAction";
 const HAS_PENDING_NON_TRANSFER_CONTROL_ACTION_CONTEXT_KEY: &str =
     "HasPendingNonTransferControlCLIAgentAction";
-const BLOCKED_ACTION_MESSAGE_FOR_TRANSFER_CONTROL: &str = "Agent is asking you to take control.";
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::{macros::*, FixedBinding};
@@ -537,7 +534,7 @@ impl CLISubagentView {
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let allow_button = CompactibleSplitActionButton::new(
-            "Allow".to_string(),
+            crate::t!("ai-block-allow"),
             Some(KeystrokeSource::Fixed(ACCEPT_KEYSTROKE.clone())),
             ButtonSize::Small,
             CLISubagentAction::ExecuteBlockedAction,
@@ -549,7 +546,7 @@ impl CLISubagentView {
         );
 
         let reject_button = CompactibleActionButton::new(
-            "Refine".to_string(),
+            crate::t!("ai-block-refine"),
             Some(KeystrokeSource::Fixed(REJECT_KEYSTROKE.clone())),
             ButtonSize::Small,
             CLISubagentAction::RejectBlockedAction {
@@ -561,7 +558,7 @@ impl CLISubagentView {
         );
 
         let take_over_button = CompactibleActionButton::new(
-            "Take over".to_string(),
+            crate::t!("ai-block-take-over"),
             Some(KeystrokeSource::Binding(
                 SET_INPUT_MODE_TERMINAL_ACTION_NAME,
             )),
@@ -574,7 +571,7 @@ impl CLISubagentView {
             ctx,
         );
         let transfer_control_button = CompactibleActionButton::new(
-            "Take control".to_string(),
+            crate::t!("ai-block-take-control"),
             Some(KeystrokeSource::Binding(
                 SET_INPUT_MODE_TERMINAL_ACTION_NAME,
             )),
@@ -1736,15 +1733,14 @@ impl View for CLISubagentView {
 
                 if is_latest_model && !model.is_restored() && !error.is_invalid_api_key() {
                     output_items.add_child(
-                    Container::new(render_informational_footer(
-                        app,
-                        "This response won't count towards your usage. \"Take over\" to continue."
-                            .to_string(),
-                    ))
-                    .with_margin_top(8.)
-                    .with_margin_left(icon_size(app) + AVATAR_RIGHT_MARGIN)
-                    .finish(),
-                );
+                        Container::new(render_informational_footer(
+                            app,
+                            crate::t!("ai-block-response-no-usage-take-over"),
+                        ))
+                        .with_margin_top(8.)
+                        .with_margin_left(icon_size(app) + AVATAR_RIGHT_MARGIN)
+                        .finish(),
+                    );
 
                     output_items.add_child(
                         Container::new(render_debug_footer(
@@ -1839,9 +1835,7 @@ impl View for CLISubagentView {
                             input, mode, ..
                         } => Some(render_blocked_action(
                             BlockedActionProps {
-                                header:
-                                    BLOCKED_ACTION_MESSAGE_FOR_WRITE_TO_LONG_RUNNING_SHELL_COMMAND
-                                        .to_string(),
+                                header: crate::t!("ai-block-permission-write-to-running-command"),
                                 description: Some(render_write_to_pty_input(
                                     WriteToPtyInputProps {
                                         input: input.clone(),
@@ -1874,7 +1868,7 @@ impl View for CLISubagentView {
                         AIAgentActionType::TransferShellCommandControlToUser { ref reason } => {
                             Some(render_blocked_action(
                                 BlockedActionProps {
-                                    header: BLOCKED_ACTION_MESSAGE_FOR_TRANSFER_CONTROL.to_string(),
+                                    header: crate::t!("ai-block-permission-take-control"),
                                     description: Some(render_transfer_control_reason(reason, app)),
                                     is_allow_menu_open: false,
                                     allow_menu: None,
@@ -1891,8 +1885,7 @@ impl View for CLISubagentView {
                         | AIAgentActionType::Grep { .. }
                         | AIAgentActionType::FileGlobV2 { .. } => Some(render_blocked_action(
                             BlockedActionProps {
-                                header: get_blocked_action_header(action.action.clone())
-                                    .unwrap_or_default(),
+                                header: get_blocked_action_header(action.action.clone()),
                                 description: render_search_action_input(action.action.clone(), app),
                                 is_allow_menu_open: self.is_allow_menu_open,
                                 allow_menu: Some(&self.allow_menu),
@@ -2558,18 +2551,16 @@ fn render_transfer_control_reason(reason: &str, app: &AppContext) -> Box<dyn Ele
         .finish()
 }
 
-fn get_blocked_action_header(action: AIAgentActionType) -> Option<String> {
+fn get_blocked_action_header(action: AIAgentActionType) -> String {
     match action {
         AIAgentActionType::WriteToLongRunningShellCommand { .. } => {
-            Some(BLOCKED_ACTION_MESSAGE_FOR_WRITE_TO_LONG_RUNNING_SHELL_COMMAND.to_string())
+            crate::t!("ai-block-permission-write-to-running-command")
         }
-        AIAgentActionType::ReadFiles(..) => {
-            Some(BLOCKED_ACTION_MESSAGE_FOR_READING_FILES.to_string())
-        }
+        AIAgentActionType::ReadFiles(..) => crate::t!("ai-block-permission-read-files"),
         AIAgentActionType::Grep { .. } | AIAgentActionType::FileGlobV2 { .. } => {
-            Some(BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB.to_string())
+            crate::t!("ai-block-permission-search-directory")
         }
-        _ => None,
+        _ => String::new(),
     }
 }
 
@@ -2593,6 +2584,7 @@ fn render_write_to_pty_input(props: WriteToPtyInputProps, app: &AppContext) -> B
     } else {
         parse_control_codes_from_bytes(&decorated_bytes)
     };
+    let parsed = trim_trailing_display_newlines(parsed);
 
     let text = Text::new(
         parsed.display,
@@ -2616,6 +2608,23 @@ fn render_write_to_pty_input(props: WriteToPtyInputProps, app: &AppContext) -> B
         .with_horizontal_padding(CONTENT_PADDING)
         .with_vertical_padding(8.)
         .finish()
+}
+
+fn trim_trailing_display_newlines(mut parsed: ParsedControlCodeOutput) -> ParsedControlCodeOutput {
+    let trimmed_len = parsed.display.trim_end_matches(&['\r', '\n'][..]).len();
+    if trimmed_len == parsed.display.len() {
+        return parsed;
+    }
+
+    parsed.display.truncate(trimmed_len);
+    parsed.control_code_ranges.retain_mut(|range| {
+        if range.start >= trimmed_len {
+            return false;
+        }
+        range.end = range.end.min(trimmed_len);
+        true
+    });
+    parsed
 }
 
 fn render_search_action_input(
@@ -2762,7 +2771,7 @@ fn render_blocked_action(props: BlockedActionProps<'_>, app: &AppContext) -> Box
 
     if props.is_allow_menu_open {
         if let Some(allow_menu) = props.allow_menu {
-            stack.add_positioned_child(
+            stack.add_positioned_overlay_child(
                 ChildView::new(allow_menu).finish(),
                 OffsetPositioning::offset_from_save_position_element(
                     ALLOW_ACTION_POSITION_ID.to_string(),

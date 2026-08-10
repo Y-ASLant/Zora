@@ -1060,8 +1060,8 @@ impl View for BlocklistAIStatusBar {
                     non_shimmering_text: None,
                     non_shimmering_suffix: None,
                     buttons: Some(render_switch_control_to_user_button(
-                        "Exit",
-                        "Exit agent input",
+                        crate::t!("ai-block-exit"),
+                        crate::t!("ai-block-exit-agent-input-tooltip"),
                         ButtonProps {
                             button_handle: &self.state_handles.take_over_button,
                             keystroke: self.set_terminal_input_keystroke.as_ref(),

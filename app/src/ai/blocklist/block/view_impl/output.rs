@@ -11,10 +11,7 @@ use crate::ai::agent::{
 use crate::util::truncation::truncate_from_end;
 use ai::agent::file_locations::group_file_contexts_for_display;
 
-use crate::ai::blocklist::block::view_impl::common::{
-    MaybeShimmeringText, BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB,
-    BLOCKED_ACTION_MESSAGE_FOR_READING_FILES,
-};
+use crate::ai::blocklist::block::view_impl::common::MaybeShimmeringText;
 use crate::ai::blocklist::inline_action::aws_bedrock_credentials_error::AwsBedrockCredentialsErrorView;
 use crate::ai::blocklist::inline_action::create_or_edit_document::CreateOrEditDocumentAction;
 use crate::ai::blocklist::secret_redaction::SecretRedactionState;
@@ -1066,12 +1063,9 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                 && !error.is_invalid_api_key()
             {
                 output_items.add_child(
-                    render_informational_footer(
-                        app,
-                        "This response won't count towards your usage.".to_string(),
-                    )
-                    .with_agent_output_item_spacing(app)
-                    .finish(),
+                    render_informational_footer(app, crate::t!("ai-block-response-no-usage"))
+                        .with_agent_output_item_spacing(app)
+                        .finish(),
                 );
 
                 output_items.add_child(
@@ -1411,7 +1405,7 @@ fn render_read_files(
         renderable_action = renderable_action
             .with_header(blocked_action_header(
                 id.clone(),
-                BLOCKED_ACTION_MESSAGE_FOR_READING_FILES,
+                crate::t!("ai-block-permission-read-files"),
                 buttons.run_button.clone(),
                 buttons.cancel_button.clone(),
                 props.action_model,
@@ -2177,7 +2171,7 @@ fn render_file_retrieval_tool(
         config = config
             .with_header(blocked_action_header(
                 action_id.clone(),
-                BLOCKED_ACTION_MESSAGE_FOR_GREP_OR_FILE_GLOB,
+                crate::t!("ai-block-permission-search-directory"),
                 buttons.run_button.clone(),
                 buttons.cancel_button.clone(),
                 props.action_model,
@@ -2294,7 +2288,7 @@ fn render_read_mcp_resource(
         renderable_action = renderable_action
             .with_header(blocked_action_header(
                 action_id.clone(),
-                "OK if I read this MCP resource?",
+                crate::t!("ai-block-permission-read-mcp-resource"),
                 buttons.run_button.clone(),
                 buttons.cancel_button.clone(),
                 props.action_model,
@@ -2787,7 +2781,7 @@ pub fn action_icon<V: View>(
 
 pub(super) fn blocked_action_header<V: View>(
     action_id: AIAgentActionId,
-    text: &str,
+    text: String,
     accept_button: CompactibleActionButton,
     cancel_button: CompactibleActionButton,
     action_model: &ModelHandle<BlocklistAIActionModel>,
@@ -2798,7 +2792,7 @@ pub(super) fn blocked_action_header<V: View>(
         Rc::new(cancel_button.clone()),
         Rc::new(accept_button.clone()),
     ];
-    HeaderConfig::new(text.to_owned(), app)
+    HeaderConfig::new(text, app)
         .with_icon(action_icon(&action_id, action_model, block_model, app))
         .with_interaction_mode(InteractionMode::ActionButtons {
             action_buttons,
