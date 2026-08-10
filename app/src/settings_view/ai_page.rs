@@ -35,8 +35,9 @@ use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedE
 use crate::terminal::CLIAgent;
 use crate::view_components::{
     action_button::{ActionButton, ButtonSize, SecondaryTheme},
-    FilterableDropdown, SubmittableTextInput, SubmittableTextInputEvent,
+    DismissibleToast, FilterableDropdown, SubmittableTextInput, SubmittableTextInputEvent,
 };
+use crate::workspace::{ToastStack, WorkspaceAction};
 use crate::workspaces::user_workspaces::UserWorkspacesEvent;
 use ::ai::api_keys::ApiKeyManager;
 use enum_iterator::all;
@@ -2137,31 +2138,46 @@ impl AISettingsPageView {
         headers: &[(String, String)],
         models: &[(usize, String, String, u32, u32)],
         ctx: &mut ViewContext<Self>,
-    ) {
+    ) -> anyhow::Result<()> {
         AISettings::handle(ctx).update(ctx, |settings, ctx| {
             let mut providers = settings.agent_providers.value().clone();
-            if let Some(p) = providers.iter_mut().find(|p| p.id == provider_id) {
-                p.name = name.to_owned();
-                p.base_url = base_url.to_owned();
-                p.extra_headers = headers.to_vec();
-                // 按 model_index 更新，跳过越界索引（rebuild 中间表单与 settings 可能短暂不一致）。
-                for (idx, m_name, m_id, ctx_window, max_out) in models {
-                    if let Some(m) = p.models.get_mut(*idx) {
-                        m.name = m_name.clone();
-                        m.id = m_id.clone();
-                        m.context_window = *ctx_window;
-                        m.max_output_tokens = *max_out;
-                    }
+            let Some(p) = providers.iter_mut().find(|p| p.id == provider_id) else {
+                return Err(anyhow::anyhow!("provider not found: {provider_id}"));
+            };
+
+            p.name = name.to_owned();
+            p.base_url = base_url.to_owned();
+            p.extra_headers = headers.to_vec();
+            // 按 model_index 更新，跳过越界索引（rebuild 中间表单与 settings 可能短暂不一致）。
+            for (idx, m_name, m_id, ctx_window, max_out) in models {
+                if let Some(m) = p.models.get_mut(*idx) {
+                    m.name = m_name.clone();
+                    m.id = m_id.clone();
+                    m.context_window = *ctx_window;
+                    m.max_output_tokens = *max_out;
                 }
             }
-            let _ = settings.agent_providers.set_value(providers, ctx);
-        });
+            settings.agent_providers.set_value(providers, ctx)
+        })?;
+
         crate::ai::agent_providers::AgentProviderSecrets::handle(ctx).update(
             ctx,
             |secrets, ctx| {
                 secrets.set(provider_id, api_key.to_owned(), ctx);
             },
         );
+
+        Ok(())
+    }
+
+    fn show_agent_provider_toast(
+        toast: DismissibleToast<WorkspaceAction>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let window_id = ctx.window_id();
+        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+            toast_stack.add_ephemeral_toast(toast, window_id, ctx);
+        });
     }
 }
 
@@ -3162,7 +3178,7 @@ impl TypedActionView for AISettingsPageView {
                 headers,
                 models,
             } => {
-                Self::save_agent_provider_edits(
+                match Self::save_agent_provider_edits(
                     provider_id,
                     name,
                     base_url,
@@ -3170,7 +3186,27 @@ impl TypedActionView for AISettingsPageView {
                     headers,
                     models,
                     ctx,
-                );
+                ) {
+                    Ok(()) => {
+                        Self::show_agent_provider_toast(
+                            DismissibleToast::success(crate::t!(
+                                "settings-agent-providers-saved-toast"
+                            )),
+                            ctx,
+                        );
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to save agent provider edits: {e:#}");
+                        let error = e.to_string();
+                        Self::show_agent_provider_toast(
+                            DismissibleToast::error(crate::t!(
+                                "settings-agent-providers-save-failed-toast",
+                                error = error.as_str()
+                            )),
+                            ctx,
+                        );
+                    }
+                }
                 ctx.notify();
             }
             AISettingsPageAction::SaveAgentProviderEditsThen {
@@ -3182,7 +3218,7 @@ impl TypedActionView for AISettingsPageView {
                 models,
                 action,
             } => {
-                Self::save_agent_provider_edits(
+                if let Err(e) = Self::save_agent_provider_edits(
                     provider_id,
                     name,
                     base_url,
@@ -3190,7 +3226,19 @@ impl TypedActionView for AISettingsPageView {
                     headers,
                     models,
                     ctx,
-                );
+                ) {
+                    log::warn!("Failed to save agent provider edits before action: {e:#}");
+                    let error = e.to_string();
+                    Self::show_agent_provider_toast(
+                        DismissibleToast::error(crate::t!(
+                            "settings-agent-providers-save-failed-toast",
+                            error = error.as_str()
+                        )),
+                        ctx,
+                    );
+                    ctx.notify();
+                    return;
+                }
                 self.handle_action(action.as_ref(), ctx);
             }
             AISettingsPageAction::UpdateAgentProviderModels {

@@ -1943,7 +1943,7 @@ fn render_ftu_callout(
                     Expanded::new(
                         1.,
                         Text::new(
-                            "Now using Full Terminal Agent's default model.",
+                            crate::t!("ai-footer-using-full-terminal-agent-default-model"),
                             appearance.ui_font_family(),
                             appearance.monospace_font_size() - 2.,
                         )
