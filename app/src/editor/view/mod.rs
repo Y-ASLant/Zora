@@ -1456,6 +1456,22 @@ impl fmt::Debug for AttachedImage {
     }
 }
 
+#[derive(Clone, Copy)]
+pub enum EditorLineHeightSource {
+    /// 使用固定的 UI 默认行高。
+    DefaultUi,
+    /// 使用终端/代码文本行高设置。
+    Terminal,
+    /// 使用 UI 文本行高设置。
+    Ui,
+}
+
+impl Default for EditorLineHeightSource {
+    fn default() -> Self {
+        Self::DefaultUi
+    }
+}
+
 /// Interface for picking different options for the editor's behavior.
 pub struct EditorOptions {
     pub text: TextOptions,
@@ -1466,9 +1482,7 @@ pub struct EditorOptions {
     pub propagate_and_no_op_escape_key: PropagateAndNoOpEscapeKey,
     pub autogrow: bool,
     pub single_line: bool,
-    pub use_settings_line_height_ratio: bool,
-    /// 是否使用 UI 文本行高设置；优先于终端文本行高设置。
-    pub use_ui_line_height_ratio: bool,
+    pub line_height_source: EditorLineHeightSource,
     pub autocomplete_symbols: bool,
     pub soft_wrap: bool,
     pub placeholder_soft_wrap: bool,
@@ -1517,8 +1531,7 @@ impl Default for EditorOptions {
             propagate_and_no_op_escape_key: PropagateAndNoOpEscapeKey::HandleFirst,
             autogrow: false,
             single_line: false,
-            use_settings_line_height_ratio: false,
-            use_ui_line_height_ratio: false,
+            line_height_source: Default::default(),
             autocomplete_symbols: false,
             soft_wrap: false,
             placeholder_soft_wrap: false,
@@ -1553,8 +1566,7 @@ impl From<SingleLineEditorOptions> for EditorOptions {
             propagate_and_no_op_escape_key: options.propagate_and_no_op_escape_key,
             autogrow: false,
             single_line: true,
-            use_settings_line_height_ratio: options.use_settings_line_height_ratio,
-            use_ui_line_height_ratio: false,
+            line_height_source: options.line_height_source,
             autocomplete_symbols: options.autocomplete_symbols,
             soft_wrap: options.soft_wrap,
             placeholder_soft_wrap: options.placeholder_soft_wrap,
@@ -1589,7 +1601,7 @@ pub struct SingleLineEditorOptions {
     pub propagate_and_no_op_vertical_navigation_keys: PropagateAndNoOpNavigationKeys,
     pub propagate_horizontal_navigation_keys: PropagateHorizontalNavigationKeys,
     pub propagate_and_no_op_escape_key: PropagateAndNoOpEscapeKey,
-    pub use_settings_line_height_ratio: bool,
+    pub line_height_source: EditorLineHeightSource,
     pub autocomplete_symbols: bool,
     pub soft_wrap: bool,
     pub placeholder_soft_wrap: bool,
@@ -1615,7 +1627,7 @@ impl Default for SingleLineEditorOptions {
             propagate_and_no_op_vertical_navigation_keys: PropagateAndNoOpNavigationKeys::Never,
             propagate_horizontal_navigation_keys: PropagateHorizontalNavigationKeys::Never,
             propagate_and_no_op_escape_key: PropagateAndNoOpEscapeKey::HandleFirst,
-            use_settings_line_height_ratio: false,
+            line_height_source: Default::default(),
             autocomplete_symbols: false,
             soft_wrap: false,
             placeholder_soft_wrap: false,
@@ -1798,8 +1810,7 @@ pub struct EditorView {
     windowing_state_handle: ModelHandle<WindowManager>,
 
     text_options: TextOptions,
-    use_settings_line_height_ratio: bool,
-    use_ui_line_height_ratio: bool,
+    line_height_source: EditorLineHeightSource,
     focused: bool,
     get_cursor_colors_fn: CursorColorsFn,
     cursors_visible: bool,
@@ -3163,8 +3174,7 @@ impl EditorView {
             scroll_position: Arc::new(Mutex::new(Vector2F::zero())),
             autoscroll_requested: Arc::new(Mutex::new(false)),
             text_options: options.text,
-            use_settings_line_height_ratio: options.use_settings_line_height_ratio,
-            use_ui_line_height_ratio: options.use_ui_line_height_ratio,
+            line_height_source: options.line_height_source,
             windowing_state_handle,
             focused: false,
             cursors_visible: false,
@@ -7386,13 +7396,11 @@ impl EditorView {
     }
 
     pub fn line_height_ratio(&self, appearance: &Appearance) -> f32 {
-        if self.use_ui_line_height_ratio {
-            return appearance.ui_line_height_ratio();
+        match self.line_height_source {
+            EditorLineHeightSource::DefaultUi => DEFAULT_UI_LINE_HEIGHT_RATIO,
+            EditorLineHeightSource::Terminal => appearance.line_height_ratio(),
+            EditorLineHeightSource::Ui => appearance.ui_line_height_ratio(),
         }
-        if self.use_settings_line_height_ratio {
-            return appearance.line_height_ratio();
-        }
-        DEFAULT_UI_LINE_HEIGHT_RATIO
     }
 
     fn font_properties(&self, appearance: &Appearance) -> Properties {

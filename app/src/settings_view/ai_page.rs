@@ -131,7 +131,7 @@ use crate::view_components::dropdown::DropdownAction;
 use crate::{
     appearance::Appearance,
     editor::Event as EditorEvent,
-    editor::{EditorView, TextOptions},
+    editor::{EditorLineHeightSource, EditorView, TextOptions},
     settings::{AISettings, VoiceInputToggleKey},
     ui_components::blended_colors,
     util::bindings,
@@ -566,7 +566,7 @@ impl AISettingsPageView {
             let options = EditorOptions {
                 autogrow: true,
                 soft_wrap: true,
-                use_ui_line_height_ratio: true,
+                line_height_source: EditorLineHeightSource::Ui,
                 text: TextOptions {
                     font_size_override: Some(appearance.ui_font_size()),
                     font_family_override: Some(appearance.monospace_font_family()),

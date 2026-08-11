@@ -145,11 +145,11 @@ use crate::{
         position_id_for_first_cursor, AttachedImage as AttachedImageRawData,
         AutosuggestionLocation, AutosuggestionType, BaselinePositionComputationMethod,
         CommandXRayAnchor, CrdtOperation, CursorColors, DisplayPoint, EditOrigin, EditorAction,
-        EditorDecoratorElements, EditorOptions, EditorSnapshot, EditorView, Event as EditorEvent,
-        ImageContextOptions, InteractionState, PathTransformerFn, PlainTextEditorViewAction,
-        Point as BufferPoint, PropagateAndNoOpEscapeKey, PropagateAndNoOpNavigationKeys,
-        PropagateHorizontalNavigationKeys, ReplicaId, TextColors, TextRun,
-        MAX_IMAGES_PER_CONVERSATION,
+        EditorDecoratorElements, EditorLineHeightSource, EditorOptions, EditorSnapshot, EditorView,
+        Event as EditorEvent, ImageContextOptions, InteractionState, PathTransformerFn,
+        PlainTextEditorViewAction, Point as BufferPoint, PropagateAndNoOpEscapeKey,
+        PropagateAndNoOpNavigationKeys, PropagateHorizontalNavigationKeys, ReplicaId, TextColors,
+        TextRun, MAX_IMAGES_PER_CONVERSATION,
     },
     features::FeatureFlag,
     input_suggestions::{
@@ -2374,7 +2374,7 @@ impl Input {
                     propagate_and_no_op_escape_key: PropagateAndNoOpEscapeKey::PropagateFirst,
                     soft_wrap: true,
                     supports_vim_mode: true,
-                    use_settings_line_height_ratio: true,
+                    line_height_source: EditorLineHeightSource::Terminal,
                     render_decorator_elements: Some(Box::new(
                         move |app| -> EditorDecoratorElements {
                             let terminal_model = model_clone.lock();

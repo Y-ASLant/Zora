@@ -53,6 +53,46 @@ fn initialize_app(app: &mut App) {
 }
 
 #[test]
+fn test_line_height_source() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        app.update(|ctx| {
+            Appearance::handle(ctx).update(ctx, |appearance, ctx| {
+                appearance.set_line_height_ratio(1.5, ctx);
+                appearance.set_ui_line_height_ratio(1.3, ctx);
+            });
+        });
+
+        for (source, expected_line_height_ratio) in [
+            (
+                EditorLineHeightSource::DefaultUi,
+                DEFAULT_UI_LINE_HEIGHT_RATIO,
+            ),
+            (EditorLineHeightSource::Terminal, 1.5),
+            (EditorLineHeightSource::Ui, 1.3),
+        ] {
+            let (_, editor) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
+                EditorView::new_with_base_text(
+                    "line",
+                    EditorOptions {
+                        line_height_source: source,
+                        ..Default::default()
+                    },
+                    ctx,
+                )
+            });
+
+            editor.read(&app, |editor, ctx| {
+                assert_eq!(
+                    editor.line_height_ratio(Appearance::as_ref(ctx)),
+                    expected_line_height_ratio
+                );
+            });
+        }
+    });
+}
+
+#[test]
 fn test_selection_with_mouse() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
