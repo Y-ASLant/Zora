@@ -1649,7 +1649,10 @@ impl SettingsWidget for AgentProvidersWidget {
         .with_margin_bottom(12.)
         .finish();
 
-        let mut column = Flex::column().with_child(header).with_child(description);
+        let mut column = Flex::column()
+            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+            .with_child(header)
+            .with_child(description);
 
         // ---- 来自 models.dev 的快速添加 chip 行 ----
         column.add_child(self.render_models_dev_section(appearance, app));
