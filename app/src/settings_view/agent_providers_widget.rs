@@ -326,7 +326,7 @@ impl AgentProvidersWidget {
         }
     }
 
-    /// 构造单条模型行的 EditorView 与订阅。
+    /// 构造单条模型行的 EditorView。
     fn build_model_row(
         model: &AgentProviderModel,
         ctx: &mut ViewContext<AISettingsPageView>,
@@ -346,10 +346,6 @@ impl AgentProvidersWidget {
             }
             editor
         });
-        // 仅负责失焦时收拢选区；不再隐式保存，保存走底部“保存”按钮。
-        ctx.subscribe_to_view(&name_editor, move |_, editor, event, ctx| {
-            collapse_selection_if_blurred(&editor, event, ctx);
-        });
 
         // ---- id 编辑器 ----
         let initial_id = model.id.clone();
@@ -365,9 +361,6 @@ impl AgentProvidersWidget {
                 editor.set_buffer_text(&initial_id, ctx);
             }
             editor
-        });
-        ctx.subscribe_to_view(&id_editor, move |_, editor, event, ctx| {
-            collapse_selection_if_blurred(&editor, event, ctx);
         });
 
         // ---- context_window 编辑器(数字,空 = 0 = 未指定) ----
@@ -389,9 +382,6 @@ impl AgentProvidersWidget {
             }
             editor
         });
-        ctx.subscribe_to_view(&context_editor, move |_, editor, event, ctx| {
-            collapse_selection_if_blurred(&editor, event, ctx);
-        });
 
         // ---- max_output_tokens 编辑器 ----
         let initial_output = if model.max_output_tokens == 0 {
@@ -411,9 +401,6 @@ impl AgentProvidersWidget {
                 editor.set_buffer_text(&initial_output, ctx);
             }
             editor
-        });
-        ctx.subscribe_to_view(&output_editor, move |_, editor, event, ctx| {
-            collapse_selection_if_blurred(&editor, event, ctx);
         });
 
         ModelRow {
@@ -461,16 +448,6 @@ impl AgentProvidersWidget {
             editor
         });
 
-        // header 行的保存同样走底部"保存"按钮；这里仅负责失焦选区收拢。
-        // （header_index / provider_id / val_editor 仍会在 build_row 里作为 `HeaderRow` 现场读取。）
-        ctx.subscribe_to_view(&key_editor, move |_, editor, event, ctx| {
-            collapse_selection_if_blurred(&editor, event, ctx);
-        });
-
-        ctx.subscribe_to_view(&val_editor, move |_, editor, event, ctx| {
-            collapse_selection_if_blurred(&editor, event, ctx);
-        });
-
         HeaderRow {
             key_editor,
             val_editor,
@@ -498,10 +475,6 @@ impl AgentProvidersWidget {
             }
             editor
         });
-        // 仅负责失焦选区收拢；保存走底部“保存”按钮。
-        ctx.subscribe_to_view(&name_editor, move |_, editor, event, ctx| {
-            collapse_selection_if_blurred(&editor, event, ctx);
-        });
 
         // ---- Base URL 编辑器 ----
         let initial_base_url = provider.base_url.clone();
@@ -517,9 +490,6 @@ impl AgentProvidersWidget {
                 editor.set_buffer_text(&initial_base_url, ctx);
             }
             editor
-        });
-        ctx.subscribe_to_view(&base_url_editor, move |_, editor, event, ctx| {
-            collapse_selection_if_blurred(&editor, event, ctx);
         });
 
         // ---- API Key 编辑器(密码模式) ----
@@ -539,9 +509,6 @@ impl AgentProvidersWidget {
                 editor.set_buffer_text(&initial_api_key, ctx);
             }
             editor
-        });
-        ctx.subscribe_to_view(&api_key_editor, move |_, editor, event, ctx| {
-            collapse_selection_if_blurred(&editor, event, ctx);
         });
 
         // ---- 模型行 ----
@@ -574,7 +541,7 @@ impl AgentProvidersWidget {
         }
     }
 
-    /// 渲染 "API Type" 行:5 个 chip 横排,当前选中的高亮显示。
+    /// 渲染 "API Type" 行:协议 chip 会随可用宽度换行,当前选中的高亮显示。
     /// 点击 chip 即 dispatch `SetAgentProviderApiType`,后端会顺手填默认 endpoint。
     fn render_api_type_field(
         &self,
@@ -598,7 +565,10 @@ impl AgentProvidersWidget {
         .with_margin_bottom(FIELD_LABEL_MARGIN_BOTTOM)
         .finish();
 
-        let mut chip_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
+        let mut chip_wrap = Wrap::row()
+            .with_spacing(6.)
+            .with_run_spacing(4.)
+            .with_cross_axis_alignment(CrossAxisAlignment::Center);
         {
             let mut states = row.api_type_chip_states.borrow_mut();
             for variant in AgentProviderApiType::iter() {
@@ -619,7 +589,7 @@ impl AgentProvidersWidget {
                     },
                     appearance,
                 );
-                chip_row = chip_row.with_child(Container::new(chip).with_margin_right(6.).finish());
+                chip_wrap = chip_wrap.with_child(chip);
             }
         }
 
@@ -643,7 +613,7 @@ impl AgentProvidersWidget {
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_child(label_text)
-            .with_child(chip_row.finish())
+            .with_child(chip_wrap.finish())
             .with_child(hint_text)
             .finish()
     }
@@ -736,9 +706,9 @@ impl AgentProvidersWidget {
             .with_child(quick_remove_button)
             .finish();
 
-        let cell = |flex: f32, view: &ViewHandle<EditorView>| -> Box<dyn Element> {
+        let cell = |view: &ViewHandle<EditorView>| -> Box<dyn Element> {
             Expanded::new(
-                flex,
+                1.,
                 Container::new(Clipped::new(ChildView::new(view).finish()).finish())
                     .with_margin_right(MODEL_ROW_GAP)
                     .finish(),
@@ -746,13 +716,27 @@ impl AgentProvidersWidget {
             .finish()
         };
 
-        let header_row = Flex::row()
+        // 配置文件编辑器展开时主列会变窄；将标识和 token 限额拆成两行，避免任一
+        // 可编辑值被压缩到只能显示末尾。
+        let identity_row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(cell(2., &row.name_editor))
-            .with_child(cell(2., &row.id_editor))
-            .with_child(cell(1., &row.context_editor))
-            .with_child(cell(1., &row.output_editor))
+            .with_child(cell(&row.name_editor))
+            .with_child(cell(&row.id_editor))
             .with_child(row_controls)
+            .finish();
+        let token_limits_row = Flex::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_child(cell(&row.context_editor))
+            .with_child(cell(&row.output_editor))
+            .finish();
+        let header_row = Flex::column()
+            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+            .with_child(identity_row)
+            .with_child(
+                Container::new(token_limits_row)
+                    .with_margin_top(MODEL_ROW_GAP)
+                    .finish(),
+            )
             .finish();
 
         let mut col = Flex::column()
@@ -1128,11 +1112,12 @@ impl AgentProvidersWidget {
             .finish();
             models_column.add_child(empty_hint);
         } else {
-            // 表头: 显示名 | 模型 ID | 上下文 | 输出
+            // 配置文件编辑器展开时，模型字段按标识与 token 限额分两行，确保窄列
+            // 仍能完整显示和编辑每项值。
             let dim = appearance.theme().disabled_ui_text_color();
-            let header_cell = |flex: f32, label: &str| -> Box<dyn Element> {
+            let header_cell = |label: &str| -> Box<dyn Element> {
                 Expanded::new(
-                    flex,
+                    1.,
                     Container::new(
                         Clipped::new(
                             Text::new(
@@ -1151,44 +1136,20 @@ impl AgentProvidersWidget {
                 )
                 .finish()
             };
-            let header = Container::new(
-                Flex::row()
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_child(header_cell(
-                        2.,
-                        &crate::t!("settings-agent-providers-models-header-name"),
-                    ))
-                    .with_child(header_cell(
-                        2.,
-                        &crate::t!("settings-agent-providers-models-header-id"),
-                    ))
-                    .with_child(header_cell(
-                        1.,
-                        &crate::t!("settings-agent-providers-models-header-context"),
-                    ))
-                    .with_child(header_cell(
-                        1.,
-                        &crate::t!("settings-agent-providers-models-header-output"),
-                    ))
-                    // 占位,与下方展开/删除两个按钮对齐。
-                    .with_child(
-                        Flex::row()
-                            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                            .with_child(
-                                Container::new(
-                                    Text::new(
-                                        "  ".to_string(),
-                                        appearance.ui_font_family(),
-                                        appearance.ui_font_size(),
-                                    )
-                                    .with_line_height_ratio(appearance.ui_line_height_ratio())
-                                    .with_color(dim.into())
-                                    .finish(),
-                                )
-                                .with_margin_right(MODEL_ROW_GAP)
-                                .finish(),
-                            )
-                            .with_child(
+            let identity_header = Flex::row()
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_child(header_cell(&crate::t!(
+                    "settings-agent-providers-models-header-name"
+                )))
+                .with_child(header_cell(&crate::t!(
+                    "settings-agent-providers-models-header-id"
+                )))
+                // 占位,与下方展开/删除两个按钮对齐。
+                .with_child(
+                    Flex::row()
+                        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                        .with_child(
+                            Container::new(
                                 Text::new(
                                     "  ".to_string(),
                                     appearance.ui_font_family(),
@@ -1198,6 +1159,38 @@ impl AgentProvidersWidget {
                                 .with_color(dim.into())
                                 .finish(),
                             )
+                            .with_margin_right(MODEL_ROW_GAP)
+                            .finish(),
+                        )
+                        .with_child(
+                            Text::new(
+                                "  ".to_string(),
+                                appearance.ui_font_family(),
+                                appearance.ui_font_size(),
+                            )
+                            .with_line_height_ratio(appearance.ui_line_height_ratio())
+                            .with_color(dim.into())
+                            .finish(),
+                        )
+                        .finish(),
+                )
+                .finish();
+            let token_limits_header = Flex::row()
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_child(header_cell(&crate::t!(
+                    "settings-agent-providers-models-header-context"
+                )))
+                .with_child(header_cell(&crate::t!(
+                    "settings-agent-providers-models-header-output"
+                )))
+                .finish();
+            let header = Container::new(
+                Flex::column()
+                    .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+                    .with_child(identity_header)
+                    .with_child(
+                        Container::new(token_limits_header)
+                            .with_margin_top(2.)
                             .finish(),
                     )
                     .finish(),
@@ -1368,23 +1361,6 @@ fn parse_token_count(input: &str) -> u32 {
         .map(|n| (n * multiplier as f64).round() as u64)
         .and_then(|v| u32::try_from(v).ok())
         .unwrap_or(0)
-}
-
-/// 失焦时把编辑器选区折叠到末尾。
-///
-/// 每个输入框是一个独立的 `EditorView`,各自维护自己的 selection range。
-/// 选区高亮的绘制不受焦点状态影响(见 `app/src/editor/view/element.rs:1091`),
-/// 所以双击/三击/拖选后失焦,旧选区会一直留在 buffer 上,与其它编辑器的选区
-/// 同时显示,看起来像"多个 select 状态"。这里在 Blurred 时把 head/tail 都
-/// 收到末尾,视觉上释放选中。
-fn collapse_selection_if_blurred(
-    editor: &ViewHandle<EditorView>,
-    event: &EditorEvent,
-    ctx: &mut ViewContext<AISettingsPageView>,
-) {
-    if matches!(event, EditorEvent::Blurred) {
-        editor.update(ctx, |editor, ctx| editor.move_to_buffer_end(ctx));
-    }
 }
 
 fn single_line_editor_options(
