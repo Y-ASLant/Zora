@@ -168,6 +168,11 @@ impl Paragraph {
         self
     }
 
+    pub fn with_line_height_ratio(mut self, line_height_ratio: f32) -> Self {
+        self.text = self.text.with_line_height_ratio(line_height_ratio);
+        self
+    }
+
     // TODO(alokedesai): Make it clear throughout the text rendering code that highlights are
     // indexed by _character_, not byte.
     pub fn add_highlight(&mut self, highlight_indices: Vec<usize>, highlight: Highlight) {

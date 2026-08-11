@@ -134,6 +134,7 @@ impl DirectoryColorAddPicker {
                                             font_family,
                                             font_size,
                                         )
+                                        .with_line_height_ratio(appearance.ui_line_height_ratio())
                                         .with_color(text_color.into())
                                         .finish(),
                                     )

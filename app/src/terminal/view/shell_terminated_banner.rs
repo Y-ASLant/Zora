@@ -290,5 +290,6 @@ fn inverted_color_ui_builder(appearance: &Appearance) -> UiBuilder {
         appearance.ui_font_size(),
         14.,
         appearance.line_height_ratio(),
+        appearance.ui_line_height_ratio(),
     )
 }

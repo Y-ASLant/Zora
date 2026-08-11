@@ -7,7 +7,7 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use rust_embed::RustEmbed;
 use std::borrow::Cow;
-use warp_core::ui::appearance::Appearance;
+use warp_core::ui::appearance::{Appearance, DEFAULT_UI_TEXT_LINE_HEIGHT_RATIO};
 use warp_core::ui::theme::{AnsiColor, AnsiColors, Details, Fill, TerminalColors, WarpTheme};
 use warpui::fonts::{Cache, FamilyId, Weight};
 use warpui::platform;
@@ -249,6 +249,7 @@ fn build_appearance(theme: WarpTheme, ctx: &mut AppContext) -> Appearance {
         None,
         ui_font_family,
         12.0,
+        DEFAULT_UI_TEXT_LINE_HEIGHT_RATIO,
         Default::default(),
     )
 }

@@ -795,6 +795,7 @@ impl SettingsWidget for NetworkPageWidget {
             appearance.ui_font_family(),
             appearance.ui_font_size(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_color(appearance.theme().nonactive_ui_text_color().into())
         .with_style(Properties::default().weight(Weight::Normal))
         .finish();

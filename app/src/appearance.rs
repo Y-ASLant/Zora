@@ -180,6 +180,13 @@ impl AppearanceManager {
                         appearance.set_ui_font_size(clamped, ctx);
                     });
                 }
+                FontSettingsChangedEvent::UiLineHeightRatio { .. } => {
+                    let new_line_height_ratio =
+                        *FontSettings::as_ref(ctx).ui_line_height_ratio.value();
+                    Appearance::handle(ctx).update(ctx, |appearance, ctx| {
+                        appearance.set_ui_line_height_ratio(new_line_height_ratio, ctx);
+                    });
+                }
                 FontSettingsChangedEvent::MarkdownHeadingH1Scale { .. }
                 | FontSettingsChangedEvent::MarkdownHeadingH2Scale { .. }
                 | FontSettingsChangedEvent::MarkdownHeadingH3Scale { .. }
@@ -510,6 +517,7 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
 
     let ui_font_name = FontSettings::as_ref(ctx).ui_font_name.value().clone();
     let ui_font_size = *FontSettings::as_ref(ctx).ui_font_size.value();
+    let ui_line_height_ratio = *FontSettings::as_ref(ctx).ui_line_height_ratio.value();
     let warp_glyph_font_family =
         load_warp_glyph_font_family(ctx).expect("unable to load Zora glyph font family");
 
@@ -553,6 +561,7 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
         monospace_fallback_font_family_from_settings,
         password_font_family,
         ui_font_size.clamp(UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX),
+        ui_line_height_ratio,
         heading_multipliers,
     )
     .with_ui_background_opacity(background_opacity)

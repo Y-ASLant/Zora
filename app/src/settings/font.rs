@@ -1,8 +1,10 @@
 use warp_core::ui::builder::MIN_FONT_SIZE;
 
-// 重导出底层 warp_core 定义的 UI 字号常量,
-// 使 `crate::settings::DEFAULT_UI_FONT_SIZE` / `UI_FONT_SIZE_MIN` / `UI_FONT_SIZE_MAX` 仍可用。
-pub use warp_core::ui::appearance::{DEFAULT_UI_FONT_SIZE, UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN};
+// 重导出底层 warp_core 定义的 UI 字体常量,
+// 使 `crate::settings::*` 调用点可继续从 app crate 访问这些默认值与范围。
+pub use warp_core::ui::appearance::{
+    DEFAULT_UI_FONT_SIZE, DEFAULT_UI_TEXT_LINE_HEIGHT_RATIO, UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN,
+};
 use warpui::{fonts::Weight, rendering::ThinStrokes, AppContext, SingletonEntity};
 
 use settings::{
@@ -23,6 +25,9 @@ pub const DEFAULT_MONOSPACE_FONT_WEIGHT: Weight = Weight::Normal;
 
 pub const DEFAULT_UI_FONT_NAME: &str = "";
 pub const DEFAULT_UI_FONT_FAMILY_NAME: &str = "IBM Plex Sans";
+
+pub const MIN_UI_LINE_HEIGHT_RATIO: f32 = 0.5;
+pub const MAX_UI_LINE_HEIGHT_RATIO: f32 = 5.0;
 
 define_settings_group!(FontSettings,
     settings: [
@@ -150,6 +155,15 @@ define_settings_group!(FontSettings,
             storage_key: "UiFontSize",
             toml_path: "appearance.text.ui_font_size",
             description: "The base font size for UI elements.",
+        },
+        ui_line_height_ratio: UiLineHeightRatio {
+            type: f32,
+            default: DEFAULT_UI_TEXT_LINE_HEIGHT_RATIO,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            toml_path: "appearance.text.ui_line_height_ratio",
+            description: "The line height ratio for UI text.",
         },
         markdown_heading_h1_scale: MarkdownHeadingH1Scale {
             type: f32,

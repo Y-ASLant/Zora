@@ -3524,6 +3524,7 @@ impl FeaturesPageView {
                                     appearance.ui_font_family(),
                                     appearance.ui_font_size(),
                                 )
+                                .with_line_height_ratio(appearance.ui_line_height_ratio())
                                 .with_color(theme.active_ui_text_color().into())
                                 .finish(),
                             )
@@ -3562,6 +3563,7 @@ impl FeaturesPageView {
                                     appearance.ui_font_family(),
                                     appearance.ui_font_size(),
                                 )
+                                .with_line_height_ratio(appearance.ui_line_height_ratio())
                                 .with_color(theme.active_ui_text_color().into())
                                 .finish(),
                             )
@@ -3736,6 +3738,7 @@ impl FeaturesPageView {
                             appearance.ui_font_family(),
                             font_size,
                         )
+                        .with_line_height_ratio(appearance.ui_line_height_ratio())
                         .with_color(font_color.into())
                         .finish(),
                     )
@@ -3772,6 +3775,7 @@ impl FeaturesPageView {
                             appearance.ui_font_family(),
                             font_size,
                         )
+                        .with_line_height_ratio(appearance.ui_line_height_ratio())
                         .with_color(font_color.into())
                         .finish(),
                     )
@@ -3824,6 +3828,7 @@ impl FeaturesPageView {
                     Container::new(
                         Align::new(
                             Text::new_inline(text, appearance.ui_font_family(), font_size)
+                                .with_line_height_ratio(appearance.ui_line_height_ratio())
                                 .with_color(font_color.into())
                                 .finish(),
                         )
@@ -3855,6 +3860,7 @@ impl FeaturesPageView {
                                 appearance.ui_font_family(),
                                 13.,
                             )
+                            .with_line_height_ratio(appearance.ui_line_height_ratio())
                             .with_color(appearance.theme().active_ui_text_color().into())
                             .finish(),
                         )
@@ -3970,6 +3976,7 @@ impl FeaturesPageView {
                                         appearance.ui_font_family(),
                                         13.,
                                     )
+                                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                                     .with_color(appearance.theme().active_ui_text_color().into())
                                     .finish(),
                                 )
@@ -4022,6 +4029,7 @@ impl FeaturesPageView {
                         appearance.ui_font_family(),
                         12.,
                     )
+                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                     .with_color(button_color)
                     .finish(),
                 )
@@ -4338,6 +4346,7 @@ impl SettingsWidget for SessionRestorationWidget {
                 appearance.ui_font_family(),
                 appearance.ui_font_body(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(appearance.theme().disabled_ui_text_color().into())
             .finish();
 
@@ -5126,6 +5135,7 @@ impl SettingsWidget for DesktopNotificationsWidget {
                             appearance.ui_font_family(),
                             font_size,
                         )
+                        .with_line_height_ratio(appearance.ui_line_height_ratio())
                         .with_color(font_color.into())
                         .finish(),
                     )
@@ -5156,6 +5166,7 @@ impl SettingsWidget for DesktopNotificationsWidget {
                             appearance.ui_font_family(),
                             font_size,
                         )
+                        .with_line_height_ratio(appearance.ui_line_height_ratio())
                         .with_color(font_color.into())
                         .finish(),
                     )

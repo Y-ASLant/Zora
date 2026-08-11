@@ -959,6 +959,7 @@ fn render_button(
 ) -> Box<dyn Element> {
     Container::new(
         Text::new_inline(text, appearance.ui_font_family(), appearance.ui_font_size())
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(line_color.into())
             .finish(),
     )

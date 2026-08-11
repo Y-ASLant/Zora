@@ -141,6 +141,7 @@ impl UndoCloseView {
                         appearance.ui_font_family(),
                         appearance.ui_font_size(),
                     )
+                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                     .with_color(theme.active_ui_text_color().into())
                     .finish(),
                 )

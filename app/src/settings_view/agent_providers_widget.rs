@@ -590,6 +590,7 @@ impl AgentProvidersWidget {
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(label_color.into())
             .finish(),
         )
@@ -631,6 +632,7 @@ impl AgentProvidersWidget {
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(appearance.theme().disabled_ui_text_color().into())
             .soft_wrap(true)
             .finish(),
@@ -795,6 +797,7 @@ impl AgentProvidersWidget {
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(label_color.into())
             .finish(),
         )
@@ -859,6 +862,7 @@ impl AgentProvidersWidget {
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(label_color.into())
             .finish(),
         )
@@ -978,6 +982,7 @@ impl AgentProvidersWidget {
                         appearance.ui_font_family(),
                         appearance.ui_font_size(),
                     )
+                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                     .with_color(detail_color.into())
                     .finish(),
                 )
@@ -1019,6 +1024,7 @@ impl AgentProvidersWidget {
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(label_color.into())
             .finish(),
         )
@@ -1094,6 +1100,7 @@ impl AgentProvidersWidget {
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(label_color.into())
             .finish(),
         )
@@ -1112,6 +1119,7 @@ impl AgentProvidersWidget {
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_color(appearance.theme().disabled_ui_text_color().into())
                 .soft_wrap(true)
                 .finish(),
@@ -1132,6 +1140,7 @@ impl AgentProvidersWidget {
                                 appearance.ui_font_family(),
                                 appearance.ui_font_size(),
                             )
+                            .with_line_height_ratio(appearance.ui_line_height_ratio())
                             .with_color(dim.into())
                             .finish(),
                         )
@@ -1172,6 +1181,7 @@ impl AgentProvidersWidget {
                                         appearance.ui_font_family(),
                                         appearance.ui_font_size(),
                                     )
+                                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                                     .with_color(dim.into())
                                     .finish(),
                                 )
@@ -1184,6 +1194,7 @@ impl AgentProvidersWidget {
                                     appearance.ui_font_family(),
                                     appearance.ui_font_size(),
                                 )
+                                .with_line_height_ratio(appearance.ui_line_height_ratio())
                                 .with_color(dim.into())
                                 .finish(),
                             )
@@ -1409,6 +1420,7 @@ fn field_block(
             appearance.ui_font_family(),
             appearance.ui_font_size(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_color(label_color.into())
         .finish(),
     )
@@ -1476,6 +1488,7 @@ impl AgentProvidersWidget {
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
+                        .with_line_height_ratio(appearance.ui_line_height_ratio())
                         .with_color(dim_color.into())
                         .finish(),
                     )
@@ -1491,6 +1504,7 @@ impl AgentProvidersWidget {
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
+                        .with_line_height_ratio(appearance.ui_line_height_ratio())
                         .with_color(dim_color.into())
                         .finish(),
                     )
@@ -1550,6 +1564,7 @@ impl AgentProvidersWidget {
                                 appearance.ui_font_family(),
                                 appearance.ui_font_size(),
                             )
+                            .with_line_height_ratio(appearance.ui_line_height_ratio())
                             .with_color(dim_color.into())
                             .finish(),
                         )
@@ -1646,6 +1661,7 @@ impl SettingsWidget for AgentProvidersWidget {
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(if is_any_ai_enabled {
                 appearance.theme().foreground().into()
             } else {
@@ -1669,6 +1685,7 @@ impl SettingsWidget for AgentProvidersWidget {
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_color(appearance.theme().disabled_ui_text_color().into())
                 .finish(),
             )

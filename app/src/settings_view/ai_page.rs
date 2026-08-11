@@ -566,6 +566,7 @@ impl AISettingsPageView {
             let options = EditorOptions {
                 autogrow: true,
                 soft_wrap: true,
+                use_ui_line_height_ratio: true,
                 text: TextOptions {
                     font_size_override: Some(appearance.ui_font_size()),
                     font_family_override: Some(appearance.monospace_font_family()),
@@ -3917,6 +3918,7 @@ impl SettingsWidget for WarpAgentHeaderWidget {
                     appearance.ui_font_family(),
                     appearance.ui_font_display(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_style(Properties::default().weight(Weight::Bold))
                 .with_color(appearance.theme().active_ui_text_color().into())
                 .finish(),
@@ -4022,6 +4024,7 @@ impl UsageWidget {
             appearance.ui_font_family(),
             appearance.ui_font_size(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_color(blended_colors::text_sub(
             appearance.theme(),
             appearance.theme().surface_1(),
@@ -4896,6 +4899,7 @@ impl AgentsWidget {
             appearance.ui_font_family(),
             appearance.ui_font_size(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_color(description_color.into())
         .finish();
         let description = Flex::row()
@@ -5140,6 +5144,7 @@ impl AgentsWidget {
                     styles::description_font_color(ai_settings.is_any_ai_enabled(app), app).into(),
                     HighlightedHyperlink::default(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_heading_to_font_size_multipliers(
                     appearance.heading_font_size_multipliers().clone(),
                 )
@@ -5473,6 +5478,7 @@ impl AIInputWidget {
                         styles::description_font_color(is_toggleable, app).into(),
                         incorrect_autodetection_highlight_index,
                     )
+                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                     .with_heading_to_font_size_multipliers(
                         appearance.heading_font_size_multipliers().clone(),
                     )
@@ -5523,6 +5529,7 @@ impl AIInputWidget {
                         styles::description_font_color(is_toggleable, app).into(),
                         incorrect_autodetection_highlight_index,
                     )
+                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                     .with_heading_to_font_size_multipliers(
                         appearance.heading_font_size_multipliers().clone(),
                     )
@@ -5622,6 +5629,7 @@ impl SettingsWidget for MCPServersWidget {
                 styles::description_font_color(is_any_ai_enabled, app).into(),
                 self.mcp_docs_link_index.clone(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_heading_to_font_size_multipliers(
                 appearance.heading_font_size_multipliers().clone(),
             )
@@ -5663,16 +5671,14 @@ impl SettingsWidget for MCPServersWidget {
                             ]
                         });
                         Container::new(
-                            FormattedTextElement::new(
-                                FormattedText::new([FormattedTextLine::Line(
-                                    (*FILE_BASED_MCP_DESCRIPTION_FRAGMENTS).clone(),
-                                )]),
-                                appearance.ui_font_body(),
-                                appearance.ui_font_family(),
-                                appearance.ui_font_family(),
-                                styles::description_font_color(is_any_ai_enabled, app).into(),
-                                self.file_based_mcp_docs_link_index.clone(),
-                            )
+                            FormattedTextElement::new(FormattedText::new([FormattedTextLine::Line(
+                                (*FILE_BASED_MCP_DESCRIPTION_FRAGMENTS).clone(),
+                            )]),
+                            appearance.ui_font_body(),
+                            appearance.ui_font_family(),
+                            appearance.ui_font_family(),
+                            styles::description_font_color(is_any_ai_enabled, app).into(),
+                            self.file_based_mcp_docs_link_index.clone(),).with_line_height_ratio(appearance.ui_line_height_ratio())
                             .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
                             .with_hyperlink_font_color(appearance.theme().accent().into_solid())
                             .register_default_click_handlers(|url, ctx, _| {
@@ -5753,6 +5759,7 @@ impl AIFactWidget {
                 styles::description_font_color(ai_settings.is_any_ai_enabled(app), app).into(),
                 self.rules_link_index.clone(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_heading_to_font_size_multipliers(
                 appearance.heading_font_size_multipliers().clone(),
             )
@@ -5899,6 +5906,7 @@ impl VoiceWidget {
             styles::description_font_color(is_toggleable, app).into(),
             self.wispr_highlight_index.clone(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .with_hyperlink_font_color(appearance.theme().accent().into_solid())
         .register_default_click_handlers(|url, ctx, _| {
@@ -6196,6 +6204,7 @@ impl SettingsWidget for CLIAgentWidget {
             styles::description_font_color(true, app).into(),
             HighlightedHyperlink::default(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone());
 
         let is_footer_enabled = *ai_settings.should_render_cli_agent_footer;
@@ -6632,7 +6641,7 @@ impl CLIAgentWidget {
                     .with_color(text_color)
                     .with_weight(Weight::Normal)
                     .with_alignment(TextAlignment::Center)
-                    .with_line_height_ratio(1.0)
+                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                     .finish(),
             );
 
@@ -6928,6 +6937,7 @@ impl AwsBedrockWidget {
                 appearance.ui_font_family(),
                 appearance.ui_font_body(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(styles::header_font_color(is_enabled, app).into())
             .finish();
 
@@ -6977,6 +6987,7 @@ impl AwsBedrockWidget {
                         appearance.ui_font_family(),
                         appearance.ui_font_body(),
                     )
+                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                     .with_style(Properties::default().weight(Weight::Semibold))
                     .with_color(title_color.into())
                     .finish(),
@@ -6987,6 +6998,7 @@ impl AwsBedrockWidget {
                         appearance.ui_font_family(),
                         appearance.ui_font_body(),
                     )
+                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                     .with_color(detail_color.into())
                     .soft_wrap(true)
                     .finish(),

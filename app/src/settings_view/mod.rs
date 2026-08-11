@@ -2059,6 +2059,7 @@ impl SettingsView {
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
+                        .with_line_height_ratio(appearance.ui_line_height_ratio())
                         .with_style(Properties::default().weight(Weight::Medium))
                         .with_color(theme.sub_text_color(theme.background()).into_solid())
                         .finish(),
@@ -2067,6 +2068,7 @@ impl SettingsView {
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
+                        .with_line_height_ratio(appearance.ui_line_height_ratio())
                         .with_color(theme.disabled_ui_text_color().into_solid())
                         .finish(),
                     ])

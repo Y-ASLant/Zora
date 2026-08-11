@@ -117,6 +117,7 @@ pub fn render_open_settings_file_button(
             ui_font_family,
             appearance.ui_font_body(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_color(text_color)
         .with_style(Properties {
             weight: Weight::Semibold,
@@ -169,6 +170,7 @@ pub fn render_settings_error_alert(
     let bg_color = theme.ansi_fg_yellow();
     let text_color = theme.main_text_color(Fill::Solid(bg_color)).into_solid();
     let ui_font_family = appearance.ui_font_family();
+    let ui_line_height_ratio = appearance.ui_line_height_ratio();
 
     // ── Heading + description ────────────────────────────────────────────
     // Copy is shared with `Workspace::render_settings_error_banner` via
@@ -179,8 +181,9 @@ pub fn render_settings_error_alert(
     let combined_text = format!("{heading} {description}");
     // Soft-wrap (the `Text::new` default) is appropriate here since the
     // alert's vertical space grows to fit the text.
-    let mut text_widget =
-        Text::new(combined_text, ui_font_family, appearance.ui_font_body()).with_color(text_color);
+    let mut text_widget = Text::new(combined_text, ui_font_family, appearance.ui_font_body())
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
+        .with_color(text_color);
     if heading_char_count > 0 {
         text_widget = text_widget.with_single_highlight(
             Highlight::new().with_properties(Properties::default().weight(Weight::Semibold)),
@@ -229,6 +232,7 @@ pub fn render_settings_error_alert(
     // ── Action buttons ───────────────────────────────────────────────────
     let open_file_button = render_alert_action_button(
         ui_font_family,
+        ui_line_height_ratio,
         text_color,
         mouse_states.alert_open_file_button.clone(),
         crate::t!("settings-footer-alert-open-file"),
@@ -251,6 +255,7 @@ pub fn render_settings_error_alert(
         let error_description = error.to_string();
         let fix_with_oz_button = render_alert_action_button(
             ui_font_family,
+            ui_line_height_ratio,
             text_color,
             mouse_states.alert_fix_with_oz_button.clone(),
             crate::t!("settings-footer-alert-fix-with-oz"),
@@ -321,6 +326,7 @@ pub fn render_footer(
 /// with the workspace-level banner.
 fn render_alert_action_button(
     ui_font_family: FamilyId,
+    ui_line_height_ratio: f32,
     text_color: ColorU,
     mouse_state: MouseStateHandle,
     text: String,
@@ -347,6 +353,7 @@ fn render_alert_action_button(
         }
         row.add_child(
             Text::new_inline(text.clone(), ui_font_family, FOOTER_FONT_SIZE)
+                .with_line_height_ratio(ui_line_height_ratio)
                 .with_color(text_color)
                 .with_style(Properties {
                     weight: Weight::Semibold,

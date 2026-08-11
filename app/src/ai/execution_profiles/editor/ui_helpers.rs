@@ -26,6 +26,11 @@ use super::ExecutionProfileEditorViewAction;
 
 use crate::settings_view::{render_input_list, render_separator, InputListItem};
 
+const FIELD_LABEL_DESC_GAP: f32 = 3.;
+const FIELD_CONTROL_GAP: f32 = 8.;
+const FIELD_ROW_GAP: f32 = 18.;
+const PERMISSION_ROW_GAP: f32 = 20.;
+
 pub fn workspace_override_tooltip_message() -> String {
     crate::t!("settings-exec-profile-editor-workspace-override-tooltip")
 }
@@ -109,6 +114,8 @@ fn render_filterable_dropdown_row<T: Clone + 'static + std::fmt::Debug + Send + 
         .with_color(appearance.theme().active_ui_text_color().into())
         .finish();
     let desc_elem = Text::new(desc.to_string(), appearance.ui_font_family(), 11.)
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
+        .soft_wrap(true)
         .with_color(
             appearance
                 .theme()
@@ -118,21 +125,19 @@ fn render_filterable_dropdown_row<T: Clone + 'static + std::fmt::Debug + Send + 
         .finish();
 
     let label_desc_column = Flex::column()
+        .with_spacing(FIELD_LABEL_DESC_GAP)
         .with_child(label_elem)
         .with_child(desc_elem)
         .finish();
 
     Container::new(
         Flex::column()
-            .with_child(
-                Container::new(label_desc_column)
-                    .with_margin_bottom(4.)
-                    .finish(),
-            )
+            .with_spacing(FIELD_CONTROL_GAP)
+            .with_child(label_desc_column)
             .with_child(Container::new(ChildView::new(dropdown).finish()).finish())
             .finish(),
     )
-    .with_margin_bottom(12.)
+    .with_margin_bottom(FIELD_ROW_GAP)
     .finish()
 }
 
@@ -163,12 +168,16 @@ fn render_info_section(
         appearance.ui_font_family(),
         appearance.ui_font_size(),
     )
+    .with_line_height_ratio(appearance.ui_line_height_ratio())
+    .soft_wrap(true)
     .with_color(description_color.into())
     .finish();
     let description = Flex::row()
+        .with_cross_axis_alignment(CrossAxisAlignment::Start)
+        .with_spacing(6.)
         .with_children([alert_icon, Shrinkable::new(1.0, text).finish()])
         .finish();
-    Container::new(description).with_margin_bottom(12.).finish()
+    Container::new(description).finish()
 }
 
 fn render_permission_row<T: Clone + 'static + std::fmt::Debug + Send + Sync>(
@@ -208,14 +217,16 @@ fn render_permission_row<T: Clone + 'static + std::fmt::Debug + Send + Sync>(
     } else {
         dropdown_element
     };
-    let info_section = Container::new(render_info_section(info_text, None, appearance))
-        .with_margin_bottom(12.)
-        .finish();
-    Flex::column()
-        .with_child(icon_label_row)
-        .with_child(dropdown_row)
-        .with_child(info_section)
-        .finish()
+    Container::new(
+        Flex::column()
+            .with_spacing(FIELD_CONTROL_GAP)
+            .with_child(icon_label_row)
+            .with_child(dropdown_row)
+            .with_child(render_info_section(info_text, None, appearance))
+            .finish(),
+    )
+    .with_margin_bottom(PERMISSION_ROW_GAP)
+    .finish()
 }
 
 pub fn render_models_section(
@@ -472,6 +483,8 @@ fn create_section_header(
         .finish();
 
     let desc_elem = Text::new(description.to_string(), appearance.ui_font_family(), 11.)
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
+        .soft_wrap(true)
         .with_color(
             appearance
                 .theme()
@@ -482,11 +495,11 @@ fn create_section_header(
 
     Container::new(
         Flex::column()
+            .with_spacing(FIELD_LABEL_DESC_GAP)
             .with_child(label_elem)
             .with_child(desc_elem)
             .finish(),
     )
-    .with_margin_bottom(4.)
     .finish()
 }
 
@@ -528,8 +541,9 @@ where
         list
     };
 
-    let mut column =
-        Flex::column().with_child(create_section_header(label, description, appearance));
+    let mut column = Flex::column()
+        .with_spacing(FIELD_CONTROL_GAP)
+        .with_child(create_section_header(label, description, appearance));
 
     // Add dropdown if provided (for MCP lists)
     if let Some(dropdown) = dropdown {
@@ -540,7 +554,7 @@ where
     column = column.with_child(list_element);
 
     Container::new(column.finish())
-        .with_margin_bottom(16.)
+        .with_margin_bottom(FIELD_ROW_GAP)
         .finish()
 }
 
@@ -721,6 +735,8 @@ pub fn render_web_search_toggle(
         appearance.ui_font_family(),
         11.,
     )
+    .with_line_height_ratio(appearance.ui_line_height_ratio())
+    .soft_wrap(true)
     .with_color(
         appearance
             .theme()
@@ -743,6 +759,7 @@ pub fn render_web_search_toggle(
         .finish();
 
     let left_content = Flex::column()
+        .with_spacing(FIELD_LABEL_DESC_GAP)
         .with_child(
             Flex::row()
                 .with_child(icon_elem)

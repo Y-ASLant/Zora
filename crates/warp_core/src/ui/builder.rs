@@ -64,6 +64,7 @@ pub struct UiBuilder {
     ui_font_size: f32,
     command_palette_font_size: f32,
     line_height_ratio: f32,
+    ui_line_height_ratio: f32,
 }
 
 impl UiBuilder {
@@ -73,6 +74,7 @@ impl UiBuilder {
         ui_font_size: f32,
         command_palette_font_size: f32,
         line_height_ratio: f32,
+        ui_line_height_ratio: f32,
     ) -> Self {
         UiBuilder {
             warp_theme,
@@ -80,6 +82,7 @@ impl UiBuilder {
             ui_font_size,
             command_palette_font_size,
             line_height_ratio,
+            ui_line_height_ratio,
         }
     }
 
@@ -798,6 +801,7 @@ impl UiBuilder {
                 self.warp_theme.main_text_color(self.warp_theme.surface_2()),
             ),
         )
+        .with_line_height_ratio(self.ui_line_height_ratio)
     }
 
     pub fn list(&self, list_style: ListStyle, items: Vec<String>) -> List {
@@ -821,6 +825,7 @@ impl UiBuilder {
                 self.warp_theme.main_text_color(self.warp_theme.surface_2()),
             ),
         )
+        .with_line_height_ratio(self.ui_line_height_ratio)
     }
 
     pub fn wrappable_text(
@@ -837,6 +842,7 @@ impl UiBuilder {
                 self.warp_theme.main_text_color(self.warp_theme.surface_2()),
             ),
         )
+        .with_line_height_ratio(self.ui_line_height_ratio)
     }
 
     pub fn label(&self, text: impl Into<Cow<'static, str>>) -> Span {
@@ -1202,6 +1208,10 @@ impl UiBuilder {
 
     pub fn line_height_ratio(&self) -> f32 {
         self.line_height_ratio
+    }
+
+    pub fn ui_line_height_ratio(&self) -> f32 {
+        self.ui_line_height_ratio
     }
 }
 

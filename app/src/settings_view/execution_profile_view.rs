@@ -182,6 +182,7 @@ impl View for ExecutionProfileView {
                                 appearance.ui_font_family(),
                                 appearance.ui_font_subheading(),
                             )
+                            .with_line_height_ratio(appearance.ui_line_height_ratio())
                             .with_style(Properties::default().weight(Weight::Medium))
                             .with_color(if is_any_ai_enabled {
                                 appearance.theme().active_ui_text_color().into()
@@ -202,6 +203,7 @@ impl View for ExecutionProfileView {
                                 appearance.ui_font_family(),
                                 appearance.ui_font_overline(),
                             )
+                            .with_line_height_ratio(appearance.ui_line_height_ratio())
                             .with_color(appearance.theme().disabled_ui_text_color().into())
                             .finish(),
                         )
@@ -279,6 +281,7 @@ impl View for ExecutionProfileView {
                                         appearance.ui_font_family(),
                                         appearance.ui_font_overline(),
                                     )
+                                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                                     .with_color(appearance.theme().disabled_ui_text_color().into())
                                     .finish(),
                                 )
@@ -490,6 +493,7 @@ where
                 appearance.ui_font_family(),
                 appearance.ui_font_body(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(appearance.theme().disabled_ui_text_color().into())
             .finish(),
         )
@@ -508,6 +512,7 @@ where
                                 appearance.ui_font_family(),
                                 appearance.ui_font_footnote(),
                             )
+                            .with_line_height_ratio(appearance.ui_line_height_ratio())
                             .with_color(if is_ai_enabled {
                                 appearance.theme().active_ui_text_color().into()
                             } else {
@@ -571,6 +576,7 @@ fn render_allowlist_denylist_row(
                         appearance.ui_font_family(),
                         appearance.ui_font_body(),
                     )
+                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                     .with_color(if is_ai_enabled {
                         appearance
                             .theme()
@@ -678,6 +684,7 @@ fn render_model_line_with_icon(
                         appearance.ui_font_family(),
                         appearance.ui_font_body(),
                     )
+                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                     .with_color(if is_ai_enabled {
                         appearance
                             .theme()
@@ -697,6 +704,7 @@ fn render_model_line_with_icon(
                     appearance.ui_font_family(),
                     appearance.ui_font_body(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_color(if is_ai_enabled {
                     appearance.theme().active_ui_text_color().into()
                 } else {
@@ -747,6 +755,7 @@ fn render_permission_line_with_icon(
                     appearance.ui_font_family(),
                     appearance.ui_font_body(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_color(if is_ai_enabled {
                     appearance
                         .theme()
@@ -766,6 +775,7 @@ fn render_permission_line_with_icon(
                 appearance.ui_font_family(),
                 appearance.ui_font_body(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(if is_ai_enabled {
                 appearance.theme().active_ui_text_color().into()
             } else {

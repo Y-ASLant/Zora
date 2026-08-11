@@ -1467,6 +1467,8 @@ pub struct EditorOptions {
     pub autogrow: bool,
     pub single_line: bool,
     pub use_settings_line_height_ratio: bool,
+    /// 是否使用 UI 文本行高设置；优先于终端文本行高设置。
+    pub use_ui_line_height_ratio: bool,
     pub autocomplete_symbols: bool,
     pub soft_wrap: bool,
     pub placeholder_soft_wrap: bool,
@@ -1516,6 +1518,7 @@ impl Default for EditorOptions {
             autogrow: false,
             single_line: false,
             use_settings_line_height_ratio: false,
+            use_ui_line_height_ratio: false,
             autocomplete_symbols: false,
             soft_wrap: false,
             placeholder_soft_wrap: false,
@@ -1551,6 +1554,7 @@ impl From<SingleLineEditorOptions> for EditorOptions {
             autogrow: false,
             single_line: true,
             use_settings_line_height_ratio: options.use_settings_line_height_ratio,
+            use_ui_line_height_ratio: false,
             autocomplete_symbols: options.autocomplete_symbols,
             soft_wrap: options.soft_wrap,
             placeholder_soft_wrap: options.placeholder_soft_wrap,
@@ -1795,6 +1799,7 @@ pub struct EditorView {
 
     text_options: TextOptions,
     use_settings_line_height_ratio: bool,
+    use_ui_line_height_ratio: bool,
     focused: bool,
     get_cursor_colors_fn: CursorColorsFn,
     cursors_visible: bool,
@@ -3159,6 +3164,7 @@ impl EditorView {
             autoscroll_requested: Arc::new(Mutex::new(false)),
             text_options: options.text,
             use_settings_line_height_ratio: options.use_settings_line_height_ratio,
+            use_ui_line_height_ratio: options.use_ui_line_height_ratio,
             windowing_state_handle,
             focused: false,
             cursors_visible: false,
@@ -7380,6 +7386,9 @@ impl EditorView {
     }
 
     pub fn line_height_ratio(&self, appearance: &Appearance) -> f32 {
+        if self.use_ui_line_height_ratio {
+            return appearance.ui_line_height_ratio();
+        }
         if self.use_settings_line_height_ratio {
             return appearance.line_height_ratio();
         }

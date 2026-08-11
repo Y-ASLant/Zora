@@ -60,7 +60,6 @@ const ALTERNATING_LIST_ITEM_PADDING: f32 = 8.0;
 const GREY_TEXT_OPACITY: u8 = 60;
 const MIN_PAGE_WIDTH: f32 = 520.;
 const PAGE_WIDTH_PERCENTAGE: f32 = 0.9;
-const SETTINGS_DESCRIPTION_LINE_HEIGHT_RATIO: f32 = 1.2;
 
 /// Left margin for top-level sidebar nav items (pages and umbrella labels).
 pub(super) const NAV_ITEM_LEFT_MARGIN: f32 = 12.;
@@ -208,6 +207,7 @@ pub enum PaneEventWrapper {
 pub fn render_customer_type_badge(appearance: &Appearance, text: String) -> Box<dyn Element> {
     Container::new(
         Text::new_inline(text, appearance.ui_font_family(), appearance.ui_font_size())
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(
                 appearance
                     .theme()
@@ -284,6 +284,7 @@ pub fn build_sub_header(
                 appearance.ui_font_family(),
                 appearance.ui_font_heading_3(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_style(Properties::default().weight(Weight::Bold))
             .with_color(color.into())
             .finish(),
@@ -309,6 +310,7 @@ pub fn render_sub_header_with_description(
                         appearance.ui_font_family(),
                         appearance.ui_font_body(),
                     )
+                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                     .with_color(appearance.theme().nonactive_ui_text_color().into())
                     .finish(),
                 )
@@ -335,6 +337,7 @@ pub fn render_sub_sub_header(
                     appearance.ui_font_family(),
                     appearance.ui_font_body(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_style(Properties::default().weight(Weight::Semibold))
                 .with_color(appearance.theme().active_ui_text_color().into())
                 .finish(),
@@ -370,6 +373,7 @@ pub fn render_custom_size_header(
             Container::new(
                 Align::new(
                     Text::new_inline(text_name, appearance.ui_font_family(), font_size)
+                        .with_line_height_ratio(appearance.ui_line_height_ratio())
                         .with_style(Properties::default().weight(Weight::Bold))
                         .with_color(
                             color_override
@@ -652,6 +656,7 @@ pub fn render_body_item_label_internal<T: Clone + Action>(
         appearance.ui_font_family(),
         appearance.ui_font_body(),
     )
+    .with_line_height_ratio(appearance.ui_line_height_ratio())
     .with_color(label_color.into());
     if let Some(icon) = label_icon {
         label.add_child(
@@ -740,6 +745,7 @@ pub fn render_page_title(text: &str, appearance: &Appearance) -> Box<dyn Element
     Container::new(
         Align::new(
             Text::new_inline(text.to_string(), appearance.ui_font_family(), size)
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_style(Properties::default().weight(Weight::Bold))
                 .with_color(appearance.theme().active_ui_text_color().into())
                 .finish(),
@@ -809,7 +815,7 @@ pub fn build_toggle_element(
         let description = appearance
             .ui_builder()
             .wrappable_text(description_text, true)
-            .with_line_height_ratio(SETTINGS_DESCRIPTION_LINE_HEIGHT_RATIO)
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_style(UiComponentStyles {
                 font_color: Some(blended_colors::text_sub(
                     appearance.theme(),
@@ -848,6 +854,7 @@ pub fn render_dropdown_item_label(
         appearance.ui_font_family(),
         appearance.ui_font_body(),
     )
+    .with_line_height_ratio(appearance.ui_line_height_ratio())
     .with_color(
         color_override
             .unwrap_or(appearance.theme().active_ui_text_color())
@@ -980,6 +987,7 @@ pub(crate) fn render_settings_info_banner(
                         appearance.ui_font_family(),
                         appearance.ui_font_footnote(),
                     )
+                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                     .with_color(
                         appearance
                             .theme()

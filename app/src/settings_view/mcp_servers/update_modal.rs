@@ -119,6 +119,7 @@ impl UpdateModalBody {
             appearance.ui_font_family(),
             appearance.header_font_size(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_color(theme.active_ui_text_color().into())
         .with_style(Properties::default().weight(Weight::Bold))
         .finish();
@@ -161,6 +162,7 @@ impl UpdateModalBody {
                 appearance.ui_font_family(),
                 appearance.ui_font_overline(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(theme.active_ui_text_color().into())
             .finish(),
         )
@@ -192,6 +194,7 @@ impl UpdateModalBody {
             appearance.ui_font_family(),
             appearance.ui_font_size(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_color(appearance.theme().active_ui_text_color().into())
         .finish()
     }
@@ -260,6 +263,7 @@ impl UpdateModalBody {
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_color(theme.active_ui_text_color().into())
                 .with_style(Properties::default().weight(Weight::Bold))
                 .finish(),
@@ -270,6 +274,7 @@ impl UpdateModalBody {
                     appearance.ui_font_family(),
                     appearance.ui_font_overline(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_color(blended_colors::text_sub(theme, theme.surface_2()))
                 .finish(),
             )
@@ -356,6 +361,7 @@ impl UpdateModalBody {
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_color(appearance.theme().active_ui_text_color().into())
                 .with_style(Properties::default().weight(Weight::Bold))
                 .finish(),
@@ -445,6 +451,7 @@ impl View for UpdateModalBody {
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .finish();
             content_column.add_child(no_updates_text);
         } else {

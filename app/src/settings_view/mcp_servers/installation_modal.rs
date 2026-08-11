@@ -256,6 +256,7 @@ impl InstallationModalBody {
             appearance.ui_font_family(),
             appearance.header_font_size(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_color(theme.active_ui_text_color().into())
         .with_style(Properties::default().weight(Weight::Bold))
         .finish();
@@ -300,6 +301,7 @@ impl InstallationModalBody {
                 appearance.ui_font_family(),
                 appearance.ui_font_overline(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(theme.active_ui_text_color().into())
             .finish(),
         )
@@ -336,6 +338,7 @@ impl InstallationModalBody {
                     theme.active_ui_text_color().into(),
                     HighlightedHyperlink::default(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_heading_to_font_size_multipliers(
                     appearance.heading_font_size_multipliers().clone(),
                 )
@@ -367,6 +370,7 @@ impl InstallationModalBody {
                         appearance.ui_font_family(),
                         appearance.ui_font_size(),
                     )
+                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                     .with_color(theme.active_ui_text_color().into())
                     .finish(),
                 )
@@ -429,6 +433,7 @@ impl InstallationModalBody {
             appearance.ui_font_family(),
             appearance.ui_font_size(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_color(appearance.theme().disabled_ui_text_color().into())
         .finish();
 
@@ -485,6 +490,7 @@ impl InstallationModalBody {
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_color(appearance.theme().active_ui_text_color().into())
                 .with_style(Properties::default().weight(Weight::Bold))
                 .finish(),
@@ -616,6 +622,7 @@ impl View for InstallationModalBody {
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .finish()
         }
     }

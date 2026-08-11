@@ -29,6 +29,7 @@ fn mock_appearance() -> Appearance {
         None,
         FamilyId(0),
         DEFAULT_UI_FONT_SIZE,
+        DEFAULT_UI_TEXT_LINE_HEIGHT_RATIO,
         Default::default(),
     )
 }

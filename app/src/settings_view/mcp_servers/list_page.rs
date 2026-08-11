@@ -1067,6 +1067,7 @@ impl MCPServersListPageView {
             blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
             HighlightedHyperlink::default(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .with_hyperlink_font_color(appearance.theme().accent().into_solid())
         .register_default_click_handlers(|url, _, ctx| {
@@ -1103,6 +1104,7 @@ impl MCPServersListPageView {
             blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
             HighlightedHyperlink::default(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .with_hyperlink_font_color(appearance.theme().accent().into_solid())
         .register_default_click_handlers(|url, _, ctx| {
@@ -1362,6 +1364,7 @@ impl MCPServersListPageView {
             appearance.overline_font_family(),
             appearance.overline_font_size(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_color(blended_colors::text_sub(
             appearance.theme(),
             appearance.theme().surface_2(),

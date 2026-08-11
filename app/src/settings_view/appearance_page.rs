@@ -35,7 +35,7 @@ use crate::settings::{
     MonospaceFallbackFontName, MonospaceFontName, PaneSettings, ShouldDimInactivePanes,
     ThemeSettings, UiFontName, UseSystemTheme, DEFAULT_MONOSPACE_FONT_NAME,
     DEFAULT_UI_FONT_FAMILY_NAME, MARKDOWN_HEADING_SCALE_MAX, MARKDOWN_HEADING_SCALE_MIN,
-    UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN,
+    MAX_UI_LINE_HEIGHT_RATIO, MIN_UI_LINE_HEIGHT_RATIO, UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN,
 };
 use crate::settings::{CursorDisplayType, GPUSettings, InputSettings, InputSettingsChangedEvent};
 use crate::terminal::block_list_viewport::InputMode;
@@ -461,6 +461,7 @@ pub enum AppearancePageAction {
     SetAIFontFamily(String),
     SetUIFontFamily(String),
     SetUIFontSize,
+    SetUiLineHeight,
     SetThinStrokes(ThinStrokes),
     SetInputMode {
         new_mode: InputMode,
@@ -526,6 +527,7 @@ pub struct AppearanceSettingsPageView {
     ai_font_family_dropdown: ViewHandle<FilterableDropdown<AppearancePageAction>>,
     ui_font_family_dropdown: ViewHandle<FilterableDropdown<AppearancePageAction>>,
     ui_font_size_editor: ViewHandle<EditorView>,
+    ui_line_height_editor: ViewHandle<EditorView>,
     new_window_columns_editor: ViewHandle<EditorView>,
     valid_new_window_columns: bool,
     new_window_rows_editor: ViewHandle<EditorView>,
@@ -608,6 +610,7 @@ impl TypedActionView for AppearanceSettingsPageView {
                 self.set_ui_font_family_setting(name, ctx);
             }
             SetUIFontSize => self.set_ui_font_size_setting(ctx),
+            SetUiLineHeight => self.set_ui_line_height_ratio_setting(ctx),
             SetThinStrokes(value) => self.set_thin_strokes(value, ctx),
             SetEnforceMinimumContrast(value) => {
                 FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
@@ -786,6 +789,7 @@ impl AppearanceSettingsPageView {
             notebook_font_size,
             match_notebook_to_monospace_font_size,
             ui_font_size_setting,
+            ui_line_height_ratio_setting,
             markdown_heading_h1_scale,
             markdown_heading_h2_scale,
             markdown_heading_h3_scale,
@@ -803,6 +807,7 @@ impl AppearanceSettingsPageView {
                 *font_settings.notebook_font_size,
                 *font_settings.match_notebook_to_monospace_font_size,
                 *font_settings.ui_font_size,
+                *font_settings.ui_line_height_ratio,
                 *font_settings.markdown_heading_h1_scale,
                 *font_settings.markdown_heading_h2_scale,
                 *font_settings.markdown_heading_h3_scale,
@@ -822,6 +827,13 @@ impl AppearanceSettingsPageView {
         let ui_font_size_editor = Self::editor(
             |me, event, ctx| me.handle_ui_font_size_editor_event(event, ctx),
             &format!("{ui_font_size_setting}"),
+            ui_font_size,
+            ctx,
+        );
+
+        let ui_line_height_editor = Self::editor(
+            |me, event, ctx| me.handle_ui_line_height_editor_event(event, ctx),
+            &format!("{ui_line_height_ratio_setting}"),
             ui_font_size,
             ctx,
         );
@@ -1385,6 +1397,7 @@ impl AppearanceSettingsPageView {
             ai_font_family_dropdown,
             ui_font_family_dropdown,
             ui_font_size_editor,
+            ui_line_height_editor,
             notebook_font_size_editor,
             markdown_heading_h1_scale_editor,
             markdown_heading_h2_scale_editor,
@@ -1671,6 +1684,16 @@ impl AppearanceSettingsPageView {
                     editor.set_buffer_text(&format!("{line_height_ratio}"), ctx);
                 });
             }
+            AppearanceEvent::UiLineHeightRatioChanged { .. } => {
+                let ui_line_height_ratio = *FontSettings::as_ref(ctx).ui_line_height_ratio;
+                let target = format!("{ui_line_height_ratio}");
+                let current = self.ui_line_height_editor.as_ref(ctx).buffer_text(ctx);
+                if current != target {
+                    self.ui_line_height_editor.update(ctx, move |editor, ctx| {
+                        editor.set_buffer_text(&target, ctx);
+                    });
+                }
+            }
             AppearanceEvent::UiFontSizeChanged { .. } => {
                 let ui_font_size = *FontSettings::as_ref(ctx).ui_font_size;
                 let target = format!("{ui_font_size}");
@@ -1950,6 +1973,18 @@ impl AppearanceSettingsPageView {
     ) {
         match event {
             EditorEvent::Blurred | EditorEvent::Enter => self.set_ui_font_size_setting(ctx),
+            EditorEvent::Escape => ctx.emit(SettingsPageEvent::FocusModal),
+            _ => {}
+        }
+    }
+
+    pub fn handle_ui_line_height_editor_event(
+        &mut self,
+        event: &EditorEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            EditorEvent::Blurred | EditorEvent::Enter => self.set_ui_line_height_ratio_setting(ctx),
             EditorEvent::Escape => ctx.emit(SettingsPageEvent::FocusModal),
             _ => {}
         }
@@ -2636,6 +2671,16 @@ impl AppearanceSettingsPageView {
             let clamped = num.clamp(UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX);
             FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
                 report_if_error!(font_settings.ui_font_size.set_value(clamped, ctx));
+            });
+        }
+    }
+
+    fn set_ui_line_height_ratio_setting(&mut self, ctx: &mut ViewContext<Self>) {
+        let user_input = self.ui_line_height_editor.as_ref(ctx).buffer_text(ctx);
+        if let Ok(num) = user_input.parse::<f32>() {
+            let clamped = num.clamp(MIN_UI_LINE_HEIGHT_RATIO, MAX_UI_LINE_HEIGHT_RATIO);
+            FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+                report_if_error!(font_settings.ui_line_height_ratio.set_value(clamped, ctx));
             });
         }
     }
@@ -3705,6 +3750,7 @@ impl SettingsWidget for WindowOpacityWidget {
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
+                        .with_line_height_ratio(appearance.ui_line_height_ratio())
                         .with_color(appearance.theme().disabled_ui_text_color().into_solid())
                         .finish(),
                     )
@@ -3780,6 +3826,7 @@ impl SettingsWidget for WindowOpacityWidget {
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
+                        .with_line_height_ratio(appearance.ui_line_height_ratio())
                         .with_color(appearance.theme().disabled_ui_text_color().into_solid())
                         .finish(),
                     )
@@ -3912,6 +3959,7 @@ impl SettingsWidget for WindowBlurTextureWidget {
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
+                        .with_line_height_ratio(appearance.ui_line_height_ratio())
                         .with_color(appearance.theme().disabled_ui_text_color().into_solid())
                         .finish(),
                     )
@@ -4459,7 +4507,7 @@ impl SettingsWidget for UIFontWidget {
     type View = AppearanceSettingsPageView;
 
     fn search_terms(&self) -> &str {
-        "text ui font family font size interface"
+        "text ui font family font size line height interface"
     }
 
     fn render(
@@ -4542,6 +4590,58 @@ impl SettingsWidget for UIFontWidget {
                 .with_margin_left(12.)
                 .finish(),
         );
+
+        // UI Line Height Input
+        let mut line_height = Flex::column();
+        line_height.add_child(
+            appearance
+                .ui_builder()
+                .label(crate::t!("settings-appearance-font-line-height-label"))
+                .with_style(UiComponentStyles {
+                    margin: Some(Coords {
+                        left: 12.,
+                        ..Default::default()
+                    }),
+                    font_size: Some(appearance.ui_font_body()),
+                    ..Default::default()
+                })
+                .build()
+                .finish(),
+        );
+        line_height.add_child(
+            Container::new(
+                Dismiss::new(
+                    appearance
+                        .ui_builder()
+                        .text_input(view.ui_line_height_editor.clone())
+                        .with_style(UiComponentStyles {
+                            width: Some(LINE_HEIGHT_INPUT_BOX_WIDTH),
+                            padding: Some(Coords {
+                                top: appearance.ui_font_size() * 7. / 12.,
+                                bottom: appearance.ui_font_size() * 7. / 12.,
+                                left: appearance.ui_font_size(),
+                                right: appearance.ui_font_size(),
+                            }),
+                            margin: Some(Coords {
+                                top: 2.,
+                                left: 12.,
+                                ..Default::default()
+                            }),
+                            background: Some(appearance.theme().surface_2().into()),
+                            ..Default::default()
+                        })
+                        .build()
+                        .finish(),
+                )
+                .on_dismiss(|ctx, _app| {
+                    ctx.dispatch_typed_action(AppearancePageAction::SetUiLineHeight)
+                })
+                .finish(),
+            )
+            .with_padding_top(4.)
+            .finish(),
+        );
+        ui_font_row.add_child(line_height.finish());
 
         ui_font_row.finish()
     }
@@ -5878,6 +5978,7 @@ impl SettingsWidget for DirectoryTabColorsWidget {
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_color(theme.active_ui_text_color().into())
                 .soft_wrap(false)
                 .finish(),
@@ -5888,6 +5989,7 @@ impl SettingsWidget for DirectoryTabColorsWidget {
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_color(theme.nonactive_ui_text_color().into())
                 .finish(),
             )
@@ -5918,6 +6020,7 @@ impl SettingsWidget for DirectoryTabColorsWidget {
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_color(theme.nonactive_ui_text_color().into())
                 .soft_wrap(false)
                 .finish(),
@@ -6122,6 +6225,7 @@ impl SettingsWidget for AltScreenPaddingWidget {
                                 appearance.ui_font_family(),
                                 appearance.ui_font_size(),
                             )
+                            .with_line_height_ratio(appearance.ui_line_height_ratio())
                             .with_color(theme.active_ui_text_color().into())
                             .finish(),
                         )

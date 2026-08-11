@@ -548,6 +548,7 @@ impl TitleWidget {
             blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
             self.learn_more_highlight_index.clone(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .with_hyperlink_font_color(appearance.theme().accent().into_solid())
         .register_default_click_handlers(|url, _, ctx| {

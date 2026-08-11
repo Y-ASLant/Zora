@@ -23,7 +23,8 @@ pub const DEFAULT_UI_FONT_SIZE: f32 = 13.0;
 pub const UI_FONT_SIZE_MIN: f32 = 8.0;
 /// UI 字号合法上界。
 pub const UI_FONT_SIZE_MAX: f32 = 20.0;
-
+/// 多行 UI 文本的默认行高倍率。用于设置页说明文案等可换行的界面文本。
+pub const DEFAULT_UI_TEXT_LINE_HEIGHT_RATIO: f32 = 1.2;
 pub const DEFAULT_COMMAND_PALETTE_FONT_SIZE: f32 = 14.0;
 
 /// Holds visual settings that are so widely used that it's best
@@ -47,6 +48,7 @@ pub struct Appearance {
     /// A font that is used for password fields.
     password_font_family: FamilyId,
     ui_font_size: f32,
+    ui_line_height_ratio: f32,
     heading_font_size_multipliers: HeadingFontSizeMultipliers,
 
     /// Per-window theme overrides. When a window has an entry here, its rendering
@@ -102,6 +104,10 @@ pub enum AppearanceEvent {
         previous_font_size: f32,
         current_font_size: f32,
     },
+    UiLineHeightRatioChanged {
+        previous_line_height_ratio: f32,
+        current_line_height_ratio: f32,
+    },
     HeadingFontSizeMultipliersChanged,
 }
 
@@ -119,6 +125,7 @@ impl Appearance {
         terminal_fallback_font_family: Option<FamilyId>,
         password_font_family: FamilyId,
         ui_font_size: f32,
+        ui_line_height_ratio: f32,
         heading_font_size_multipliers: HeadingFontSizeMultipliers,
     ) -> Self {
         Self {
@@ -135,11 +142,13 @@ impl Appearance {
                 ui_font_size,
                 DEFAULT_COMMAND_PALETTE_FONT_SIZE,
                 line_height_ratio,
+                ui_line_height_ratio,
             ),
             ai_font_family,
             terminal_fallback_font_family,
             password_font_family,
             ui_font_size,
+            ui_line_height_ratio,
             heading_font_size_multipliers,
             theme_overrides: HashMap::new(),
             ui_builder_overrides: HashMap::new(),
@@ -155,6 +164,7 @@ impl Appearance {
             self.ui_font_size,
             DEFAULT_COMMAND_PALETTE_FONT_SIZE,
             self.line_height_ratio,
+            self.ui_line_height_ratio,
         );
         self
     }
@@ -177,6 +187,7 @@ impl Appearance {
             None,
         );
         let line_height_ratio = 1.4;
+        let ui_line_height_ratio = DEFAULT_UI_TEXT_LINE_HEIGHT_RATIO;
         let ui_font_family = FamilyId(1);
         let warp_glyph_font_family = ui_font_family;
 
@@ -192,6 +203,7 @@ impl Appearance {
                 DEFAULT_UI_FONT_SIZE,
                 DEFAULT_COMMAND_PALETTE_FONT_SIZE,
                 line_height_ratio,
+                ui_line_height_ratio,
             ),
             ui_font_family,
             warp_glyph_font_family,
@@ -199,6 +211,7 @@ impl Appearance {
             terminal_fallback_font_family: None,
             password_font_family: FamilyId(0),
             ui_font_size: DEFAULT_UI_FONT_SIZE,
+            ui_line_height_ratio,
             heading_font_size_multipliers: HeadingFontSizeMultipliers::default(),
             theme_overrides: HashMap::new(),
             ui_builder_overrides: HashMap::new(),
@@ -216,6 +229,7 @@ impl Appearance {
             self.ui_font_size(),
             DEFAULT_COMMAND_PALETTE_FONT_SIZE,
             self.line_height_ratio,
+            self.ui_line_height_ratio,
         );
 
         // Request a redraw of all windows.
@@ -246,11 +260,13 @@ impl Appearance {
             self.ui_font_size(),
             DEFAULT_COMMAND_PALETTE_FONT_SIZE,
             self.line_height_ratio,
+            self.ui_line_height_ratio,
         );
 
         let ui_font_family = self.ui_font_family;
         let ui_font_size = self.ui_font_size();
         let line_height_ratio = self.line_height_ratio;
+        let ui_line_height_ratio = self.ui_line_height_ratio;
         for (window_id, theme) in &mut self.theme_overrides {
             theme.set_ui_background_opacity(opacity);
             if let Some(ui_builder) = self.ui_builder_overrides.get_mut(window_id) {
@@ -260,10 +276,10 @@ impl Appearance {
                     ui_font_size,
                     DEFAULT_COMMAND_PALETTE_FONT_SIZE,
                     line_height_ratio,
+                    ui_line_height_ratio,
                 );
             }
         }
-
         ctx.invalidate_all_views();
         ctx.emit(AppearanceEvent::ThemeChanged);
         ctx.notify();
@@ -296,6 +312,7 @@ impl Appearance {
             self.ui_font_size(),
             DEFAULT_COMMAND_PALETTE_FONT_SIZE,
             self.line_height_ratio,
+            self.ui_line_height_ratio,
         );
 
         // Request a redraw of all windows.
@@ -377,6 +394,7 @@ impl Appearance {
             self.ui_font_size,
             DEFAULT_COMMAND_PALETTE_FONT_SIZE,
             self.line_height_ratio,
+            self.ui_line_height_ratio,
         );
 
         ctx.invalidate_all_views();
@@ -401,7 +419,31 @@ impl Appearance {
             self.ui_font_size,
             DEFAULT_COMMAND_PALETTE_FONT_SIZE,
             self.line_height_ratio,
+            self.ui_line_height_ratio,
         );
+    }
+    pub fn set_ui_line_height_ratio(
+        &mut self,
+        new_line_height_ratio: f32,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let previous_line_height_ratio = self.ui_line_height_ratio;
+        self.ui_line_height_ratio = new_line_height_ratio;
+        self.ui_builder = UiBuilder::new(
+            self.theme.clone(),
+            self.ui_font_family,
+            self.ui_font_size,
+            DEFAULT_COMMAND_PALETTE_FONT_SIZE,
+            self.line_height_ratio,
+            self.ui_line_height_ratio,
+        );
+
+        ctx.invalidate_all_views();
+
+        ctx.emit(AppearanceEvent::UiLineHeightRatioChanged {
+            current_line_height_ratio: self.ui_line_height_ratio,
+            previous_line_height_ratio,
+        });
     }
 
     #[cfg(test)]
@@ -422,6 +464,7 @@ impl Appearance {
             self.ui_font_size,
             DEFAULT_COMMAND_PALETTE_FONT_SIZE,
             self.line_height_ratio,
+            self.ui_line_height_ratio,
         );
 
         // Request a redraw of all windows.
@@ -506,6 +549,7 @@ impl Appearance {
             self.ui_font_size(),
             DEFAULT_COMMAND_PALETTE_FONT_SIZE,
             self.line_height_ratio,
+            self.ui_line_height_ratio,
         );
         self.theme_overrides.insert(window_id, theme);
         self.ui_builder_overrides.insert(window_id, ui_builder);
@@ -580,6 +624,10 @@ impl Appearance {
 
     pub fn ui_font_size(&self) -> f32 {
         self.ui_font_size
+    }
+
+    pub fn ui_line_height_ratio(&self) -> f32 {
+        self.ui_line_height_ratio
     }
 
     pub fn header_font_family(&self) -> FamilyId {

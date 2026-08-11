@@ -502,6 +502,7 @@ impl ServerCardView {
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
+            .with_line_height_ratio(appearance.ui_line_height_ratio())
             .with_color(text_color)
             .with_selectable(false)
             .finish();
@@ -524,6 +525,7 @@ impl ServerCardView {
                         appearance.ui_font_family(),
                         appearance.ui_font_size(),
                     )
+                    .with_line_height_ratio(appearance.ui_line_height_ratio())
                     .with_color(text_color)
                     .with_selectable(false)
                     .finish(),
@@ -561,6 +563,7 @@ impl ServerCardView {
             appearance.ui_font_family(),
             chip_font_size,
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_color(chip_color)
         .finish();
 
@@ -598,6 +601,7 @@ impl ServerCardView {
             appearance.ui_font_family(),
             appearance.ui_builder().ui_font_size(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_color(blended_colors::text_main(
             appearance.theme(),
             appearance.theme().surface_1(),
@@ -676,6 +680,7 @@ impl ServerCardView {
             blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
             HighlightedHyperlink::default(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .finish()
     }
@@ -701,6 +706,7 @@ impl ServerCardView {
                     ),
                     HighlightedHyperlink::default(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_heading_to_font_size_multipliers(
                     appearance.heading_font_size_multipliers().clone(),
                 )
@@ -720,6 +726,7 @@ impl ServerCardView {
                     blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
                     HighlightedHyperlink::default(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_heading_to_font_size_multipliers(
                     appearance.heading_font_size_multipliers().clone(),
                 )
@@ -739,6 +746,7 @@ impl ServerCardView {
                     appearance.theme().ui_error_color(),
                     HighlightedHyperlink::default(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_heading_to_font_size_multipliers(
                     appearance.heading_font_size_multipliers().clone(),
                 )

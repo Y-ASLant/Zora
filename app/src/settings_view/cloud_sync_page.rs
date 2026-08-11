@@ -1160,6 +1160,7 @@ impl SettingsWidget for CloudSyncPageWidget {
                     appearance.ui_font_family(),
                     appearance.ui_font_body(),
                 )
+                .with_line_height_ratio(appearance.ui_line_height_ratio())
                 .with_color(theme.nonactive_ui_text_color().into())
                 .finish(),
             )
@@ -1348,6 +1349,7 @@ impl SettingsWidget for CloudSyncPageWidget {
             appearance.ui_font_family(),
             appearance.ui_font_body(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_color(info_color.into())
         .finish();
         content.add_child(render_body_item::<CloudSyncPageAction>(
@@ -1365,6 +1367,7 @@ impl SettingsWidget for CloudSyncPageWidget {
             appearance.ui_font_family(),
             appearance.ui_font_body(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_color(info_color.into())
         .finish();
         content.add_child(render_body_item::<CloudSyncPageAction>(
@@ -1382,6 +1385,7 @@ impl SettingsWidget for CloudSyncPageWidget {
             appearance.ui_font_family(),
             appearance.ui_font_body(),
         )
+        .with_line_height_ratio(appearance.ui_line_height_ratio())
         .with_color(info_color.into())
         .finish();
         content.add_child(render_body_item::<CloudSyncPageAction>(
@@ -1478,6 +1482,7 @@ impl SettingsWidget for CloudSyncPageWidget {
             content.add_child(
                 Container::new(
                     Text::new(text, appearance.ui_font_family(), appearance.ui_font_body())
+                        .with_line_height_ratio(appearance.ui_line_height_ratio())
                         .with_color(color)
                         .finish(),
                 )
