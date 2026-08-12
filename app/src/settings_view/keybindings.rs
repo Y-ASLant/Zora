@@ -167,6 +167,7 @@ pub struct KeybindingsView {
     clipped_scroll_state: ClippedScrollStateHandle,
     bindings: Option<Vec<CommandBinding>>,
     modifying_row: Option<KeyBindingModifyingState>,
+    is_recording_search_keystroke: bool,
     pub rows: Option<Vec<KeybindingRow>>,
     // Map between the keystroke and the number of conflicting bindings associated with the keystroke.
     // The bindings could be unsaved.
@@ -177,6 +178,9 @@ pub struct KeybindingsView {
 pub enum KeybindingsViewAction {
     KeybindingRowClicked(usize),
     KeystrokeDefined(usize, Keystroke),
+    StartSearchKeystrokeRecording,
+    CancelSearchKeystrokeRecording,
+    SearchByKeystroke(Keystroke),
     ResetToDefaultKeyStroke(usize),
     CancelKeyStrokeEditing(usize),
     ConfirmKeyStroke(usize),
@@ -576,6 +580,7 @@ impl KeybindingsView {
             bindings: None,
             rows: Default::default(),
             modifying_row: None,
+            is_recording_search_keystroke: false,
             search_bar,
             search_editor,
             conflict_map: Default::default(),
@@ -589,6 +594,31 @@ impl KeybindingsView {
             editor.set_buffer_text(query, ctx);
         });
         self.filter_bindings(query, ctx);
+    }
+
+    fn search_by_keystroke(&mut self, keystroke: &Keystroke, ctx: &mut ViewContext<Self>) {
+        let query = keystroke.normalized();
+        self.search_editor.update(ctx, |editor, ctx| {
+            editor.set_buffer_text(&query, ctx);
+        });
+        self.filter_bindings(&query, ctx);
+        self.stop_search_keystroke_recording(ctx);
+        ctx.focus(&self.search_editor);
+    }
+
+    fn start_search_keystroke_recording(&mut self, ctx: &mut ViewContext<Self>) {
+        ctx.focus_self();
+        self.is_recording_search_keystroke = true;
+        ctx.disable_key_bindings_dispatching();
+        ctx.notify();
+    }
+
+    fn stop_search_keystroke_recording(&mut self, ctx: &mut ViewContext<Self>) {
+        if self.is_recording_search_keystroke {
+            self.is_recording_search_keystroke = false;
+            ctx.enable_key_bindings_dispatching();
+            ctx.notify();
+        }
     }
 
     /// Filter the list of visible bindings by the given query.
@@ -622,6 +652,7 @@ impl KeybindingsView {
     fn binding_row_clicked(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
         // Unfocus the search bar.
         ctx.focus_self();
+        self.stop_search_keystroke_recording(ctx);
 
         // Only enable editing when none of the other keystrokes are being edited.
         if self.modifying_row.is_none() {
@@ -807,6 +838,7 @@ impl SettingsPageMeta for KeybindingsView {
     fn on_page_selected(&mut self, allow_steal_focus: bool, ctx: &mut ViewContext<Self>) {
         // Reset previous modifying_row state.
         self.modifying_row = None;
+        self.stop_search_keystroke_recording(ctx);
         // `from_editable_lens` materializes any dynamic description resolver
         // before caching, so the dedup below (which compares descriptions)
         // sees concrete strings.
@@ -907,6 +939,9 @@ impl TypedActionView for KeybindingsView {
             KeystrokeDefined(index, key) => {
                 self.set_temporary_keystroke_state(*index, key.clone(), ctx)
             }
+            StartSearchKeystrokeRecording => self.start_search_keystroke_recording(ctx),
+            CancelSearchKeystrokeRecording => self.stop_search_keystroke_recording(ctx),
+            SearchByKeystroke(keystroke) => self.search_by_keystroke(keystroke, ctx),
         }
     }
 }
@@ -1020,6 +1055,7 @@ fn trigger_keybinding_notifier(
 #[derive(Default)]
 struct KeybindingsWidget {
     local_only_icon_mouse_state: MouseStateHandle,
+    search_keystroke_mouse_state: MouseStateHandle,
 }
 
 impl KeybindingsWidget {
@@ -1176,6 +1212,68 @@ impl SettingsWidget for KeybindingsWidget {
             local_only_icon_state,
         );
         let description = self.render_description(view.bindings.as_ref(), appearance);
+        let is_recording_search_keystroke = view.is_recording_search_keystroke;
+        let search_keystroke_button =
+            Hoverable::new(self.search_keystroke_mouse_state.clone(), |state| {
+                let text = if is_recording_search_keystroke {
+                    crate::t!("settings-keybindings-search-shortcut-recording")
+                } else {
+                    crate::t!("settings-keybindings-search-shortcut-button")
+                };
+                let text_color = appearance
+                    .theme()
+                    .main_text_color(appearance.theme().background());
+                let text_color = if state.is_clicked() {
+                    text_color.with_opacity(50)
+                } else if state.is_hovered() || is_recording_search_keystroke {
+                    text_color
+                } else {
+                    text_color.with_opacity(90)
+                };
+
+                render_button(text, appearance, text_color)
+            })
+            .on_click(|ctx, _, _| {
+                ctx.dispatch_typed_action(KeybindingsViewAction::StartSearchKeystrokeRecording);
+            })
+            .finish();
+        let search_controls = EventHandler::new(
+            Container::new(
+                Flex::row()
+                    .with_child(
+                        Shrinkable::new(
+                            1.,
+                            Container::new(ChildView::new(&view.search_bar).finish()).finish(),
+                        )
+                        .finish(),
+                    )
+                    .with_child(
+                        Container::new(search_keystroke_button)
+                            .with_margin_left(8.)
+                            .finish(),
+                    )
+                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                    .finish(),
+            )
+            .with_margin_right(10.)
+            .finish(),
+        )
+        .on_keydown(move |ctx, _, keystroke| {
+            if !is_recording_search_keystroke {
+                return DispatchEventResult::PropagateToParent;
+            }
+
+            if keystroke.key == "escape" {
+                ctx.dispatch_typed_action(KeybindingsViewAction::CancelSearchKeystrokeRecording);
+            } else {
+                ctx.dispatch_typed_action(KeybindingsViewAction::SearchByKeystroke(
+                    keystroke.clone(),
+                ));
+            }
+
+            DispatchEventResult::StopPropagation
+        })
+        .finish();
 
         Flex::column()
             .with_child(subheader)
@@ -1191,9 +1289,7 @@ impl SettingsWidget for KeybindingsWidget {
                 ))
                 .with_uniform_margin(20.)
                 .finish(),
-                Container::new(ChildView::new(&view.search_bar).finish())
-                    .with_margin_right(10.)
-                    .finish(),
+                search_controls,
                 0.62,
                 None,
                 Some(Coords {

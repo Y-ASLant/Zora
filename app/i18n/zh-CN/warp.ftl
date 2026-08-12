@@ -809,6 +809,8 @@ settings-platform-create-api-key-toast-secret-copied = 密钥已复制。
 
 # --- ANCHOR-SUB-KEYBINDINGS (agent-settings-keybindings) ---
 settings-keybindings-search-placeholder = 按名称或按键搜索（例如 "cmd d"）
+settings-keybindings-search-shortcut-button = 按快捷键搜索
+settings-keybindings-search-shortcut-recording = 按下快捷键...
 settings-keybindings-conflict-warning = 此快捷键与其他快捷键冲突
 settings-keybindings-button-default = 默认
 settings-keybindings-button-cancel = 取消

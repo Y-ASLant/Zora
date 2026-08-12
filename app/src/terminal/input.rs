@@ -1741,8 +1741,7 @@ pub fn init(app: &mut AppContext) {
         crate::t!("keybinding-desc-input-clear-screen"),
         InputAction::ClearScreen,
     )
-    .with_context_predicate(id!("Input"))
-    .with_key_binding("ctrl-l")]);
+    .with_context_predicate(id!("Input"))]);
 
     app.register_editable_bindings([
         EditableBinding::new(

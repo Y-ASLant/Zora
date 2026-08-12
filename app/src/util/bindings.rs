@@ -347,7 +347,7 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         CustomAction::NavigationPalette => mac_only_keystroke("cmd-shift-P"),
         CustomAction::LaunchConfigPalette => mac_only_keystroke("ctrl-cmd-l"),
         CustomAction::FilesPalette => Keystroke::parse(cmd_or_ctrl_shift("o")).ok(),
-        CustomAction::ClearBlocks => Keystroke::parse(cmd_or_ctrl_shift("k")).ok(),
+        CustomAction::ClearBlocks => Keystroke::parse("ctrl-l").ok(),
         CustomAction::SelectBlockAbove => Keystroke::parse("cmdorctrl-up").ok(),
         CustomAction::SelectBlockBelow => Keystroke::parse("cmdorctrl-down").ok(),
         // Set this to mac-only. On Linux this conflicts with the binding to save a workflow.
