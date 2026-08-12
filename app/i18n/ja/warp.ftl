@@ -732,6 +732,7 @@ settings-platform-create-api-key-toast-secret-copied = シークレットキー�
 
 # --- ANCHOR-SUB-KEYBINDINGS (agent-settings-keybindings) ---
 settings-keybindings-search-placeholder = 名前またはキーで検索 (例: "cmd d")
+settings-keybindings-search-shortcut-button = ショートカットで検索
 settings-keybindings-conflict-warning = このショートカットは他のキーバインドと競合しています
 settings-keybindings-button-default = デフォルト
 settings-keybindings-button-cancel = キャンセル
