@@ -8,7 +8,7 @@ use super::{
     SettingsSection,
 };
 use crate::send_telemetry_from_ctx;
-use crate::{appearance::Appearance, themes};
+use crate::{appearance::Appearance, themes, ui_components::icons::Icon as UiIcon};
 use crate::{
     editor::EditorView, keyboard::write_custom_keybinding, util::bindings::CommandBinding,
 };
@@ -34,8 +34,8 @@ use warpui::{elements::Wrap, units::Pixels};
 use warpui::{
     elements::{
         Align, Border, ClippedScrollStateHandle, ClippedScrollable, Container, CornerRadius, Empty,
-        EventHandler, Fill, Flex, Hoverable, MouseState, MouseStateHandle, ParentElement, Radius,
-        SavePosition, ScrollbarWidth, Shrinkable,
+        EventHandler, Fill, Flex, Hoverable, MainAxisAlignment, MouseState, MouseStateHandle,
+        ParentElement, Radius, SavePosition, ScrollbarWidth, Shrinkable,
     },
     fonts::Weight,
     keymap::{Keystroke, Trigger},
@@ -58,6 +58,8 @@ const ROW_INTERNAL_VERTICAL_PADDING: f32 = 8.0;
 const ROW_LEFT_MARGIN: f32 = 20.0;
 const ROW_HEIGHT: f32 = 28.;
 const EDIT_BUTTONS_BORDER_RADIUS: f32 = 4.0;
+const SEARCH_KEYSTROKE_BUTTON_SIZE: f32 = 32.0;
+const SEARCH_KEYSTROKE_ICON_SIZE: f32 = 16.0;
 
 // 保留给 `resource_center/keybindings_page.rs` 复用的占位文案;
 // 该文件单独 i18n 化时再迁移到 fluent。
@@ -597,7 +599,7 @@ impl KeybindingsView {
     }
 
     fn search_by_keystroke(&mut self, keystroke: &Keystroke, ctx: &mut ViewContext<Self>) {
-        let query = keystroke.normalized();
+        let query = search_query_from_keystroke(keystroke);
         self.search_editor.update(ctx, |editor, ctx| {
             editor.set_buffer_text(&query, ctx);
         });
@@ -1006,6 +1008,61 @@ fn render_button(
     .finish()
 }
 
+fn render_search_keystroke_button(
+    is_recording: bool,
+    state: &MouseState,
+    appearance: &Appearance,
+) -> Box<dyn Element> {
+    let background = appearance.theme().background();
+    let main_text_color = appearance.theme().main_text_color(background);
+    let accent_color = appearance.theme().accent();
+    let icon_color = if is_recording {
+        accent_color
+    } else if state.is_clicked() {
+        main_text_color.with_opacity(50)
+    } else if state.is_hovered() {
+        main_text_color
+    } else {
+        main_text_color.with_opacity(80)
+    };
+    let border_color = if is_recording {
+        accent_color
+    } else if state.is_hovered() {
+        main_text_color.with_opacity(70)
+    } else {
+        appearance
+            .theme()
+            .disabled_text_color(background)
+            .with_opacity(60)
+    };
+
+    let icon = ConstrainedBox::new(UiIcon::Keyboard.to_warpui_icon(icon_color).finish())
+        .with_width(SEARCH_KEYSTROKE_ICON_SIZE)
+        .with_height(SEARCH_KEYSTROKE_ICON_SIZE)
+        .finish();
+    let inner = Flex::row()
+        .with_child(icon)
+        .with_main_axis_alignment(MainAxisAlignment::Center)
+        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+        .finish();
+    let mut container = Container::new(inner)
+        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(
+            EDIT_BUTTONS_BORDER_RADIUS,
+        )))
+        .with_border(Border::all(1.).with_border_fill(border_color));
+
+    if is_recording {
+        container = container.with_background(accent_color.with_opacity(20));
+    } else if state.is_hovered() {
+        container = container.with_background(internal_colors::fg_overlay_2(appearance.theme()));
+    }
+
+    ConstrainedBox::new(container.finish())
+        .with_width(SEARCH_KEYSTROKE_BUTTON_SIZE)
+        .with_height(SEARCH_KEYSTROKE_BUTTON_SIZE)
+        .finish()
+}
+
 fn render_text(
     text: &str,
     styles: Option<UiComponentStyles>,
@@ -1037,6 +1094,33 @@ fn update_binding_list(
     if let Some(binding) = found_binding {
         binding.trigger = trigger;
     }
+}
+
+fn search_query_from_keystroke(keystroke: &Keystroke) -> String {
+    let mut parts = Vec::new();
+
+    if keystroke.ctrl {
+        parts.push("ctrl".to_string());
+    }
+    if keystroke.alt {
+        parts.push("alt".to_string());
+    }
+    if keystroke.shift {
+        parts.push("shift".to_string());
+    }
+    if keystroke.cmd {
+        parts.push("cmd".to_string());
+    }
+    if keystroke.meta {
+        parts.push("meta".to_string());
+    }
+
+    parts.push(match keystroke.key.as_str() {
+        " " => "space".to_string(),
+        key => key.to_string(),
+    });
+
+    parts.join(" ")
 }
 
 fn trigger_keybinding_notifier(
@@ -1215,23 +1299,7 @@ impl SettingsWidget for KeybindingsWidget {
         let is_recording_search_keystroke = view.is_recording_search_keystroke;
         let search_keystroke_button =
             Hoverable::new(self.search_keystroke_mouse_state.clone(), |state| {
-                let text = if is_recording_search_keystroke {
-                    crate::t!("settings-keybindings-search-shortcut-recording")
-                } else {
-                    crate::t!("settings-keybindings-search-shortcut-button")
-                };
-                let text_color = appearance
-                    .theme()
-                    .main_text_color(appearance.theme().background());
-                let text_color = if state.is_clicked() {
-                    text_color.with_opacity(50)
-                } else if state.is_hovered() || is_recording_search_keystroke {
-                    text_color
-                } else {
-                    text_color.with_opacity(90)
-                };
-
-                render_button(text, appearance, text_color)
+                render_search_keystroke_button(is_recording_search_keystroke, state, appearance)
             })
             .on_click(|ctx, _, _| {
                 ctx.dispatch_typed_action(KeybindingsViewAction::StartSearchKeystrokeRecording);

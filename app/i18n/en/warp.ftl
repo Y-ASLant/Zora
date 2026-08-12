@@ -827,8 +827,6 @@ settings-platform-create-api-key-toast-secret-copied = Secret key copied.
 
 # --- ANCHOR-SUB-KEYBINDINGS (agent-settings-keybindings) ---
 settings-keybindings-search-placeholder = Search by name or by keys (ex. "cmd d")
-settings-keybindings-search-shortcut-button = Press shortcut
-settings-keybindings-search-shortcut-recording = Press keys...
 settings-keybindings-conflict-warning = This shortcut conflicts with other keybinds
 settings-keybindings-button-default = Default
 settings-keybindings-button-cancel = Cancel
