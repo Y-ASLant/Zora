@@ -20,7 +20,7 @@ Run these commands from the repository root.
 First, build the docker container image:
 
 ```
-CONTAINER_NAME="warp-client-linux-dev"
+CONTAINER_NAME="zora-client-linux-dev"
 docker build -t $CONTAINER_NAME docker/linux-dev
 ```
 

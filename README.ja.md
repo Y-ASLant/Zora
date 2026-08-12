@@ -42,7 +42,7 @@ make build
 リリース準備時はバージョンを明示できます。
 
 ```shell
-make build RELEASE_TAG=v2026.08.03.1
+make build RELEASE_TAG=vYYYY.MM.DD.1
 ```
 
 Cargo のビルドキャッシュで使用したディスク領域を解放するには、次を実行します。
@@ -60,3 +60,6 @@ make clean
 ## 謝辞
 
 - [Warp](https://github.com/warpdotdev/warp) —— Zora がベースとしている上流のターミナル。
+- [Zap](https://github.com/zerx-lab/zap) —— Zora の一部機能と実装アイデアの由来、または参考元である関連オープンソースプロジェクト。
+
+Zora は独立したアプリケーションです。上記プロジェクトはそれぞれの上流/出典プロジェクトに属します。ライセンスとサードパーティ通知は本リポジトリ内の該当ファイルを参照してください。

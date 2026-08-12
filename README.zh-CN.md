@@ -41,7 +41,7 @@ make build
 准备发布时可显式指定版本号：
 
 ```shell
-make build RELEASE_TAG=v2026.08.03.1
+make build RELEASE_TAG=vYYYY.MM.DD.1
 ```
 
 如需释放 Cargo 构建缓存占用的磁盘空间，执行：

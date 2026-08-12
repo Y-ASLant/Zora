@@ -6,12 +6,13 @@ At some point, we may want to replace this document with a JSON schema file (whi
 
 ## Fields
 
-* **channel**: The channel's unique identifier
-* **type**: The release cadence.  At present, the valid values are "nightly" or "weekly".
+* **channel**: The channel's unique identifier.
+* **type**: The release cadence. At present, the valid values are "nightly" or "weekly".
 * **is_prerelease**: If true, the GitHub release for this channel will be marked as prerelease.
-* **is_autopush**: If true, this channel uses the "latest" keyword in `channel_versions.json` to automatically deploy new release candidates.  Non-autopush channels require a manual change in order to deploy them.
+* **is_autopush**: If true, this channel uses the "latest" keyword in `channel_versions.json` to automatically deploy new release candidates. Non-autopush channels require a manual change in order to deploy them.
 * **release_base_name**: The base name of GitHub releases created for this channel.
-* **release_body_text**: The body text for GitHub releases created for this channel.
-* **changelog_slack_channel**: The Slack channel where new changelogs will be posted whenever a new release candidates is cut.
-* **gcs_cache_control_value**: The value of the cache-control response header for release DMGs.
+* **release_body_text**: The body text prepended to GitHub release notes.
+* **changelog_slack_channel**: The Slack channel where new changelogs are posted by workflows that still publish Slack changelogs.
+* **gcs_cache_control_value**: The cache-control response header for release artifacts uploaded to GCS.
   - **IMPORTANT!!**: the value of the cache-control header _must_ be all lowercase; uppercase values will not be respected by Cloud CDN.
+* **web_gcs_bucket_prefix**: The GCS bucket prefix for web artifacts. Zora OSS releases leave this empty because `zora_release.yml` publishes only GitHub Release assets.

@@ -42,7 +42,7 @@ make build
 Set an explicit release version when preparing a release:
 
 ```shell
-make build RELEASE_TAG=v2026.08.03.1
+make build RELEASE_TAG=vYYYY.MM.DD.1
 ```
 
 To reclaim Cargo build-cache space, run:

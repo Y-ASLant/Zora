@@ -30,13 +30,13 @@ This creates a directory containing `up.sql` and `down.sql`.
 
 ## Step 3: Run the migration and generate the schema
 
-Replace `<path-to-zap.sqlite>` with the database used by the local Zora build:
+Replace `<path-to-warp.sqlite>` with the database used by the local Zora build:
 
 ```shell
 diesel migration run \
   --migration-dir crates/persistence/migrations \
-  --database-url="<path-to-zap.sqlite>"
-diesel print-schema --database-url="<path-to-zap.sqlite>"
+  --database-url="<path-to-warp.sqlite>"
+diesel print-schema --database-url="<path-to-warp.sqlite>"
 ```
 
 The generated schema lives at `crates/persistence/src/schema.rs`. Do not make
@@ -49,10 +49,10 @@ When iterating on a schema change, the migration can be reverted or rerun:
 ```shell
 diesel migration revert \
   --migration-dir crates/persistence/migrations \
-  --database-url="<path-to-zap.sqlite>"
+  --database-url="<path-to-warp.sqlite>"
 diesel migration redo \
   --migration-dir crates/persistence/migrations \
-  --database-url="<path-to-zap.sqlite>"
+  --database-url="<path-to-warp.sqlite>"
 ```
 
 ## Schema style

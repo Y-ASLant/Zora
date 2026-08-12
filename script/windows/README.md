@@ -35,7 +35,7 @@ make build
 This invokes `bundle.ps1`, builds the correct OSS executable, prepares bundled resources and then runs Inno Setup. To set the release version explicitly:
 
 ```powershell
-make build RELEASE_TAG=v2026.08.03.1
+make build RELEASE_TAG=vYYYY.MM.DD.1
 ```
 
 The OSS installer is normally written to `script/windows/Output/ZoraSetup.exe`.
@@ -58,30 +58,30 @@ Only use this path when diagnosing the installer itself. First ensure the enviro
 ### Option 1: Use the CLI
 1. Add the Inno Setup Command-line Compiler executable to your shell path.
 By default, it is located at `C:\Program Files (x86)\Inno Setup 6\ISCC.exe`.
-2. Compile the installer:
+2. Compile the installer. Supply the build-wrapper values explicitly; `Arch` and `OutputName` have no fallback in the script:
 ```shell
-iscc .\script\windows\windows-installer.iss
+iscc .\script\windows\windows-installer.iss /DArch=x64 /DOutputName=ZoraSetup /DReleaseChannel=oss /DMyAppName=Zora /DMyAppExeName=zora.exe /DTargetProfileDir=target\x86_64-pc-windows-msvc\rlto /DMyAppVersion=vYYYY.MM.DD.1 /DAppUserModelId=dev.warp.zora /DInnoAppId=dev.warp.zora
 ```
 3. Run the generated executable:
 ```shell
 .\script\windows\Output\ZoraSetup.exe
 ```
 
-The script begins with a series of preprocessor definitions.
-From the command line, use the `/D` flag to emulate preprocessor definitions
-and override the hardcoded defaults.
-Usage: `iscc <script path> /D<name>[=<value>]`
-
-The following constants can be overwritten:
-* `MyAppVersion` (default: `0.1.0`)
-* `MyAppExeName` (default: `warp.exe`)
-* `ReleaseChannel` (default: `dev`)
-* `TargetProfileDir` (default: `debug`)
+The build wrapper normally passes the Inno Setup preprocessor definitions. For manual debugging, keep these values consistent with the binary you already built:
+* `ReleaseChannel` (`oss` for Zora OSS releases)
+* `MyAppName` (`Zora` for OSS)
+* `MyAppVersion`
+* `MyAppExeName`
+* `TargetProfileDir`
+* `Arch`
+* `OutputName`
+* `AppUserModelId`
+* `InnoAppId`
 
 ### Option 2: Use the GUI
 1. Open the Inno Setup application and select this script.
 2. Click the "compile" button. This will generate an installer executable in a directory called `Output` at the same level as this script.
-2. To run the installer, click the "run" button in Inno Setup.
+3. To run the installer, click the "run" button in Inno Setup.
 
 
 ## Using icons
