@@ -1,3 +1,4 @@
+use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,29 @@ use warp_util::standardized_path::StandardizedPath;
 pub struct RemotePath {
     pub host_id: HostId,
     pub path: StandardizedPath,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SftpPath {
+    pub node_id: String,
+    pub path: PathBuf,
+    #[serde(default)]
+    pub display_identity: Option<String>,
+}
+
+impl PartialEq for SftpPath {
+    fn eq(&self, other: &Self) -> bool {
+        self.node_id == other.node_id && self.path == other.path
+    }
+}
+
+impl Eq for SftpPath {}
+
+impl Hash for SftpPath {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.node_id.hash(state);
+        self.path.hash(state);
+    }
 }
 
 impl RemotePath {
@@ -42,6 +66,8 @@ pub enum BufferLocation {
     Local(PathBuf),
     /// File on a remote host, identified by host + path.
     Remote(RemotePath),
+    /// File on an SSH/SFTP connection managed by the local SSH manager.
+    Sftp(SftpPath),
 }
 
 impl BufferLocation {
@@ -49,7 +75,7 @@ impl BufferLocation {
     pub fn local_path(&self) -> Option<&std::path::Path> {
         match self {
             BufferLocation::Local(path) => Some(path.as_path()),
-            BufferLocation::Remote(_) => None,
+            BufferLocation::Remote(_) | BufferLocation::Sftp(_) => None,
         }
     }
 
@@ -61,6 +87,29 @@ impl BufferLocation {
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_else(|| path.display().to_string()),
             BufferLocation::Remote(remote) => remote.file_name().to_string(),
+            BufferLocation::Sftp(sftp) => sftp
+                .path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| sftp.path.display().to_string()),
+        }
+    }
+
+    pub fn source_label(&self) -> Option<String> {
+        match self {
+            BufferLocation::Local(_) => None,
+            BufferLocation::Remote(remote) => Some(format!(
+                "{}:{}",
+                remote.host_id.as_str(),
+                remote.path.as_str()
+            )),
+            BufferLocation::Sftp(sftp) => Some(format!(
+                "{}:{}",
+                sftp.display_identity
+                    .as_deref()
+                    .unwrap_or(sftp.node_id.as_str()),
+                sftp.path.display()
+            )),
         }
     }
 
@@ -70,6 +119,7 @@ impl BufferLocation {
         match self {
             BufferLocation::Local(path) => path.clone(),
             BufferLocation::Remote(remote) => PathBuf::from(remote.path.as_str()),
+            BufferLocation::Sftp(sftp) => sftp.path.clone(),
         }
     }
 }

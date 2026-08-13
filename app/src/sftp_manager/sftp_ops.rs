@@ -23,6 +23,7 @@ pub enum SftpOpsError {
     Operation(String),
     LocalIo(String),
     NoCredentials(String),
+    FileTooLarge { size: u64, max: u64 },
     Cancelled,
 }
 
@@ -33,6 +34,9 @@ impl std::fmt::Display for SftpOpsError {
             Self::Operation(message) => write!(formatter, "操作错误: {message}"),
             Self::LocalIo(message) => write!(formatter, "本地 IO 错误: {message}"),
             Self::NoCredentials(message) => write!(formatter, "未找到凭据: {message}"),
+            Self::FileTooLarge { size, max } => {
+                write!(formatter, "文件过大: {size} bytes > {max} bytes")
+            }
             Self::Cancelled => formatter.write_str("传输已取消"),
         }
     }

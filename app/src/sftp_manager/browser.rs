@@ -87,7 +87,7 @@ pub enum SftpBrowserAction {
     UpdateSelectionDrag(Vector2F),
     /// 结束文件列表内部的鼠标范围选择
     EndSelectionDrag,
-    /// 打开指定索引的条目（目录则进入，文件则下载）
+    /// 打开指定索引的条目（目录则进入，文件则交给宿主打开）
     OpenEntry(usize),
     /// 删除指定索引的条目
     DeleteEntry(usize),
@@ -160,6 +160,16 @@ pub enum SftpBrowserAction {
     ToggleTransferPanel,
     /// 确认关闭传输面板（取消所有传输并清空记录）
     ConfirmCloseTransferPanel,
+}
+
+#[derive(Clone)]
+pub enum SftpBrowserEvent {
+    Pane(PaneEvent),
+    OpenFile {
+        node_id: String,
+        path: PathBuf,
+        backend: Arc<dyn SftpBackend>,
+    },
 }
 
 /// SFTP 浏览器视图
@@ -548,6 +558,18 @@ impl SftpBrowserView {
         self.pane_configuration.clone()
     }
 
+    pub fn node_id(&self) -> &str {
+        &self.node_id
+    }
+
+    pub fn current_path(&self) -> &Path {
+        self.current_path.as_path()
+    }
+
+    pub fn refresh_current_directory(&mut self, ctx: &mut ViewContext<Self>) {
+        self.refresh_dir(ctx);
+    }
+
     /// 测试用：断开连接，清空状态
     #[cfg(test)]
     pub(crate) fn disconnect_for_test(&mut self, ctx: &mut ViewContext<Self>) {
@@ -926,7 +948,15 @@ impl SftpBrowserView {
                     self.navigate_to(entry.path.clone(), ctx);
                 }
                 FileEntryType::File | FileEntryType::Other => {
-                    self.download_entry(index, ctx);
+                    if let Some(backend) = self.sftp.clone() {
+                        ctx.emit(SftpBrowserEvent::OpenFile {
+                            node_id: self.node_id.clone(),
+                            path: entry.path.clone(),
+                            backend,
+                        });
+                    } else {
+                        self.show_error_toast("未连接到服务器".to_string(), ctx);
+                    }
                 }
             }
         }
@@ -1741,6 +1771,16 @@ impl SftpBrowserView {
         }
     }
 
+    pub fn download_remote_file(
+        &mut self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        file_size: u64,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.execute_download(&remote_path, &local_path, file_size, ctx);
+    }
+
     /// 渲染搜索栏
     fn render_search_bar(&self, appearance: &Appearance) -> Box<dyn Element> {
         let theme = appearance.theme();
@@ -1843,7 +1883,7 @@ fn build_upload_remote_path(current_path: &PathBuf, local_file_name: &str) -> Op
 }
 
 impl Entity for SftpBrowserView {
-    type Event = PaneEvent;
+    type Event = SftpBrowserEvent;
 }
 
 fn selection_range(start: usize, end: usize) -> std::ops::RangeInclusive<usize> {
@@ -2505,7 +2545,7 @@ impl BackingView for SftpBrowserView {
         self._session = None;
         self.sftp = None;
         self.connection = ConnectionState::Disconnected;
-        ctx.emit(PaneEvent::Close);
+        ctx.emit(SftpBrowserEvent::Pane(PaneEvent::Close));
     }
 
     /// 聚焦内容，将窗口焦点设置到当前视图

@@ -6,7 +6,10 @@ use warpui::{
     AppContext, Element, Entity, ModelHandle, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use super::{editor_management::CodeSource, local_code_editor::LocalCodeEditorView};
+use super::{
+    buffer_location::SftpPath, editor_management::CodeSource,
+    local_code_editor::LocalCodeEditorView,
+};
 use crate::pane_group::{
     focus_state::PaneFocusHandle,
     pane::view::{HeaderContent, HeaderRenderContext},
@@ -49,6 +52,9 @@ pub enum CodeViewEvent {
     },
     RunTabConfigSkill {
         path: PathBuf,
+    },
+    SftpFileSaved {
+        sftp_path: SftpPath,
     },
 }
 

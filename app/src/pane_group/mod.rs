@@ -687,6 +687,9 @@ pub enum Event {
     RunTabConfigSkill {
         path: PathBuf,
     },
+    SftpFileSaved {
+        sftp_path: crate::code::buffer_location::SftpPath,
+    },
     #[cfg(not(target_family = "wasm"))]
     OpenPluginInstructionsPane(crate::terminal::CLIAgent, PluginModalKind),
 }

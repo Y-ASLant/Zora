@@ -33,6 +33,10 @@ pub enum LocalCodeEditorEvent {
     #[allow(dead_code)]
     FailedToSave { error: Rc<FileSaveError> },
     #[allow(dead_code)]
+    SftpSaveConflict,
+    #[allow(dead_code)]
+    SftpSaveAsRequested,
+    #[allow(dead_code)]
     DiffAccepted,
     #[allow(dead_code)]
     DiffRejected,

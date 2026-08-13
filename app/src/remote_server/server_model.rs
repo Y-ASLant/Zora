@@ -498,6 +498,7 @@ impl ServerModel {
                     }
                 }
                 GlobalBufferModelEvent::BufferUpdatedFromFileEvent { .. }
+                | GlobalBufferModelEvent::SftpSaveConflict { .. }
                 | GlobalBufferModelEvent::RemoteBufferConflict { .. } => {
                     // Not relevant for server-local buffers.
                 }

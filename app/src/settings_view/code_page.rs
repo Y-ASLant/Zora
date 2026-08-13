@@ -15,25 +15,43 @@ use super::{
     LocalOnlyIconState, SettingsAction, SettingsSection, ToggleState,
 };
 use crate::{
-    appearance::Appearance, send_telemetry_from_ctx, settings::CodeSettings,
-    terminal::general_settings::GeneralSettings, workspace::tab_settings::TabSettings,
+    appearance::Appearance,
+    editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextOptions},
+    send_telemetry_from_ctx,
+    settings::{
+        CodeSettings, REMOTE_FILE_AUTO_OPEN_TEXT_MAX_MIB, REMOTE_FILE_AUTO_OPEN_TEXT_MIN_MIB,
+        REMOTE_FILE_LARGE_PREVIEW_MAX_KIB, REMOTE_FILE_LARGE_PREVIEW_MIN_KIB,
+        REMOTE_FILE_TEXT_CACHE_MAX_MIB, REMOTE_FILE_TEXT_CACHE_MIN_MIB,
+    },
+    terminal::general_settings::GeneralSettings,
+    workspace::tab_settings::TabSettings,
     TelemetryEvent,
 };
 use ai::project_context::model::{ProjectContextModel, ProjectContextModelEvent};
 
+use settings::Setting as _;
 use std::path::PathBuf;
 use warp_core::{features::FeatureFlag, report_if_error, settings::ToggleableSetting as _};
+use warpui::ModelContext;
 use warpui::{
-    elements::{ChildView, Element, Empty},
+    elements::{ChildView, Dismiss, Element, Empty},
     keymap::ContextPredicate,
-    ui_components::{components::UiComponent, switch::SwitchStateHandle},
+    ui_components::{
+        components::{Coords, UiComponent, UiComponentStyles},
+        switch::SwitchStateHandle,
+    },
     Action, AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
+
+const REMOTE_FILE_NUMBER_INPUT_WIDTH: f32 = 96.;
 
 pub struct CodeSettingsPageView {
     page: PageType<Self>,
     #[cfg(feature = "local_fs")]
     external_editor_view: Option<ViewHandle<ExternalEditorView>>,
+    remote_file_auto_open_text_max_mib_editor: ViewHandle<EditorView>,
+    remote_file_text_cache_max_mib_editor: ViewHandle<EditorView>,
+    remote_file_large_preview_max_kib_editor: ViewHandle<EditorView>,
 }
 
 impl CodeSettingsPageView {
@@ -46,13 +64,58 @@ impl CodeSettingsPageView {
             }
         });
 
+        let code_settings = CodeSettings::as_ref(ctx);
+        let remote_file_auto_open_text_max_mib = *code_settings.remote_file_auto_open_text_max_mib;
+        let remote_file_text_cache_max_mib = *code_settings.remote_file_text_cache_max_mib;
+        let remote_file_large_preview_max_kib = *code_settings.remote_file_large_preview_max_kib;
+        let remote_file_auto_open_text_max_mib_editor = Self::number_editor(
+            remote_file_auto_open_text_max_mib,
+            |view, event, ctx| view.handle_remote_file_auto_open_text_max_mib_editor(event, ctx),
+            ctx,
+        );
+        let remote_file_text_cache_max_mib_editor = Self::number_editor(
+            remote_file_text_cache_max_mib,
+            |view, event, ctx| view.handle_remote_file_text_cache_max_mib_editor(event, ctx),
+            ctx,
+        );
+        let remote_file_large_preview_max_kib_editor = Self::number_editor(
+            remote_file_large_preview_max_kib,
+            |view, event, ctx| view.handle_remote_file_large_preview_max_kib_editor(event, ctx),
+            ctx,
+        );
         let (page, external_editor_view) = Self::build_page(ctx);
 
         Self {
             page,
             #[cfg(feature = "local_fs")]
             external_editor_view,
+            remote_file_auto_open_text_max_mib_editor,
+            remote_file_text_cache_max_mib_editor,
+            remote_file_large_preview_max_kib_editor,
         }
+    }
+
+    fn number_editor(
+        initial_value: u64,
+        handler: fn(&mut Self, &EditorEvent, &mut ViewContext<Self>),
+        ctx: &mut ViewContext<Self>,
+    ) -> ViewHandle<EditorView> {
+        let editor = ctx.add_typed_action_view(move |ctx| {
+            let mut editor = EditorView::single_line(
+                SingleLineEditorOptions {
+                    clear_selections_on_blur: true,
+                    text: TextOptions::ui_font_size(Appearance::as_ref(ctx)),
+                    ..Default::default()
+                },
+                ctx,
+            );
+            editor.set_buffer_text(&initial_value.to_string(), ctx);
+            editor
+        });
+        ctx.subscribe_to_view(&editor, move |view, _, event, ctx| {
+            handler(view, event, ctx);
+        });
+        editor
     }
 
     /// 构造页面 widgets。Code 现在是单页(无子页面、无 category 标题),
@@ -73,6 +136,9 @@ impl CodeSettingsPageView {
                 Box::new(ShowLineNumbersToggleWidget::default()),
                 Box::new(AutoSaveToggleWidget::default()),
                 Box::new(GlobalSearchToggleWidget::default()),
+                Box::new(RemoteFileAutoOpenTextMaxMiBWidget),
+                Box::new(RemoteFileTextCacheMaxMiBWidget),
+                Box::new(RemoteFileLargePreviewMaxKiBWidget),
             ];
             (widgets, Some(editor_view))
         } else {
@@ -102,6 +168,9 @@ impl CodeSettingsPageView {
                     Box::new(ShowLineNumbersToggleWidget::default()),
                     Box::new(AutoSaveToggleWidget::default()),
                     Box::new(GlobalSearchToggleWidget::default()),
+                    Box::new(RemoteFileAutoOpenTextMaxMiBWidget),
+                    Box::new(RemoteFileTextCacheMaxMiBWidget),
+                    Box::new(RemoteFileLargePreviewMaxKiBWidget),
                 ]
             } else {
                 vec![]
@@ -127,6 +196,7 @@ impl View for CodeSettingsPageView {
 #[derive(Debug, Clone)]
 pub enum CodeSettingsPageEvent {
     OpenProjectRules { rule_paths: Vec<PathBuf> },
+    FocusModal,
 }
 
 #[derive(Debug, Clone)]
@@ -140,6 +210,9 @@ pub enum CodeSettingsPageAction {
     ToggleShowLineNumbers,
     ToggleAutoSave,
     ToggleGlobalSearch,
+    SetRemoteFileAutoOpenTextMaxMiB,
+    SetRemoteFileTextCacheMaxMiB,
+    SetRemoteFileLargePreviewMaxKiB,
 }
 
 impl TypedActionView for CodeSettingsPageView {
@@ -196,6 +269,15 @@ impl TypedActionView for CodeSettingsPageView {
                 });
                 ctx.notify();
             }
+            CodeSettingsPageAction::SetRemoteFileAutoOpenTextMaxMiB => {
+                self.set_remote_file_auto_open_text_max_mib(ctx);
+            }
+            CodeSettingsPageAction::SetRemoteFileTextCacheMaxMiB => {
+                self.set_remote_file_text_cache_max_mib(ctx);
+            }
+            CodeSettingsPageAction::SetRemoteFileLargePreviewMaxKiB => {
+                self.set_remote_file_large_preview_max_kib(ctx);
+            }
             CodeSettingsPageAction::ToggleAutoOpenCodeReviewPane => {
                 GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
                     report_if_error!(settings
@@ -216,6 +298,131 @@ impl TypedActionView for CodeSettingsPageView {
                 ctx.notify();
             }
         }
+    }
+}
+
+impl CodeSettingsPageView {
+    fn handle_remote_file_auto_open_text_max_mib_editor(
+        &mut self,
+        event: &EditorEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            EditorEvent::Blurred | EditorEvent::Enter => {
+                self.set_remote_file_auto_open_text_max_mib(ctx);
+                if matches!(event, EditorEvent::Enter) {
+                    ctx.emit(CodeSettingsPageEvent::FocusModal);
+                }
+            }
+            EditorEvent::Escape => ctx.emit(CodeSettingsPageEvent::FocusModal),
+            _ => {}
+        }
+    }
+
+    fn handle_remote_file_text_cache_max_mib_editor(
+        &mut self,
+        event: &EditorEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            EditorEvent::Blurred | EditorEvent::Enter => {
+                self.set_remote_file_text_cache_max_mib(ctx);
+                if matches!(event, EditorEvent::Enter) {
+                    ctx.emit(CodeSettingsPageEvent::FocusModal);
+                }
+            }
+            EditorEvent::Escape => ctx.emit(CodeSettingsPageEvent::FocusModal),
+            _ => {}
+        }
+    }
+
+    fn handle_remote_file_large_preview_max_kib_editor(
+        &mut self,
+        event: &EditorEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            EditorEvent::Blurred | EditorEvent::Enter => {
+                self.set_remote_file_large_preview_max_kib(ctx);
+                if matches!(event, EditorEvent::Enter) {
+                    ctx.emit(CodeSettingsPageEvent::FocusModal);
+                }
+            }
+            EditorEvent::Escape => ctx.emit(CodeSettingsPageEvent::FocusModal),
+            _ => {}
+        }
+    }
+
+    fn set_remote_file_auto_open_text_max_mib(&mut self, ctx: &mut ViewContext<Self>) {
+        self.set_remote_file_number_setting(
+            self.remote_file_auto_open_text_max_mib_editor.clone(),
+            REMOTE_FILE_AUTO_OPEN_TEXT_MIN_MIB,
+            REMOTE_FILE_AUTO_OPEN_TEXT_MAX_MIB,
+            |settings, value, ctx| {
+                report_if_error!(settings
+                    .remote_file_auto_open_text_max_mib
+                    .set_value(value, ctx));
+            },
+            |settings| *settings.remote_file_auto_open_text_max_mib,
+            ctx,
+        );
+    }
+
+    fn set_remote_file_text_cache_max_mib(&mut self, ctx: &mut ViewContext<Self>) {
+        self.set_remote_file_number_setting(
+            self.remote_file_text_cache_max_mib_editor.clone(),
+            REMOTE_FILE_TEXT_CACHE_MIN_MIB,
+            REMOTE_FILE_TEXT_CACHE_MAX_MIB,
+            |settings, value, ctx| {
+                report_if_error!(settings
+                    .remote_file_text_cache_max_mib
+                    .set_value(value, ctx));
+            },
+            |settings| *settings.remote_file_text_cache_max_mib,
+            ctx,
+        );
+    }
+
+    fn set_remote_file_large_preview_max_kib(&mut self, ctx: &mut ViewContext<Self>) {
+        self.set_remote_file_number_setting(
+            self.remote_file_large_preview_max_kib_editor.clone(),
+            REMOTE_FILE_LARGE_PREVIEW_MIN_KIB,
+            REMOTE_FILE_LARGE_PREVIEW_MAX_KIB,
+            |settings, value, ctx| {
+                report_if_error!(settings
+                    .remote_file_large_preview_max_kib
+                    .set_value(value, ctx));
+            },
+            |settings| *settings.remote_file_large_preview_max_kib,
+            ctx,
+        );
+    }
+
+    fn set_remote_file_number_setting(
+        &mut self,
+        editor: ViewHandle<EditorView>,
+        min: u64,
+        max: u64,
+        save: fn(&mut CodeSettings, u64, &mut ModelContext<CodeSettings>),
+        current: fn(&CodeSettings) -> u64,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let raw_value = editor.as_ref(ctx).buffer_text(ctx);
+        let cleaned: String = raw_value
+            .chars()
+            .filter(|c| !c.is_whitespace() && *c != ',')
+            .collect();
+        let parsed = cleaned.parse::<u64>().ok();
+        CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
+            if let Some(value) = parsed {
+                save(settings, value.clamp(min, max), ctx);
+            }
+        });
+        let value = current(CodeSettings::as_ref(ctx)).clamp(min, max);
+        editor.update(ctx, |editor, ctx| {
+            editor.system_reset_buffer_text(&value.to_string(), ctx);
+        });
+        ctx.notify();
     }
 }
 
@@ -560,6 +767,131 @@ impl SettingsWidget for AutoSaveToggleWidget {
             Some(crate::t!("settings-code-auto-save-desc")),
         )
     }
+}
+
+struct RemoteFileAutoOpenTextMaxMiBWidget;
+
+impl SettingsWidget for RemoteFileAutoOpenTextMaxMiBWidget {
+    type View = CodeSettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "remote file sftp ssh auto open text size limit mib"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        _app: &AppContext,
+    ) -> Box<dyn Element> {
+        render_remote_file_number_item(
+            "远程文本自动打开上限 (MiB)".to_string(),
+            "小于或等于该大小的远程文本文件会直接在 Zora 编辑器中打开。范围 1-64 MiB。".to_string(),
+            view.remote_file_auto_open_text_max_mib_editor.clone(),
+            CodeSettingsPageAction::SetRemoteFileAutoOpenTextMaxMiB,
+            appearance,
+        )
+    }
+}
+
+struct RemoteFileTextCacheMaxMiBWidget;
+
+impl SettingsWidget for RemoteFileTextCacheMaxMiBWidget {
+    type View = CodeSettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "remote file sftp ssh text cache memory budget mib"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        _app: &AppContext,
+    ) -> Box<dyn Element> {
+        render_remote_file_number_item(
+            "远程文本缓存总量 (MiB)".to_string(),
+            "远程文本文件的内存 LRU 缓存预算，0 表示禁用缓存。范围 0-512 MiB。".to_string(),
+            view.remote_file_text_cache_max_mib_editor.clone(),
+            CodeSettingsPageAction::SetRemoteFileTextCacheMaxMiB,
+            appearance,
+        )
+    }
+}
+
+struct RemoteFileLargePreviewMaxKiBWidget;
+
+impl SettingsWidget for RemoteFileLargePreviewMaxKiBWidget {
+    type View = CodeSettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "remote file sftp ssh large preview sniff kib"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        _app: &AppContext,
+    ) -> Box<dyn Element> {
+        render_remote_file_number_item(
+            "远程大文件预览读取大小 (KiB)".to_string(),
+            "超过自动打开上限时用于生成预览和识别文本类型的远程文件前缀大小。范围 256-8192 KiB。"
+                .to_string(),
+            view.remote_file_large_preview_max_kib_editor.clone(),
+            CodeSettingsPageAction::SetRemoteFileLargePreviewMaxKiB,
+            appearance,
+        )
+    }
+}
+
+fn render_remote_file_number_item(
+    label: String,
+    description: String,
+    editor: ViewHandle<EditorView>,
+    action: CodeSettingsPageAction,
+    appearance: &Appearance,
+) -> Box<dyn Element> {
+    let dismiss_editor = editor.clone();
+    let input = Dismiss::new(
+        appearance
+            .ui_builder()
+            .text_input(editor)
+            .with_style(UiComponentStyles {
+                width: Some(REMOTE_FILE_NUMBER_INPUT_WIDTH),
+                padding: Some(Coords {
+                    top: appearance.ui_font_size() / 2.,
+                    bottom: appearance.ui_font_size() / 2.,
+                    left: appearance.ui_font_size() * 5. / 6.,
+                    right: appearance.ui_font_size() * 5. / 6.,
+                }),
+                background: Some(appearance.theme().surface_2().into()),
+                ..Default::default()
+            })
+            .build()
+            .finish(),
+    )
+    .on_dismiss(move |ctx, app| {
+        if !dismiss_editor
+            .as_ref(app)
+            .buffer_text(app)
+            .trim()
+            .is_empty()
+        {
+            ctx.dispatch_typed_action(action.clone());
+        }
+    })
+    .finish();
+
+    render_body_item::<CodeSettingsPageAction>(
+        label,
+        None,
+        LocalOnlyIconState::Hidden,
+        ToggleState::Enabled,
+        appearance,
+        input,
+        Some(description),
+    )
 }
 
 #[derive(Default)]

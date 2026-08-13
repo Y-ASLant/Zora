@@ -2,6 +2,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::Arc;
 
 use bimap::BiMap;
 
@@ -14,7 +15,13 @@ use warp_util::content_version::ContentVersion;
 use warp_util::file::{FileId, FileLoadError, FileSaveError};
 use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity, WeakModelHandle};
 
-use super::buffer_location::{BufferLocation, SyncClock};
+use super::buffer_location::{BufferLocation, SftpPath, SyncClock};
+use crate::settings::CodeSettings;
+use crate::sftp_manager::remote_file_service::{
+    RemoteFileEncoding, RemoteFileService, RemoteTextFile,
+};
+use crate::sftp_manager::sftp_backend::SftpBackend;
+use crate::sftp_manager::types::{RemoteFileVersion, RemoteFileWriteMode, RemoteFileWriteResult};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "local_fs")] {
@@ -62,6 +69,13 @@ enum BufferSource {
         sync_clock: SyncClock,
         base_content_version: Option<ContentVersion>,
     },
+    /// Backed by an SSH/SFTP connection managed by the local SSH manager.
+    Sftp {
+        backend: Arc<dyn SftpBackend>,
+        remote_version: Option<RemoteFileVersion>,
+        encoding: Option<RemoteFileEncoding>,
+        base_content_version: Option<ContentVersion>,
+    },
 }
 
 struct InternalBufferState {
@@ -87,6 +101,10 @@ impl InternalBufferState {
                 base_content_version,
                 ..
             } => *base_content_version,
+            BufferSource::Sftp {
+                base_content_version,
+                ..
+            } => *base_content_version,
             BufferSource::Remote { .. } => None,
         }
     }
@@ -98,6 +116,12 @@ impl InternalBufferState {
                 base_content_version,
             }
             | BufferSource::ServerLocal {
+                base_content_version,
+                ..
+            } => {
+                *base_content_version = Some(version);
+            }
+            BufferSource::Sftp {
                 base_content_version,
                 ..
             } => {
@@ -120,6 +144,7 @@ impl InternalBufferState {
             // Remote buffers are loaded once the OpenBufferResponse arrives
             // and populates the sync clock.
             BufferSource::Remote { sync_clock, .. } => sync_clock.is_some(),
+            BufferSource::Sftp { remote_version, .. } => remote_version.is_some(),
         }
     }
 }
@@ -144,6 +169,11 @@ pub enum GlobalBufferModelEvent {
     FailedToSave {
         file_id: FileId,
         error: Rc<FileSaveError>,
+    },
+    /// An SFTP save detected that the remote file changed since this buffer loaded.
+    /// The editor should keep the local edits and offer an explicit overwrite action.
+    SftpSaveConflict {
+        file_id: FileId,
     },
     /// A remote buffer update conflicted with local edits.
     /// The UI should present a resolution dialog.
@@ -173,6 +203,7 @@ impl GlobalBufferModelEvent {
             | GlobalBufferModelEvent::BufferUpdatedFromFileEvent { file_id, .. }
             | GlobalBufferModelEvent::FileSaved { file_id, .. }
             | GlobalBufferModelEvent::FailedToSave { file_id, .. }
+            | GlobalBufferModelEvent::SftpSaveConflict { file_id, .. }
             | GlobalBufferModelEvent::RemoteBufferConflict { file_id, .. }
             | GlobalBufferModelEvent::ServerLocalBufferUpdated { file_id, .. } => *file_id,
         }
@@ -198,16 +229,27 @@ pub struct CharOffsetEdit {
 pub struct GlobalBufferModel {
     location_to_id: BiMap<BufferLocation, FileId>,
     buffers: HashMap<FileId, InternalBufferState>,
+    sftp_backends: HashMap<String, Arc<dyn SftpBackend>>,
+    sftp_open_limits: HashMap<SftpPath, u64>,
+    remote_file_service: RemoteFileService,
 }
 
 impl GlobalBufferModel {
     pub fn new(_ctx: &mut ModelContext<Self>) -> Self {
         #[cfg(feature = "local_fs")]
         _ctx.subscribe_to_model(&FileModel::handle(_ctx), Self::handle_file_model_events);
+        let code_settings = CodeSettings::as_ref(_ctx);
 
         Self {
             location_to_id: BiMap::new(),
             buffers: HashMap::new(),
+            sftp_backends: HashMap::new(),
+            sftp_open_limits: HashMap::new(),
+            remote_file_service: RemoteFileService::new_with_cache(
+                code_settings.remote_file_auto_open_text_max_bytes(),
+                code_settings.remote_file_large_preview_max_bytes(),
+                code_settings.remote_file_text_cache_max_bytes(),
+            ),
         }
     }
 
@@ -869,6 +911,7 @@ impl GlobalBufferModel {
                 unimplemented!("Local buffers require the local_fs feature")
             }
             BufferLocation::Remote(remote_path) => self.open_remote_buffer(remote_path, ctx),
+            BufferLocation::Sftp(sftp_path) => self.open_sftp_buffer(sftp_path, ctx),
         }
     }
 
@@ -1001,6 +1044,137 @@ impl GlobalBufferModel {
         }
 
         Some(lines)
+    }
+
+    pub fn register_sftp_backend(&mut self, node_id: String, backend: Arc<dyn SftpBackend>) {
+        self.sftp_backends.insert(node_id, backend);
+    }
+
+    pub fn set_sftp_open_limit(&mut self, sftp_path: SftpPath, max_bytes: u64) {
+        self.sftp_open_limits.insert(sftp_path, max_bytes);
+    }
+
+    fn sync_remote_file_settings(&mut self, ctx: &mut ModelContext<Self>) {
+        let code_settings = CodeSettings::as_ref(ctx);
+        self.remote_file_service.configure_limits(
+            code_settings.remote_file_auto_open_text_max_bytes(),
+            code_settings.remote_file_large_preview_max_bytes(),
+            code_settings.remote_file_text_cache_max_bytes(),
+        );
+    }
+
+    fn open_sftp_buffer(
+        &mut self,
+        sftp_path: SftpPath,
+        ctx: &mut ModelContext<Self>,
+    ) -> BufferState {
+        let location = BufferLocation::Sftp(sftp_path.clone());
+        let open_limit = self.sftp_open_limits.remove(&sftp_path);
+        self.sync_remote_file_settings(ctx);
+
+        if let Some(id) = self.location_to_id.get_by_left(&location).cloned() {
+            if let Some(state) = self.buffers.get(&id) {
+                if let Some(handle) = state.buffer.upgrade(ctx) {
+                    if state.is_loaded() {
+                        ctx.emit(GlobalBufferModelEvent::BufferLoaded {
+                            file_id: id,
+                            content_version: handle.as_ref(ctx).version(),
+                        });
+                    }
+                    return BufferState::new(id, handle.clone());
+                }
+            }
+        }
+
+        let file_id = FileId::new();
+        let buffer = ctx.add_model(|_| Buffer::default());
+        let Some(backend) = self.sftp_backends.get(&sftp_path.node_id).cloned() else {
+            ctx.emit(GlobalBufferModelEvent::FailedToLoad {
+                file_id,
+                error: Rc::new(FileLoadError::DoesNotExist),
+            });
+            return BufferState::new(file_id, buffer);
+        };
+
+        self.location_to_id.insert(location, file_id);
+        self.buffers.insert(
+            file_id,
+            InternalBufferState {
+                buffer: buffer.downgrade(),
+                pending_diff_parse: None,
+                source: BufferSource::Sftp {
+                    backend: backend.clone(),
+                    remote_version: None,
+                    encoding: None,
+                    base_content_version: None,
+                },
+            },
+        );
+
+        let path = sftp_path.path.clone();
+        let node_id = sftp_path.node_id.clone();
+        let open_limit = open_limit.unwrap_or(self.remote_file_service.auto_open_text_max_bytes());
+        let remote_file_service = self
+            .remote_file_service
+            .clone_with_auto_open_text_max_bytes(open_limit);
+        ctx.spawn(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let file = remote_file_service.open_text_cached(node_id, backend, path)?;
+                    Ok::<_, crate::sftp_manager::sftp_ops::SftpOpsError>((
+                        file.text,
+                        file.version,
+                        file.encoding,
+                    ))
+                })
+                .await
+                .map_err(|error| {
+                    crate::sftp_manager::sftp_ops::SftpOpsError::Operation(error.to_string())
+                })?
+            },
+            move |me, result, ctx| match result {
+                Ok((content, remote_version, encoding)) => {
+                    let Some(state) = me.buffers.get_mut(&file_id) else {
+                        return;
+                    };
+                    let Some(buffer) = state.buffer.upgrade(ctx) else {
+                        return;
+                    };
+                    let content_version = ContentVersion::new();
+                    buffer.update(ctx, |buffer, ctx| {
+                        buffer.replace_all(&content, ctx);
+                        buffer.set_version(content_version);
+                    });
+                    if let BufferSource::Sftp {
+                        remote_version: state_remote_version,
+                        encoding: state_encoding,
+                        base_content_version,
+                        ..
+                    } = &mut state.source
+                    {
+                        *state_remote_version = Some(remote_version);
+                        *state_encoding = Some(encoding);
+                        *base_content_version = Some(content_version);
+                    }
+                    ctx.emit(GlobalBufferModelEvent::BufferLoaded {
+                        file_id,
+                        content_version,
+                    });
+                }
+                Err(error) => {
+                    log::warn!("Failed to open SFTP buffer: {error}");
+                    me.cleanup_file_id(file_id, ctx);
+                    ctx.emit(GlobalBufferModelEvent::FailedToLoad {
+                        file_id,
+                        error: Rc::new(FileLoadError::IOError(std::io::Error::other(
+                            error.to_string(),
+                        ))),
+                    });
+                }
+            },
+        );
+
+        BufferState::new(file_id, buffer)
     }
 
     // ── Remote buffer operations (client side) ────────────────────────
@@ -1444,7 +1618,9 @@ impl GlobalBufferModel {
         let state = self.buffers.get(&file_id)?;
         match &state.source {
             BufferSource::ServerLocal { sync_clock, .. } => Some(sync_clock),
-            BufferSource::Local { .. } | BufferSource::Remote { .. } => None,
+            BufferSource::Local { .. }
+            | BufferSource::Remote { .. }
+            | BufferSource::Sftp { .. } => None,
         }
     }
 
@@ -1462,9 +1638,12 @@ impl GlobalBufferModel {
     /// 会得到 `NoFilePath`),必须走 buffer-sync 的 `SaveBuffer` 协议。
     #[cfg(feature = "local_tty")]
     pub fn is_remote(&self, file_id: FileId) -> bool {
-        self.buffers
-            .get(&file_id)
-            .is_some_and(|state| matches!(state.source, BufferSource::Remote { .. }))
+        self.buffers.get(&file_id).is_some_and(|state| {
+            matches!(
+                state.source,
+                BufferSource::Remote { .. } | BufferSource::Sftp { .. }
+            )
+        })
     }
 
     /// 客户端:把远端 buffer 的当前内容持久化到 daemon 端磁盘。
@@ -1474,11 +1653,21 @@ impl GlobalBufferModel {
     /// 触发 daemon 落盘。请求成功后 emit `FileSaved`,让编辑器/标签更新已保存状态。
     #[cfg(feature = "local_tty")]
     pub fn save_remote_buffer(&self, file_id: FileId, ctx: &mut ModelContext<Self>) {
-        let Some(BufferLocation::Remote(remote_path)) =
-            self.location_to_id.get_by_right(&file_id).cloned()
-        else {
-            log::warn!("save_remote_buffer: file_id {file_id:?} 不是 Remote buffer");
+        let Some(location) = self.location_to_id.get_by_right(&file_id).cloned() else {
+            log::warn!("save_remote_buffer: file_id {file_id:?} 没有 buffer location");
             return;
+        };
+
+        let remote_path = match location {
+            BufferLocation::Remote(remote_path) => remote_path,
+            BufferLocation::Sftp(sftp_path) => {
+                self.save_sftp_buffer(file_id, sftp_path, RemoteFileWriteMode::Normal, ctx);
+                return;
+            }
+            BufferLocation::Local(_) => {
+                log::warn!("save_remote_buffer: file_id {file_id:?} 不是远端 buffer");
+                return;
+            }
         };
         let host_id = remote_path.host_id.clone();
         let path_str = remote_path.path.as_str().to_string();
@@ -1525,6 +1714,289 @@ impl GlobalBufferModel {
                         file_id,
                         error: Rc::new(FileSaveError::RemoteError(format!(
                             "SaveBuffer request failed: {error}"
+                        ))),
+                    });
+                }
+            },
+        );
+    }
+
+    pub fn force_save_sftp_buffer(&self, file_id: FileId, ctx: &mut ModelContext<Self>) {
+        let Some(location) = self.location_to_id.get_by_right(&file_id).cloned() else {
+            log::warn!("force_save_sftp_buffer: file_id {file_id:?} 没有 buffer location");
+            return;
+        };
+
+        let BufferLocation::Sftp(sftp_path) = location else {
+            log::warn!("force_save_sftp_buffer: file_id {file_id:?} 不是 SFTP buffer");
+            return;
+        };
+
+        self.save_sftp_buffer(file_id, sftp_path, RemoteFileWriteMode::Force, ctx);
+    }
+
+    pub fn reload_sftp_buffer(&self, file_id: FileId, ctx: &mut ModelContext<Self>) {
+        let Some(location) = self.location_to_id.get_by_right(&file_id).cloned() else {
+            log::warn!("reload_sftp_buffer: file_id {file_id:?} 没有 buffer location");
+            return;
+        };
+        let BufferLocation::Sftp(sftp_path) = location else {
+            log::warn!("reload_sftp_buffer: file_id {file_id:?} 不是 SFTP buffer");
+            return;
+        };
+        let Some(state) = self.buffers.get(&file_id) else {
+            return;
+        };
+        let BufferSource::Sftp { backend, .. } = &state.source else {
+            return;
+        };
+        let backend = backend.clone();
+        let node_id = sftp_path.node_id.clone();
+        let path = sftp_path.path.clone();
+        let remote_file_service = self.remote_file_service.clone();
+
+        ctx.spawn(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let file = remote_file_service.open_text_cached(node_id, backend, path)?;
+                    Ok::<_, crate::sftp_manager::sftp_ops::SftpOpsError>((
+                        file.text,
+                        file.version,
+                        file.encoding,
+                    ))
+                })
+                .await
+                .map_err(|error| {
+                    crate::sftp_manager::sftp_ops::SftpOpsError::Operation(error.to_string())
+                })?
+            },
+            move |me, result, ctx| match result {
+                Ok((content, remote_version, encoding)) => {
+                    let Some(state) = me.buffers.get_mut(&file_id) else {
+                        return;
+                    };
+                    let Some(buffer) = state.buffer.upgrade(ctx) else {
+                        return;
+                    };
+                    let content_version = ContentVersion::new();
+                    buffer.update(ctx, |buffer, ctx| {
+                        buffer.replace_all(&content, ctx);
+                        buffer.set_version(content_version);
+                    });
+                    if let BufferSource::Sftp {
+                        remote_version: state_remote_version,
+                        encoding: state_encoding,
+                        base_content_version,
+                        ..
+                    } = &mut state.source
+                    {
+                        *state_remote_version = Some(remote_version);
+                        *state_encoding = Some(encoding);
+                        *base_content_version = Some(content_version);
+                    }
+                    ctx.emit(GlobalBufferModelEvent::BufferUpdatedFromFileEvent {
+                        file_id,
+                        success: true,
+                        content_version,
+                    });
+                }
+                Err(error) => {
+                    ctx.emit(GlobalBufferModelEvent::FailedToSave {
+                        file_id,
+                        error: Rc::new(FileSaveError::RemoteError(format!(
+                            "SFTP 重新加载失败: {error}"
+                        ))),
+                    });
+                }
+            },
+        );
+    }
+
+    pub fn save_sftp_buffer_as(
+        &mut self,
+        file_id: FileId,
+        new_sftp_path: SftpPath,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let Some(old_location) = self.location_to_id.get_by_right(&file_id).cloned() else {
+            log::warn!("save_sftp_buffer_as: file_id {file_id:?} 没有 buffer location");
+            return;
+        };
+        let BufferLocation::Sftp(old_sftp_path) = old_location else {
+            log::warn!("save_sftp_buffer_as: file_id {file_id:?} 不是 SFTP buffer");
+            return;
+        };
+        if old_sftp_path == new_sftp_path {
+            ctx.emit(GlobalBufferModelEvent::FailedToSave {
+                file_id,
+                error: Rc::new(FileSaveError::RemoteError(
+                    "另存为路径不能与当前远程文件相同".to_string(),
+                )),
+            });
+            return;
+        }
+
+        let Some(state) = self.buffers.get(&file_id) else {
+            return;
+        };
+        let BufferSource::Sftp {
+            backend, encoding, ..
+        } = &state.source
+        else {
+            return;
+        };
+        let Some(buffer) = state.buffer.upgrade(ctx) else {
+            return;
+        };
+
+        let content = buffer.as_ref(ctx).text().into_string();
+        let content_version = buffer.as_ref(ctx).version();
+        let backend = backend.clone();
+        let encoding = encoding.clone().unwrap_or(RemoteFileEncoding::Utf8);
+        let bytes = RemoteFileService::encode_text(&content, &encoding);
+        let content_for_cache = content.clone();
+        let new_path = new_sftp_path.path.clone();
+        let node_id = new_sftp_path.node_id.clone();
+        let remote_file_service = self.remote_file_service.clone();
+
+        ctx.spawn(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    backend.write_file(&new_path, &bytes, None, RemoteFileWriteMode::Create)
+                })
+                .await
+                .map_err(|error| {
+                    crate::sftp_manager::sftp_ops::SftpOpsError::Operation(error.to_string())
+                })?
+            },
+            move |me, result, ctx| match result {
+                Ok(RemoteFileWriteResult::Saved { version }) => {
+                    if let Some(state) = me.buffers.get_mut(&file_id) {
+                        if let BufferSource::Sftp {
+                            remote_version,
+                            base_content_version,
+                            ..
+                        } = &mut state.source
+                        {
+                            *remote_version = Some(version);
+                            *base_content_version = Some(content_version);
+                        }
+                    }
+                    me.location_to_id.remove_by_right(&file_id);
+                    me.location_to_id
+                        .insert(BufferLocation::Sftp(new_sftp_path.clone()), file_id);
+                    remote_file_service.cache_text(
+                        node_id,
+                        new_sftp_path.path.clone(),
+                        RemoteTextFile {
+                            text: content_for_cache,
+                            version,
+                            encoding,
+                        },
+                    );
+                    ctx.emit(GlobalBufferModelEvent::FileSaved { file_id });
+                }
+                Ok(RemoteFileWriteResult::Conflict { .. }) => {
+                    ctx.emit(GlobalBufferModelEvent::FailedToSave {
+                        file_id,
+                        error: Rc::new(FileSaveError::RemoteError(format!(
+                            "远程目标已存在: {}",
+                            new_sftp_path.path.display()
+                        ))),
+                    });
+                }
+                Err(error) => {
+                    ctx.emit(GlobalBufferModelEvent::FailedToSave {
+                        file_id,
+                        error: Rc::new(FileSaveError::RemoteError(format!(
+                            "SFTP 另存为失败: {error}"
+                        ))),
+                    });
+                }
+            },
+        );
+    }
+
+    fn save_sftp_buffer(
+        &self,
+        file_id: FileId,
+        sftp_path: SftpPath,
+        write_mode: RemoteFileWriteMode,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let Some(state) = self.buffers.get(&file_id) else {
+            return;
+        };
+        let BufferSource::Sftp {
+            backend,
+            remote_version,
+            encoding,
+            ..
+        } = &state.source
+        else {
+            return;
+        };
+        let Some(buffer) = state.buffer.upgrade(ctx) else {
+            return;
+        };
+        let content = buffer.as_ref(ctx).text().into_string();
+        let content_version = buffer.as_ref(ctx).version();
+        let backend = backend.clone();
+        let expected_version = match write_mode {
+            RemoteFileWriteMode::Create => None,
+            RemoteFileWriteMode::Normal => *remote_version,
+            RemoteFileWriteMode::Force => None,
+        };
+        let encoding = encoding.clone().unwrap_or(RemoteFileEncoding::Utf8);
+        let bytes = RemoteFileService::encode_text(&content, &encoding);
+        let content_for_cache = content.clone();
+        let path = sftp_path.path.clone();
+        let cache_path = path.clone();
+        let node_id = sftp_path.node_id.clone();
+        let remote_file_service = self.remote_file_service.clone();
+
+        ctx.spawn(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    backend.write_file(&path, &bytes, expected_version, write_mode)
+                })
+                .await
+                .map_err(|error| {
+                    crate::sftp_manager::sftp_ops::SftpOpsError::Operation(error.to_string())
+                })?
+            },
+            move |me, result, ctx| match result {
+                Ok(RemoteFileWriteResult::Saved { version }) => {
+                    if let Some(state) = me.buffers.get_mut(&file_id) {
+                        if let BufferSource::Sftp {
+                            remote_version,
+                            base_content_version,
+                            ..
+                        } = &mut state.source
+                        {
+                            *remote_version = Some(version);
+                            *base_content_version = Some(content_version);
+                        }
+                    }
+                    remote_file_service.cache_text(
+                        node_id,
+                        cache_path,
+                        RemoteTextFile {
+                            text: content_for_cache,
+                            version,
+                            encoding,
+                        },
+                    );
+                    ctx.emit(GlobalBufferModelEvent::FileSaved { file_id });
+                }
+                Ok(RemoteFileWriteResult::Conflict { .. }) => {
+                    ctx.emit(GlobalBufferModelEvent::SftpSaveConflict { file_id });
+                }
+                Err(error) => {
+                    ctx.emit(GlobalBufferModelEvent::FailedToSave {
+                        file_id,
+                        error: Rc::new(FileSaveError::RemoteError(format!(
+                            "SFTP 保存失败: {error}"
                         ))),
                     });
                 }

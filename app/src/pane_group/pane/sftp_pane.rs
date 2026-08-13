@@ -10,7 +10,7 @@ use warpui::{AppContext, ModelHandle, View, ViewContext, ViewHandle};
 
 use crate::app_state::LeafContents;
 use crate::pane_group::{BackingView, PaneConfiguration, PaneContent, PaneGroup, PaneView};
-use crate::sftp_manager::browser::SftpBrowserView;
+use crate::sftp_manager::browser::{SftpBrowserEvent, SftpBrowserView};
 
 use super::{DetachType, PaneId, ShareableLink, ShareableLinkError};
 
@@ -57,8 +57,13 @@ impl PaneContent for SftpPane {
         let child = self.view.as_ref(ctx).child(ctx);
 
         let pane_id = self.id();
-        ctx.subscribe_to_view(&child, move |pane_group, _, event, ctx| {
-            pane_group.handle_pane_event(pane_id, event, ctx);
+        ctx.subscribe_to_view(&child, move |pane_group, _, event, ctx| match event {
+            SftpBrowserEvent::Pane(event) => {
+                pane_group.handle_pane_event(pane_id, event, ctx);
+            }
+            SftpBrowserEvent::OpenFile { path, .. } => {
+                log::debug!("sftp pane file open is not wired yet: {}", path.display());
+            }
         });
     }
 

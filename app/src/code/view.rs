@@ -32,6 +32,7 @@ use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::icons::ICON_DIMENSIONS;
 use warp_editor::render::element::VerticalExpansionBehavior;
+use warp_util::file::FileLoadError;
 use warp_util::path::LineAndColumnArg;
 use warpui::elements::Rect;
 use warpui::fonts::Style;
@@ -61,7 +62,10 @@ use crate::{
     search::{files::icon::icon_from_file_path, ItemHighlightState},
     tab::TAB_BAR_BORDER_HEIGHT,
     ui_components::{blended_colors, buttons::icon_button},
-    view_components::{DismissibleToast, MarkdownToggleEvent, MarkdownToggleView},
+    view_components::{
+        action_button::{ActionButton, DangerPrimaryTheme},
+        DismissibleToast, MarkdownToggleEvent, MarkdownToggleView,
+    },
     workspace::{ActiveSession, ToastStack, WorkspaceAction},
 };
 
@@ -71,7 +75,7 @@ use crate::pane_group::{
 };
 
 use super::{
-    buffer_location::BufferLocation,
+    buffer_location::{BufferLocation, SftpPath},
     diff_viewer::DiffViewer,
     editor::view::{CodeEditorEvent, CodeEditorView},
     editor_management::{CodeManager, CodeSource},
@@ -171,6 +175,9 @@ pub enum CodeViewAction {
     CloseAll,
     CloseSaved,
     ToggleMaximized,
+    ForceSaveSftpConflict {
+        editor_id: EntityId,
+    },
     #[cfg(feature = "local_fs")]
     CopyFilePath,
     #[cfg(feature = "local_fs")]
@@ -201,6 +208,9 @@ pub enum CodeViewEvent {
     },
     RunTabConfigSkill {
         path: PathBuf,
+    },
+    SftpFileSaved {
+        sftp_path: SftpPath,
     },
 }
 
@@ -356,7 +366,9 @@ impl CodeView {
                 let is_remote = view
                     .tab_at(view.active_tab_index)
                     .and_then(|t| t.location.as_ref())
-                    .is_some_and(|loc| matches!(loc, BufferLocation::Remote(_)));
+                    .is_some_and(|loc| {
+                        matches!(loc, BufferLocation::Remote(_) | BufferLocation::Sftp(_))
+                    });
                 match (mode, is_remote) {
                     (MarkdownDisplayMode::Rendered, false) => {
                         view.handle_action(&CodeViewAction::RenderMarkdown, ctx);
@@ -600,6 +612,53 @@ impl CodeView {
         })
     }
 
+    /// 构造一个绑定到 SFTP buffer 的编辑器视图。
+    ///
+    /// SFTP buffer 由 `GlobalBufferModel` 通过 `SftpBackend` 读取/保存,不依赖
+    /// remote-server daemon。
+    fn construct_shared_buffer_editor_from_sftp(
+        &mut self,
+        sftp_path: &super::buffer_location::SftpPath,
+        ctx: &mut ViewContext<Self>,
+    ) -> ViewHandle<LocalCodeEditorView> {
+        let sftp_path = sftp_path.clone();
+        ctx.add_typed_action_view(|ctx| {
+            let mut editor = LocalCodeEditorView::new_with_sftp_buffer(
+                sftp_path,
+                |buffer_state, ctx| {
+                    ctx.add_typed_action_view(|ctx| {
+                        CodeEditorView::new(
+                            None,
+                            Some(buffer_state.buffer),
+                            CodeEditorRenderOptions::new(VerticalExpansionBehavior::FillMaxHeight),
+                            ctx,
+                        )
+                        .with_horizontal_scrollbar_appearance(
+                            warpui::elements::new_scrollable::ScrollableAppearance::new(
+                                warpui::elements::ScrollbarWidth::Auto,
+                                true,
+                            ),
+                        )
+                    })
+                },
+                false,
+                None,
+                ctx,
+            );
+            if FeatureFlag::HoaCodeReview.is_enabled() {
+                editor =
+                    editor.with_selection_as_context(Box::new(get_context_target_terminal_view));
+            }
+
+            editor.editor().update(ctx, |code_editor, ctx| {
+                code_editor.set_interaction_state(InteractionState::Selectable, ctx);
+            });
+
+            editor.add_footer(ctx);
+            editor
+        })
+    }
+
     /// Construct an editor for a new (unsaved) file with no file backing.
     fn construct_new_file_editor(
         &mut self,
@@ -639,7 +698,7 @@ impl CodeView {
         // 本地路径(仅 `Local` 变体有),用于显示 / repo 检测 / rename。
         let path = location.as_ref().and_then(|loc| match loc {
             BufferLocation::Local(p) => Some(p.clone()),
-            BufferLocation::Remote(_) => None,
+            BufferLocation::Remote(_) | BufferLocation::Sftp(_) => None,
         });
 
         // Opt out of shared buffer if we are creating a new file.
@@ -651,6 +710,9 @@ impl CodeView {
             #[cfg(feature = "local_tty")]
             Some(BufferLocation::Remote(remote_path)) => {
                 self.construct_shared_buffer_editor_from_remote(remote_path, ctx)
+            }
+            Some(BufferLocation::Sftp(sftp_path)) => {
+                self.construct_shared_buffer_editor_from_sftp(sftp_path, ctx)
             }
             #[cfg(not(feature = "local_tty"))]
             Some(BufferLocation::Remote(_)) => {
@@ -697,7 +759,10 @@ impl CodeView {
                 // 远端 buffer 初始内容到达后,解除加载期施加的编辑锁。
                 // 本地文件创建时即可编辑,从不被锁,这里也就是 no-op。
                 if let Some(tab) = me.tab_group.iter().find(|tab| tab.editor_view == emitter) {
-                    if matches!(tab.location, Some(BufferLocation::Remote(_))) {
+                    if matches!(
+                        tab.location,
+                        Some(BufferLocation::Remote(_) | BufferLocation::Sftp(_))
+                    ) {
                         emitter.update(ctx, |local_editor, ctx| {
                             local_editor.editor().update(ctx, |code_editor, ctx| {
                                 code_editor.set_interaction_state(InteractionState::Editable, ctx);
@@ -721,7 +786,7 @@ impl CodeView {
                     return;
                 }
                 log::warn!("Failed to load file. {err:?}");
-                CodeView::display_load_failure(ctx.window_id(), ctx);
+                CodeView::display_load_failure(err.as_ref(), ctx.window_id(), ctx);
                 // 加载失败后,关闭这个出错的文件 tab —— 避免留下一个无法加载的空 pane/tab。
                 // 通过事件发出者(LocalCodeEditorView 句柄)定位是哪个 tab 失败,
                 // 复用用户手动关闭 tab 的路径 `remove_tab_data_index`:
@@ -749,10 +814,22 @@ impl CodeView {
                 );
             }
             LocalCodeEditorEvent::FileSaved { auto_saved } => {
+                let saved_sftp_path = me
+                    .tab_group
+                    .iter_mut()
+                    .find(|tab| tab.editor_view == emitter)
+                    .and_then(|tab| {
+                        let sftp_path = tab.editor_view.as_ref(ctx).sftp_path()?;
+                        tab.location = Some(BufferLocation::Sftp(sftp_path.clone()));
+                        Some(sftp_path)
+                    });
                 me.sync_active_tab_path(ctx);
                 me.set_title_after_content_update(ctx);
                 if !auto_saved {
                     CodeView::display_save_success(ctx.window_id(), ctx);
+                }
+                if let Some(sftp_path) = saved_sftp_path {
+                    ctx.emit(CodeViewEvent::SftpFileSaved { sftp_path });
                 }
                 ctx.notify();
                 // 远端异步 Save 完成:触发暂存的 close-tab callback。
@@ -769,6 +846,15 @@ impl CodeView {
                 if let Some(cb) = me.pending_remote_save_callbacks.remove(&emitter.id()) {
                     cb(SaveOutcome::Failed, me, ctx);
                 }
+            }
+            LocalCodeEditorEvent::SftpSaveConflict => {
+                log::warn!("SFTP save conflict for editor {:?}", emitter.id());
+                if let Some(cb) = me.pending_remote_save_callbacks.remove(&emitter.id()) {
+                    cb(SaveOutcome::Failed, me, ctx);
+                }
+            }
+            LocalCodeEditorEvent::SftpSaveAsRequested => {
+                CodeView::display_sftp_save_as_unavailable(ctx.window_id(), ctx);
             }
             LocalCodeEditorEvent::DiffAccepted => {
                 CodeManager::handle(ctx).update(ctx, |code_manager, ctx| {
@@ -1133,10 +1219,20 @@ impl CodeView {
         }
     }
 
-    fn display_load_failure(window_id: WindowId, ctx: &mut ViewContext<Self>) {
+    fn display_load_failure(
+        error: &FileLoadError,
+        window_id: WindowId,
+        ctx: &mut ViewContext<Self>,
+    ) {
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::error(crate::t!("code-failed-to-load-file-toast"))
-                .with_object_id("failed_to_load_file".to_string());
+            let message = match error {
+                FileLoadError::DoesNotExist => crate::t!("code-failed-to-load-file-toast"),
+                FileLoadError::IOError(error) => {
+                    format!("{}: {error}", crate::t!("code-failed-to-load-file-toast"))
+                }
+            };
+            let toast =
+                DismissibleToast::error(message).with_object_id("failed_to_load_file".to_string());
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
@@ -1145,6 +1241,34 @@ impl CodeView {
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
             let toast = DismissibleToast::error(crate::t!("code-failed-to-save-file-toast"))
                 .with_object_id("failed_to_save_file".to_string());
+            toast_stack.add_ephemeral_toast(toast, window_id, ctx);
+        });
+    }
+
+    fn display_sftp_save_conflict(
+        editor_id: EntityId,
+        window_id: WindowId,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let button = ctx.add_view(move |_| {
+            ActionButton::new("覆盖保存", DangerPrimaryTheme).on_click(move |ctx| {
+                ctx.dispatch_typed_action(CodeViewAction::ForceSaveSftpConflict { editor_id });
+            })
+        });
+        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+            let toast = DismissibleToast::error("远程文件已变化，未覆盖你的编辑。".to_string())
+                .with_action_button(button)
+                .with_object_id(format!("sftp_save_conflict:{editor_id:?}"));
+            toast_stack.add_ephemeral_toast(toast, window_id, ctx);
+        });
+    }
+
+    fn display_sftp_save_as_unavailable(window_id: WindowId, ctx: &mut ViewContext<Self>) {
+        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+            let toast = DismissibleToast::default(
+                "远程另存为还未接入路径选择，请先复制内容或下载后另存。".to_string(),
+            )
+            .with_object_id("sftp_save_as_unavailable".to_string());
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
@@ -1463,6 +1587,7 @@ impl CodeView {
                     BufferLocation::Remote(remote_path) => {
                         CodeSource::RemoteFileTree { remote_path }
                     }
+                    BufferLocation::Sftp(sftp_path) => CodeSource::SftpFileTree { sftp_path },
                 };
                 self.remove_tab_data_index_for_move(index, ctx);
                 CodePane::new(source, None, ctx)
@@ -2354,7 +2479,22 @@ impl View for CodeView {
                             Shrinkable::new(1., ChildView::new(&tab.editor_view).finish()).finish(),
                         )
                         .finish(),
-                    _ => ChildView::new(&tab.editor_view).finish(),
+                    _ => {
+                        if let Some(source_label) =
+                            tab.location().and_then(BufferLocation::source_label)
+                        {
+                            Flex::column()
+                                .with_child(Self::render_remote_source_label(source_label, app))
+                                .with_child(
+                                    Shrinkable::new(1., ChildView::new(&tab.editor_view).finish())
+                                        .finish(),
+                                )
+                                .with_main_axis_size(MainAxisSize::Max)
+                                .finish()
+                        } else {
+                            ChildView::new(&tab.editor_view).finish()
+                        }
+                    }
                 }
             }
         } else {
@@ -2362,6 +2502,27 @@ impl View for CodeView {
         };
 
         Container::new(body).with_padding_top(PADDING).finish()
+    }
+}
+
+impl CodeView {
+    fn render_remote_source_label(source_label: String, app: &AppContext) -> Box<dyn Element> {
+        let appearance = Appearance::as_ref(app);
+        Container::new(
+            Text::new(
+                source_label,
+                appearance.ui_font_family(),
+                appearance.ui_font_size() - 1.0,
+            )
+            .with_color(appearance.theme().active_ui_text_color().into())
+            .finish(),
+        )
+        .with_background(appearance.theme().surface_2())
+        .with_padding_top(3.)
+        .with_padding_bottom(3.)
+        .with_padding_left(8.)
+        .with_padding_right(8.)
+        .finish()
     }
 }
 
@@ -2435,6 +2596,24 @@ impl TypedActionView for CodeView {
                 self.pane_configuration.update(ctx, |pane_config, ctx| {
                     pane_config.refresh_pane_header_overflow_menu_items(ctx);
                 });
+            }
+
+            CodeViewAction::ForceSaveSftpConflict { editor_id } => {
+                let Some(file_id) = self
+                    .tab_group
+                    .iter()
+                    .find(|tab| tab.editor_view.id() == *editor_id)
+                    .and_then(|tab| tab.editor_view.as_ref(ctx).file_id())
+                else {
+                    log::warn!(
+                        "ForceSaveSftpConflict: editor {:?} 没有打开的 SFTP 文件",
+                        editor_id
+                    );
+                    return;
+                };
+
+                GlobalBufferModel::handle(ctx)
+                    .update(ctx, |model, ctx| model.force_save_sftp_buffer(file_id, ctx));
             }
 
             #[cfg(feature = "local_fs")]

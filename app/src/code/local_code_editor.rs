@@ -24,7 +24,7 @@ use warp_util::{
 use warpui::platform::SaveFilePickerConfiguration;
 use warpui::{
     elements::{
-        Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius,
+        Border, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
         CrossAxisAlignment, DropShadow, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
         MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds,
         Radius, Rect, Shrinkable, Stack, Text,
@@ -39,12 +39,10 @@ use warpui::{
     WindowId,
 };
 
-use crate::{
-    code::{editor::EditorReviewComment, global_buffer_model::GlobalBufferModelEvent},
-    code_review::comments::CommentId,
-};
+use crate::sftp_manager::sftp_ops::normalize_remote_path;
 use crate::{
     code::{
+        buffer_location::SftpPath,
         footer::{CodeFooterView, CodeFooterViewEvent},
         global_buffer_model::{BufferState, GlobalBufferModel},
         SaveOutcome,
@@ -53,6 +51,11 @@ use crate::{
     settings::{AISettings, CodeSettings},
     terminal::TerminalView,
     util::sync::Condition,
+};
+use crate::{
+    code::{editor::EditorReviewComment, global_buffer_model::GlobalBufferModelEvent},
+    code_review::comments::CommentId,
+    editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextColors, TextOptions},
 };
 use ai::diff_validation::DiffType;
 use pathfinder_color::ColorU;
@@ -88,6 +91,31 @@ pub fn init(app: &mut AppContext) {
     )]);
 }
 
+fn make_sftp_save_as_path_editor(
+    ctx: &mut ViewContext<LocalCodeEditorView>,
+) -> ViewHandle<EditorView> {
+    ctx.add_typed_action_view(|ctx| {
+        let appearance = Appearance::as_ref(ctx);
+        let theme = appearance.theme();
+        let options = SingleLineEditorOptions {
+            text: TextOptions {
+                font_size_override: Some(appearance.ui_font_size()),
+                font_family_override: Some(appearance.monospace_font_family()),
+                text_colors_override: Some(TextColors {
+                    default_color: theme.active_ui_text_color(),
+                    disabled_color: theme.disabled_ui_text_color(),
+                    hint_color: theme.disabled_ui_text_color(),
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut editor = EditorView::single_line(options, ctx);
+        editor.set_placeholder_text("远程保存路径", ctx);
+        editor
+    })
+}
+
 pub enum LocalCodeEditorEvent {
     FileLoaded,
     FailedToLoad {
@@ -99,6 +127,10 @@ pub enum LocalCodeEditorEvent {
     FailedToSave {
         error: Rc<FileSaveError>,
     },
+    /// The SFTP backing file changed remotely before this editor saved.
+    SftpSaveConflict,
+    /// The user requested remote Save As for an SFTP conflict.
+    SftpSaveAsRequested,
     DiffAccepted,
     DiffRejected,
     /// Emitted when a user presses Escape in Vim Normal mode inside the embedded editor.
@@ -149,6 +181,11 @@ enum LoadedFileMetadata {
         id: FileId,
         remote_path: crate::code::buffer_location::RemotePath,
     },
+    /// SFTP buffer:文件位于 SSH 管理器连接上,通过 SftpBackend 读写。
+    SftpFile {
+        id: FileId,
+        sftp_path: crate::code::buffer_location::SftpPath,
+    },
 }
 
 pub use super::diff_viewer::DisplayMode;
@@ -165,12 +202,22 @@ pub enum LocalCodeEditorAction {
     InsertSelectedTextToInput,
     SaveFile,
     DiscardUnsavedChanges,
+    ReloadSftpFromRemote,
+    ForceSaveSftp,
+    SaveSftpAs,
+    ConfirmSaveSftpAs,
+    CancelSftpConflict,
 }
 
 #[derive(Default)]
 struct ConflictResolutionBannerMouseStates {
     discard_mouse_state: MouseStateHandle,
     overwrite_mouse_state: MouseStateHandle,
+    reload_sftp_mouse_state: MouseStateHandle,
+    force_save_sftp_mouse_state: MouseStateHandle,
+    save_sftp_as_mouse_state: MouseStateHandle,
+    confirm_sftp_save_as_mouse_state: MouseStateHandle,
+    cancel_sftp_conflict_mouse_state: MouseStateHandle,
 }
 
 pub struct LocalCodeEditorView {
@@ -198,6 +245,10 @@ pub struct LocalCodeEditorView {
     pending_scroll_on_load: Option<ScrollPosition>,
     auto_save_debounce_tx: async_channel::Sender<()>,
     auto_save_in_flight: bool,
+    sftp_save_conflict_pending: bool,
+    sftp_save_as_open: bool,
+    pending_sftp_save_as_path: Option<SftpPath>,
+    sftp_save_as_path_editor: ViewHandle<EditorView>,
 }
 
 impl LocalCodeEditorView {
@@ -276,6 +327,18 @@ impl LocalCodeEditorView {
             |_, _| {},
         );
 
+        let sftp_save_as_path_editor = make_sftp_save_as_path_editor(ctx);
+        let save_as_editor_handle = sftp_save_as_path_editor.clone();
+        ctx.subscribe_to_view(&save_as_editor_handle, |me, _, event, ctx| match event {
+            EditorEvent::Enter => me.confirm_sftp_save_as(ctx),
+            EditorEvent::Escape => {
+                me.sftp_save_as_open = false;
+                me.pending_sftp_save_as_path = None;
+                ctx.notify();
+            }
+            _ => {}
+        });
+
         let model = Self {
             editor,
             diff_type,
@@ -292,12 +355,113 @@ impl LocalCodeEditorView {
             pending_scroll_on_load: None,
             auto_save_debounce_tx,
             auto_save_in_flight: false,
+            sftp_save_conflict_pending: false,
+            sftp_save_as_open: false,
+            pending_sftp_save_as_path: None,
+            sftp_save_as_path_editor,
         };
 
         if let Some(display_mode) = display_mode {
             model.set_display_mode(display_mode, ctx);
         }
         model
+    }
+
+    fn current_sftp_path(&self) -> Option<&SftpPath> {
+        match self.metadata.as_ref()? {
+            LoadedFileMetadata::SftpFile { sftp_path, .. } => Some(sftp_path),
+            LoadedFileMetadata::LocalFile { .. } | LoadedFileMetadata::RemoteFile { .. } => None,
+        }
+    }
+
+    fn suggested_sftp_save_as_path(path: &Path) -> PathBuf {
+        let parent = path.parent().filter(|p| !p.as_os_str().is_empty());
+        let file_name = path
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| "untitled".to_string());
+        let suggested_name = match (path.file_stem(), path.extension()) {
+            (Some(stem), Some(ext)) => {
+                format!("{}.copy.{}", stem.to_string_lossy(), ext.to_string_lossy())
+            }
+            (Some(stem), None) => format!("{}.copy", stem.to_string_lossy()),
+            (None, _) => format!("{file_name}.copy"),
+        };
+
+        normalize_remote_path(
+            &parent
+                .map(|parent| parent.join(suggested_name.clone()))
+                .unwrap_or_else(|| PathBuf::from("/").join(suggested_name)),
+        )
+    }
+
+    fn resolve_sftp_save_as_path(current_path: &Path, input: &str) -> Option<PathBuf> {
+        let trimmed = input.trim().replace('\\', "/");
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        let resolved = if trimmed.starts_with('/') {
+            trimmed
+        } else {
+            let current = normalize_remote_path(&current_path.to_path_buf());
+            let current = current.to_string_lossy();
+            let parent = current
+                .rsplit_once('/')
+                .map(|(parent, _)| if parent.is_empty() { "/" } else { parent })
+                .unwrap_or("/");
+            if parent == "/" {
+                format!("/{trimmed}")
+            } else {
+                format!("{parent}/{trimmed}")
+            }
+        };
+        if resolved
+            .split('/')
+            .any(|component| component == "." || component == "..")
+        {
+            return None;
+        }
+        Some(normalize_remote_path(&PathBuf::from(resolved)))
+    }
+
+    fn begin_sftp_save_as(&mut self, ctx: &mut ViewContext<Self>) {
+        let Some(sftp_path) = self.current_sftp_path() else {
+            return;
+        };
+        let suggested = Self::suggested_sftp_save_as_path(&sftp_path.path);
+        self.sftp_save_as_path_editor.update(ctx, |editor, ctx| {
+            editor.set_buffer_text(&suggested.display().to_string(), ctx);
+        });
+        self.sftp_save_as_open = true;
+        self.pending_sftp_save_as_path = None;
+        ctx.focus(&self.sftp_save_as_path_editor);
+        ctx.notify();
+    }
+
+    fn confirm_sftp_save_as(&mut self, ctx: &mut ViewContext<Self>) {
+        let Some(file_id) = self.file_id() else {
+            return;
+        };
+        let Some(current_sftp_path) = self.current_sftp_path().cloned() else {
+            return;
+        };
+        let input = self.sftp_save_as_path_editor.as_ref(ctx).buffer_text(ctx);
+        let Some(path) = Self::resolve_sftp_save_as_path(&current_sftp_path.path, &input) else {
+            ctx.emit(LocalCodeEditorEvent::FailedToSave {
+                error: Rc::new(FileSaveError::RemoteError("远程另存为路径无效".to_string())),
+            });
+            return;
+        };
+        let new_sftp_path = SftpPath {
+            node_id: current_sftp_path.node_id.clone(),
+            path,
+            display_identity: current_sftp_path.display_identity.clone(),
+        };
+        self.pending_sftp_save_as_path = Some(new_sftp_path.clone());
+        GlobalBufferModel::handle(ctx).update(ctx, |model, ctx| {
+            model.save_sftp_buffer_as(file_id, new_sftp_path, ctx);
+        });
     }
 
     fn perform_save(&mut self, file_id: FileId, ctx: &mut ViewContext<Self>) {
@@ -495,6 +659,46 @@ impl LocalCodeEditorView {
         local_editor
     }
 
+    pub fn new_with_sftp_buffer<T>(
+        sftp_path: crate::code::buffer_location::SftpPath,
+        editor_constructor: T,
+        enable_diff_nav_by_default: bool,
+        display_mode: Option<DisplayMode>,
+        ctx: &mut ViewContext<Self>,
+    ) -> Self
+    where
+        T: FnOnce(BufferState, &mut ViewContext<Self>) -> ViewHandle<CodeEditorView>,
+    {
+        let language_path = sftp_path.path.clone();
+        let buffer_state = GlobalBufferModel::handle(ctx).update(ctx, |model, ctx| {
+            model.open(
+                crate::code::buffer_location::BufferLocation::Sftp(sftp_path.clone()),
+                ctx,
+            )
+        });
+        let file_id = buffer_state.file_id;
+        let editor = editor_constructor(buffer_state, ctx);
+
+        editor.update(ctx, |editor, ctx| {
+            editor.set_language_with_path(&language_path, ctx);
+            editor.model.update(ctx, |model, ctx| {
+                model.rebuild_layout_with_syntax_highlighting(ctx)
+            });
+        });
+
+        let mut local_editor =
+            Self::new(editor, None, enable_diff_nav_by_default, display_mode, ctx);
+
+        local_editor.metadata = Some(LoadedFileMetadata::SftpFile {
+            id: file_id,
+            sftp_path,
+        });
+
+        Self::subscribe_to_global_buffer_events(file_id, ctx);
+
+        local_editor
+    }
+
     pub fn set_pending_scroll(&mut self, position: ScrollPosition, ctx: &mut ViewContext<Self>) {
         // If the file is already loaded, we can set the scroll trigger immediately with the
         // current buffer version. Otherwise, store it and apply when the file finishes loading.
@@ -591,6 +795,7 @@ impl LocalCodeEditorView {
                 GlobalBufferModelEvent::BufferLoaded {
                     content_version, ..
                 } => {
+                    me.sftp_save_conflict_pending = false;
                     if me.base_content_version.is_some() {
                         return;
                     }
@@ -599,6 +804,7 @@ impl LocalCodeEditorView {
                     ctx.emit(LocalCodeEditorEvent::FileLoaded);
                 }
                 GlobalBufferModelEvent::FailedToLoad { error, .. } => {
+                    me.sftp_save_conflict_pending = false;
                     me.is_new_file = true;
                     me.on_file_loaded(ctx);
                     ctx.emit(LocalCodeEditorEvent::FailedToLoad {
@@ -613,19 +819,39 @@ impl LocalCodeEditorView {
                     if !*success {
                         ctx.notify();
                     } else {
+                        me.sftp_save_conflict_pending = false;
                         me.base_content_version = Some(*content_version);
                     }
                 }
                 GlobalBufferModelEvent::FileSaved { .. } => {
+                    me.sftp_save_conflict_pending = false;
+                    if let Some(sftp_path) = me.pending_sftp_save_as_path.take() {
+                        me.sftp_save_as_open = false;
+                        me.metadata = Some(LoadedFileMetadata::SftpFile {
+                            id: file_id,
+                            sftp_path: sftp_path.clone(),
+                        });
+                        me.editor.update(ctx, |editor, ctx| {
+                            editor.set_language_with_path(&sftp_path.path, ctx);
+                        });
+                    }
                     let auto_saved = std::mem::take(&mut me.auto_save_in_flight);
                     ctx.emit(LocalCodeEditorEvent::FileSaved { auto_saved });
                 }
                 GlobalBufferModelEvent::FailedToSave { error, .. } => {
                     me.auto_save_in_flight = false;
+                    me.pending_sftp_save_as_path = None;
                     me.base_content_version = GlobalBufferModel::as_ref(ctx).base_version(file_id);
                     ctx.emit(LocalCodeEditorEvent::FailedToSave {
                         error: error.clone(),
                     });
+                }
+                GlobalBufferModelEvent::SftpSaveConflict { .. } => {
+                    me.auto_save_in_flight = false;
+                    me.sftp_save_conflict_pending = true;
+                    me.base_content_version = GlobalBufferModel::as_ref(ctx).base_version(file_id);
+                    ctx.emit(LocalCodeEditorEvent::SftpSaveConflict);
+                    ctx.notify();
                 }
                 // 远端 buffer 同步事件由 GlobalBufferModel / ServerModel 内部消费,
                 // 本地编辑器视图不关心。
@@ -761,7 +987,8 @@ impl LocalCodeEditorView {
     pub fn file_id(&self) -> Option<FileId> {
         self.metadata.as_ref().map(|metadata| match metadata {
             LoadedFileMetadata::LocalFile { id, .. }
-            | LoadedFileMetadata::RemoteFile { id, .. } => *id,
+            | LoadedFileMetadata::RemoteFile { id, .. }
+            | LoadedFileMetadata::SftpFile { id, .. } => *id,
         })
     }
 
@@ -769,7 +996,14 @@ impl LocalCodeEditorView {
         match self.metadata.as_ref()? {
             LoadedFileMetadata::LocalFile { path, .. } => Some(path.as_path()),
             // 远端文件没有本地路径。
-            LoadedFileMetadata::RemoteFile { .. } => None,
+            LoadedFileMetadata::RemoteFile { .. } | LoadedFileMetadata::SftpFile { .. } => None,
+        }
+    }
+
+    pub fn sftp_path(&self) -> Option<SftpPath> {
+        match self.metadata.as_ref()? {
+            LoadedFileMetadata::SftpFile { sftp_path, .. } => Some(sftp_path.clone()),
+            LoadedFileMetadata::LocalFile { .. } | LoadedFileMetadata::RemoteFile { .. } => None,
         }
     }
 
@@ -1077,7 +1311,42 @@ impl View for LocalCodeEditorView {
 
     fn render(&self, app: &AppContext) -> Box<dyn warpui::Element> {
         // Rendering the version conflict banner.
-        let base: Box<dyn Element> = if self.has_version_conflicts(app) {
+        let base: Box<dyn Element> = if self.sftp_save_conflict_pending {
+            let appearance = Appearance::as_ref(app);
+            let banner = render_sftp_save_conflict_banner(
+                appearance,
+                self.conflict_banner_mouse_states
+                    .reload_sftp_mouse_state
+                    .clone(),
+                self.conflict_banner_mouse_states
+                    .force_save_sftp_mouse_state
+                    .clone(),
+                self.conflict_banner_mouse_states
+                    .save_sftp_as_mouse_state
+                    .clone(),
+                self.conflict_banner_mouse_states
+                    .cancel_sftp_conflict_mouse_state
+                    .clone(),
+            );
+            let mut col = Flex::column().with_child(banner);
+            if self.sftp_save_as_open {
+                col.add_child(render_sftp_save_as_path_input(
+                    appearance,
+                    &self.sftp_save_as_path_editor,
+                    self.conflict_banner_mouse_states
+                        .confirm_sftp_save_as_mouse_state
+                        .clone(),
+                ));
+            }
+
+            let editor_view = ChildView::new(&self.editor).finish();
+            if self.editor.as_ref(app).needs_vertical_constraint() {
+                col.add_child(Shrinkable::new(1., editor_view).finish());
+            } else {
+                col.add_child(editor_view);
+            }
+            col.finish()
+        } else if self.has_version_conflicts(app) {
             let appearance = Appearance::as_ref(app);
             let banner = render_unsaved_changes_banner(
                 appearance,
@@ -1160,8 +1429,195 @@ impl TypedActionView for LocalCodeEditorView {
                     ctx.emit(LocalCodeEditorEvent::DiscardUnsavedChanges { path });
                 }
             }
+            LocalCodeEditorAction::ReloadSftpFromRemote => {
+                let Some(file_id) = self.file_id() else {
+                    return;
+                };
+                GlobalBufferModel::handle(ctx)
+                    .update(ctx, |model, ctx| model.reload_sftp_buffer(file_id, ctx));
+            }
+            LocalCodeEditorAction::ForceSaveSftp => {
+                let Some(file_id) = self.file_id() else {
+                    return;
+                };
+                GlobalBufferModel::handle(ctx)
+                    .update(ctx, |model, ctx| model.force_save_sftp_buffer(file_id, ctx));
+            }
+            LocalCodeEditorAction::SaveSftpAs => {
+                self.begin_sftp_save_as(ctx);
+            }
+            LocalCodeEditorAction::ConfirmSaveSftpAs => {
+                self.confirm_sftp_save_as(ctx);
+            }
+            LocalCodeEditorAction::CancelSftpConflict => {
+                self.sftp_save_conflict_pending = false;
+                self.sftp_save_as_open = false;
+                self.pending_sftp_save_as_path = None;
+                ctx.notify();
+            }
         }
     }
+}
+
+pub fn render_sftp_save_conflict_banner(
+    appearance: &Appearance,
+    reload_mouse_state: MouseStateHandle,
+    overwrite_mouse_state: MouseStateHandle,
+    save_as_mouse_state: MouseStateHandle,
+    cancel_mouse_state: MouseStateHandle,
+) -> Box<dyn Element> {
+    let left = Flex::row()
+        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+        .with_child(
+            Container::new(
+                ConstrainedBox::new(
+                    Icon::Warning
+                        .to_warpui_icon(appearance.theme().active_ui_text_color())
+                        .finish(),
+                )
+                .with_height(16.)
+                .with_width(16.)
+                .finish(),
+            )
+            .with_margin_right(8.)
+            .finish(),
+        )
+        .with_child(
+            Shrinkable::new(
+                1.,
+                Text::new(
+                    "远程文件已变化，当前编辑尚未保存。",
+                    appearance.ui_font_family(),
+                    appearance.ui_font_size(),
+                )
+                .with_color(appearance.theme().active_ui_text_color().into())
+                .soft_wrap(true)
+                .finish(),
+            )
+            .finish(),
+        )
+        .finish();
+
+    let text_button =
+        |label: &str, mouse_state: MouseStateHandle, action: LocalCodeEditorAction| {
+            appearance
+                .ui_builder()
+                .button(ButtonVariant::Text, mouse_state)
+                .with_text_label(label.to_string())
+                .with_style(UiComponentStyles {
+                    height: Some(24.),
+                    padding: Some(Coords {
+                        left: 8.,
+                        right: 8.,
+                        ..Default::default()
+                    }),
+                    font_color: Some(appearance.theme().active_ui_text_color().into()),
+                    ..Default::default()
+                })
+                .build()
+                .on_click(move |ctx, _, _| ctx.dispatch_typed_action(action.clone()))
+                .finish()
+        };
+
+    let right = Flex::row()
+        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+        .with_child(text_button(
+            "重新加载",
+            reload_mouse_state,
+            LocalCodeEditorAction::ReloadSftpFromRemote,
+        ))
+        .with_child(text_button(
+            "另存为",
+            save_as_mouse_state,
+            LocalCodeEditorAction::SaveSftpAs,
+        ))
+        .with_child(text_button(
+            "取消",
+            cancel_mouse_state,
+            LocalCodeEditorAction::CancelSftpConflict,
+        ))
+        .with_child(
+            Container::new(
+                appearance
+                    .ui_builder()
+                    .button(ButtonVariant::Outlined, overwrite_mouse_state)
+                    .with_text_label("覆盖保存".to_string())
+                    .with_style(UiComponentStyles {
+                        font_color: Some(appearance.theme().active_ui_text_color().into()),
+                        ..Default::default()
+                    })
+                    .build()
+                    .on_click(move |ctx, _, _| {
+                        ctx.dispatch_typed_action(LocalCodeEditorAction::ForceSaveSftp)
+                    })
+                    .finish(),
+            )
+            .with_margin_left(4.)
+            .finish(),
+        )
+        .finish();
+
+    Container::new(
+        Flex::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
+            .with_main_axis_size(MainAxisSize::Max)
+            .with_child(Shrinkable::new(1., left).finish())
+            .with_child(right)
+            .finish(),
+    )
+    .with_background(appearance.theme().text_selection_as_context_color())
+    .with_padding_top(4.)
+    .with_padding_bottom(4.)
+    .with_padding_left(12.)
+    .with_padding_right(12.)
+    .finish()
+}
+
+pub fn render_sftp_save_as_path_input(
+    appearance: &Appearance,
+    editor: &ViewHandle<EditorView>,
+    confirm_mouse_state: MouseStateHandle,
+) -> Box<dyn Element> {
+    let editor_el = Container::new(
+        Shrinkable::new(1., Clipped::new(ChildView::new(editor).finish()).finish()).finish(),
+    )
+    .with_padding_left(8.)
+    .with_padding_right(8.)
+    .with_padding_top(4.)
+    .with_padding_bottom(4.)
+    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
+    .with_background(appearance.theme().surface_2())
+    .finish();
+
+    Container::new(
+        Flex::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_main_axis_size(MainAxisSize::Max)
+            .with_spacing(8.)
+            .with_child(Shrinkable::new(1., editor_el).finish())
+            .with_child(
+                appearance
+                    .ui_builder()
+                    .button(ButtonVariant::Outlined, confirm_mouse_state)
+                    .with_text_label("保存副本".to_string())
+                    .with_style(UiComponentStyles {
+                        font_color: Some(appearance.theme().active_ui_text_color().into()),
+                        ..Default::default()
+                    })
+                    .build()
+                    .on_click(move |ctx, _, _| {
+                        ctx.dispatch_typed_action(LocalCodeEditorAction::ConfirmSaveSftpAs)
+                    })
+                    .finish(),
+            )
+            .finish(),
+    )
+    .with_background(appearance.theme().text_selection_as_context_color())
+    .with_padding_left(12.)
+    .with_padding_right(12.)
+    .with_padding_bottom(8.)
+    .finish()
 }
 
 /// Renders a banner warning that the file has saved changes not reflected in the diff
@@ -1310,4 +1766,52 @@ pub fn render_unsaved_circle_with_tooltip(
         }
     })
     .finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_sftp_save_as_path_keeps_remote_absolute_paths() {
+        let resolved = LocalCodeEditorView::resolve_sftp_save_as_path(
+            Path::new("/home/me/a.txt"),
+            "/tmp/b.txt",
+        )
+        .expect("绝对远程路径应有效");
+
+        assert_eq!(resolved, PathBuf::from("/tmp/b.txt"));
+    }
+
+    #[test]
+    fn resolve_sftp_save_as_path_resolves_relative_to_current_parent() {
+        let resolved =
+            LocalCodeEditorView::resolve_sftp_save_as_path(Path::new("/home/me/a.txt"), "b.txt")
+                .expect("相对远程路径应有效");
+
+        assert_eq!(resolved, PathBuf::from("/home/me/b.txt"));
+    }
+
+    #[test]
+    fn resolve_sftp_save_as_path_rejects_parent_traversal() {
+        assert_eq!(
+            LocalCodeEditorView::resolve_sftp_save_as_path(Path::new("/home/me/a.txt"), "../b.txt"),
+            None
+        );
+        assert_eq!(
+            LocalCodeEditorView::resolve_sftp_save_as_path(
+                Path::new("/home/me/a.txt"),
+                "/../b.txt"
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn suggested_sftp_save_as_path_inserts_copy_before_extension() {
+        assert_eq!(
+            LocalCodeEditorView::suggested_sftp_save_as_path(Path::new("/home/me/app.toml")),
+            PathBuf::from("/home/me/app.copy.toml")
+        );
+    }
 }

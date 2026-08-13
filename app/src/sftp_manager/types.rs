@@ -6,6 +6,7 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::SystemTime;
 
 /// 文件条目类型（UI 层）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +32,46 @@ pub struct FileEntry {
     pub modified: Option<String>,
     /// 权限字符串
     pub permissions: Option<String>,
+}
+
+/// 远程文件版本，用于打开缓存和保存前冲突检测。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RemoteFileVersion {
+    pub size: u64,
+    pub modified: Option<SystemTime>,
+}
+
+impl RemoteFileVersion {
+    pub fn from_metadata(metadata: &zora_transport::Metadata) -> Self {
+        Self {
+            size: metadata.size,
+            modified: metadata.modified,
+        }
+    }
+}
+
+/// 远程文件字节读取结果。
+#[derive(Debug, Clone)]
+pub struct RemoteFileBytes {
+    pub bytes: Vec<u8>,
+    pub version: RemoteFileVersion,
+    pub file_type: FileEntryType,
+}
+
+/// 远程文件写入模式。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemoteFileWriteMode {
+    /// Create a new file. If the target already exists, return a conflict.
+    Create,
+    Normal,
+    Force,
+}
+
+/// 远程文件写入结果。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RemoteFileWriteResult {
+    Saved { version: RemoteFileVersion },
+    Conflict { current: RemoteFileVersion },
 }
 
 /// 传输方向

@@ -1679,6 +1679,7 @@ impl SettingsView {
                     rule_paths: rule_paths.clone(),
                 });
             }
+            CodeSettingsPageEvent::FocusModal => ctx.focus_self(),
         }
     }
 

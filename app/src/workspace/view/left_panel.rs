@@ -10,7 +10,7 @@ use warpui::{
     elements::{
         resizable_state_handle, ChildView, ConstrainedBox, Container, CrossAxisAlignment,
         DragBarSide, Element, Empty, Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle,
-        ParentElement, Resizable, ResizableStateHandle, Shrinkable,
+        ParentElement, Resizable, ResizableStateHandle, Shrinkable, Text,
     },
     platform::Cursor,
     ui_components::components::{Coords, UiComponent, UiComponentStyles},
@@ -21,9 +21,9 @@ use warpui::{
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::skills::{SkillManager, SkillOpenOrigin};
-use crate::code::editor_management::CodeSource;
 #[cfg(feature = "local_fs")]
 use crate::code::file_tree::FileTreeEvent;
+use crate::code::{buffer_location::SftpPath, editor_management::CodeSource};
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::drive::panel::{DrivePanel, DrivePanelEvent};
 use crate::pane_group::working_directories::WorkingDirectory;
@@ -32,7 +32,8 @@ use crate::pane_group::{PaneGroup, WorkingDirectoriesEvent, WorkingDirectoriesMo
 use crate::server::telemetry::CodePanelsFileOpenEntrypoint;
 use crate::server::telemetry::{FileTreeSource, WarpDriveSource};
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
-use crate::sftp_manager::browser::SftpBrowserView;
+use crate::sftp_manager::browser::{SftpBrowserEvent, SftpBrowserView};
+use crate::sftp_manager::sftp_backend::SftpBackend;
 use crate::skill_manager::{SkillManagerPanel, SkillManagerPanelEvent};
 use crate::ssh_manager::SshManagerPanel;
 use crate::terminal::model::session::Session;
@@ -67,7 +68,7 @@ use crate::{
         icons,
     },
     util::bindings::keybinding_name_to_display_string,
-    workspace::WorkspaceAction,
+    workspace::{ActiveSession, WorkspaceAction},
     TelemetryEvent,
 };
 
@@ -116,6 +117,12 @@ pub enum LeftPanelEvent {
     #[cfg_attr(not(feature = "local_tty"), allow(dead_code))]
     OpenRemoteImage {
         remote_path: crate::code::buffer_location::RemotePath,
+    },
+    /// 用户在 SFTP 项目浏览器里点击一个文件。
+    OpenSftpFile {
+        node_id: String,
+        path: PathBuf,
+        backend: Arc<dyn SftpBackend>,
     },
     NewConversationInNewTab,
     ShowDeleteConfirmationDialog {
@@ -660,6 +667,41 @@ impl LeftPanelView {
         self.sftp_browser_views.get(&pane_group_id).cloned()
     }
 
+    fn active_unbound_ssh_notice(&self, app: &AppContext) -> Option<String> {
+        let window_id = self
+            .active_pane_group
+            .as_ref()
+            .and_then(|pane_group| pane_group.upgrade(app))
+            .map(|pane_group| pane_group.window_id(app))?;
+        let session = ActiveSession::as_ref(app).session(window_id)?;
+        if !session.is_subshell_or_ssh() {
+            return None;
+        }
+        Some(format!(
+            "当前终端已进入 SSH 会话 ({})，但项目浏览器未绑定 SFTP。请从 SSH 管理器连接以显示远程文件。",
+            session.hostname()
+        ))
+    }
+
+    fn render_unbound_ssh_notice(message: String, appearance: &Appearance) -> Box<dyn Element> {
+        Container::new(
+            Text::new(
+                message,
+                appearance.ui_font_family(),
+                appearance.ui_font_size(),
+            )
+            .with_color(appearance.theme().active_ui_text_color().into())
+            .soft_wrap(true)
+            .finish(),
+        )
+        .with_background(appearance.theme().text_selection_as_context_color())
+        .with_padding_top(6.)
+        .with_padding_bottom(6.)
+        .with_padding_left(8.)
+        .with_padding_right(8.)
+        .finish()
+    }
+
     pub fn set_server_file_browser_root(
         &mut self,
         host_id: HostId,
@@ -700,6 +742,20 @@ impl LeftPanelView {
             return;
         };
         let view = ctx.add_typed_action_view(move |ctx| SftpBrowserView::new(node_id, ctx));
+        ctx.subscribe_to_view(&view, |_me, _, event, ctx| match event {
+            SftpBrowserEvent::OpenFile {
+                node_id,
+                path,
+                backend,
+            } => {
+                ctx.emit(LeftPanelEvent::OpenSftpFile {
+                    node_id: node_id.clone(),
+                    path: path.clone(),
+                    backend: backend.clone(),
+                });
+            }
+            SftpBrowserEvent::Pane(_) => {}
+        });
         self.sftp_browser_views.insert(pane_group_id, view);
         self.server_file_browser_is_project_explorer = false;
         active_view_state::set(self, ToolPanelView::ProjectExplorer, ctx);
@@ -714,6 +770,45 @@ impl LeftPanelView {
         self.server_file_browser_view.update(ctx, |view, ctx| {
             view.navigate_to_remote_path(host_id, path, ctx);
         });
+    }
+
+    pub fn download_sftp_file(
+        &mut self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        file_size: u64,
+        ctx: &mut ViewContext<Self>,
+    ) -> bool {
+        let Some(view) = self.active_sftp_browser_view(ctx) else {
+            return false;
+        };
+        view.update(ctx, |view, ctx| {
+            view.download_remote_file(remote_path, local_path, file_size, ctx);
+        });
+        true
+    }
+
+    pub fn refresh_sftp_directory_for_path(
+        &mut self,
+        sftp_path: &SftpPath,
+        ctx: &mut ViewContext<Self>,
+    ) -> bool {
+        let parent_path = sftp_path
+            .path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .map(|parent| parent.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("/"));
+        let mut refreshed = false;
+        for view in self.sftp_browser_views.values() {
+            view.update(ctx, |view, ctx| {
+                if view.node_id() == sftp_path.node_id && view.current_path() == parent_path {
+                    view.refresh_current_directory(ctx);
+                    refreshed = true;
+                }
+            });
+        }
+        refreshed
     }
 
     pub fn active_view(&self) -> ToolPanelView {
@@ -1309,7 +1404,9 @@ impl View for LeftPanelView {
         if focus_ctx.is_self_focused() {
             match self.active_view.get() {
                 ToolPanelView::ProjectExplorer => {
-                    if let Some(view) = self.active_file_tree_view(ctx) {
+                    if let Some(view) = self.active_sftp_browser_view(ctx) {
+                        ctx.focus(&view);
+                    } else if let Some(view) = self.active_file_tree_view(ctx) {
                         ctx.focus(&view);
                     }
                 }
@@ -1382,16 +1479,46 @@ impl View for LeftPanelView {
                     )
                     .finish()
                 } else if let Some(file_tree_view) = self.active_file_tree_view(app) {
-                    Shrinkable::new(
-                        1.0,
-                        Container::new(ChildView::new(&file_tree_view).finish())
-                            .with_padding_left(2.)
-                            .with_padding_right(2.)
-                            .finish(),
-                    )
-                    .finish()
+                    let file_tree = Container::new(ChildView::new(&file_tree_view).finish())
+                        .with_padding_left(2.)
+                        .with_padding_right(2.)
+                        .finish();
+                    if let Some(message) = self.active_unbound_ssh_notice(app) {
+                        Flex::column()
+                            .with_child(
+                                Container::new(Self::render_unbound_ssh_notice(
+                                    message, appearance,
+                                ))
+                                .with_padding_left(8.)
+                                .with_padding_right(8.)
+                                .with_padding_bottom(6.)
+                                .finish(),
+                            )
+                            .with_child(Shrinkable::new(1.0, file_tree).finish())
+                            .with_main_axis_size(MainAxisSize::Max)
+                            .finish()
+                    } else {
+                        Shrinkable::new(1.0, file_tree).finish()
+                    }
                 } else {
-                    Shrinkable::new(1.0, Container::new(Empty::new().finish()).finish()).finish()
+                    let empty = Container::new(Empty::new().finish()).finish();
+                    if let Some(message) = self.active_unbound_ssh_notice(app) {
+                        Flex::column()
+                            .with_child(
+                                Container::new(Self::render_unbound_ssh_notice(
+                                    message, appearance,
+                                ))
+                                .with_padding_left(8.)
+                                .with_padding_right(8.)
+                                .with_padding_bottom(6.)
+                                .finish(),
+                            )
+                            .with_child(Shrinkable::new(1.0, empty).finish())
+                            .with_main_axis_size(MainAxisSize::Max)
+                            .finish()
+                    } else {
+                        Shrinkable::new(1.0, empty).finish()
+                    }
                 }
             }
             ToolPanelView::GlobalSearch { .. } => {

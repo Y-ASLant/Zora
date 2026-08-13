@@ -154,6 +154,11 @@ impl PaneContent for CodePane {
                 CodeViewEvent::RunTabConfigSkill { path } => {
                     ctx.emit(crate::pane_group::Event::RunTabConfigSkill { path: path.clone() });
                 }
+                CodeViewEvent::SftpFileSaved { sftp_path } => {
+                    ctx.emit(crate::pane_group::Event::SftpFileSaved {
+                        sftp_path: sftp_path.clone(),
+                    });
+                }
             },
         );
 

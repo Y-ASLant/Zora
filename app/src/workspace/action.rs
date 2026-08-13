@@ -18,6 +18,7 @@ use crate::search;
 use crate::server::ids::SyncId;
 use crate::server::telemetry::{AddTabWithShellSource, AgentModeEntrypoint, PaletteSource};
 use crate::settings_view::{SettingsAction as SettingsTabAction, SettingsSection};
+use crate::sftp_manager::sftp_backend::SftpBackend;
 use crate::tab::{NewSessionMenuItem, SelectedTabColor};
 use crate::tab_configs::TabConfig;
 use crate::terminal::available_shells::AvailableShell;
@@ -58,6 +59,60 @@ pub enum InitContent {
 pub struct CommandSearchOptions {
     pub filter: Option<search::QueryFilter>,
     pub init_content: InitContent,
+}
+
+#[derive(Clone)]
+pub struct SftpDownloadRequest {
+    pub node_id: String,
+    pub path: PathBuf,
+    pub backend: Arc<dyn SftpBackend>,
+    pub size: u64,
+}
+
+#[derive(Clone)]
+pub struct SftpOpenRequest {
+    pub node_id: String,
+    pub path: PathBuf,
+    pub backend: Arc<dyn SftpBackend>,
+    pub max_bytes: u64,
+}
+
+#[derive(Clone)]
+pub struct SftpExternalOpenRequest {
+    pub node_id: String,
+    pub path: PathBuf,
+    pub backend: Arc<dyn SftpBackend>,
+    pub size: u64,
+}
+
+impl std::fmt::Debug for SftpExternalOpenRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SftpExternalOpenRequest")
+            .field("node_id", &self.node_id)
+            .field("path", &self.path)
+            .field("size", &self.size)
+            .finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for SftpOpenRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SftpOpenRequest")
+            .field("node_id", &self.node_id)
+            .field("path", &self.path)
+            .field("max_bytes", &self.max_bytes)
+            .finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for SftpDownloadRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SftpDownloadRequest")
+            .field("node_id", &self.node_id)
+            .field("path", &self.path)
+            .field("size", &self.size)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Specifies how to restore a conversation when it's not already open in a pane.
@@ -149,6 +204,12 @@ pub enum WorkspaceAction {
     },
     /// 打开/关闭左侧 panel 的 SSH 管理器视图(openWarp 独有)。
     ToggleSshManager,
+    /// 从 SFTP 打开策略提示里显式下载远程文件。
+    DownloadSftpFile(SftpDownloadRequest),
+    /// 用户确认后打开超过自动阈值的远程文本文件。
+    OpenSftpFileExplicitly(SftpOpenRequest),
+    /// 下载远程文件到临时目录并用系统默认程序打开。
+    OpenSftpFileExternally(SftpExternalOpenRequest),
     /// 打开/关闭左侧 panel 的 Skill 管理器视图(openWarp 独有)。
     ToggleSkillManager,
     AddTabWithShell {
@@ -671,6 +732,9 @@ impl WorkspaceAction {
             | AddTerminalTab { .. }
             | OpenSshTerminal { .. }
             | ToggleSshManager
+            | DownloadSftpFile(_)
+            | OpenSftpFileExplicitly(_)
+            | OpenSftpFileExternally(_)
             | ToggleSkillManager
             | AddTabWithShell { .. }
             | AddGetStartedTab

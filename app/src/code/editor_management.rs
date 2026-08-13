@@ -127,6 +127,11 @@ pub enum CodeSource {
     RemoteFileTree {
         remote_path: super::buffer_location::RemotePath,
     },
+    /// 从 SFTP 项目浏览器点击打开的文件。连接对象不放在这里,由
+    /// `GlobalBufferModel` 按 node_id 保存运行时 backend。
+    SftpFileTree {
+        sftp_path: super::buffer_location::SftpPath,
+    },
     /// Opened from macOS Finder via "Open With".
     Finder { path: PathBuf },
     /// Opened from a skill.
@@ -148,6 +153,7 @@ impl CodeSource {
             | Self::ProjectRules { .. }
             | Self::FileTree { .. }
             | Self::RemoteFileTree { .. }
+            | Self::SftpFileTree { .. }
             | Self::Finder { .. }
             | Self::Skill { .. } => None,
         }
@@ -157,7 +163,10 @@ impl CodeSource {
     /// [`Self::location`] 取统一身份。
     pub fn path(&self) -> Option<PathBuf> {
         match self {
-            Self::New { .. } | Self::AIAction { .. } | Self::RemoteFileTree { .. } => None,
+            Self::New { .. }
+            | Self::AIAction { .. }
+            | Self::RemoteFileTree { .. }
+            | Self::SftpFileTree { .. } => None,
             Self::Link { path, .. }
             | Self::ProjectRules { path }
             | Self::FileTree { path }
@@ -176,6 +185,7 @@ impl CodeSource {
             Self::RemoteFileTree { remote_path } => {
                 Some(BufferLocation::Remote(remote_path.clone()))
             }
+            Self::SftpFileTree { sftp_path } => Some(BufferLocation::Sftp(sftp_path.clone())),
             Self::Link { path, .. }
             | Self::ProjectRules { path }
             | Self::FileTree { path }
@@ -216,6 +226,7 @@ impl CodeSource {
             Self::ProjectRules { .. } => "project_rules",
             Self::FileTree { .. } => "file_tree",
             Self::RemoteFileTree { .. } => "remote_file_tree",
+            Self::SftpFileTree { .. } => "sftp_file_tree",
             Self::Finder { .. } => "finder",
             Self::Skill { .. } => "skill",
         }
@@ -226,7 +237,10 @@ impl CodeSource {
     /// `AIAction` is ephemeral (tied to a live conversation) and should not
     /// be restored. `RemoteFileTree` 依赖活跃 SSH 连接,同样不恢复。
     pub fn is_restorable(&self) -> bool {
-        !matches!(self, Self::AIAction { .. } | Self::RemoteFileTree { .. })
+        !matches!(
+            self,
+            Self::AIAction { .. } | Self::RemoteFileTree { .. } | Self::SftpFileTree { .. }
+        )
     }
 }
 

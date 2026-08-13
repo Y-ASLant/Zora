@@ -282,6 +282,7 @@ use ::settings::{Setting, ToggleableSetting};
 use warp_core::features::FeatureFlag;
 
 use crate::search::{self, QueryFilter};
+use crate::sftp_manager::remote_file_service::{RemoteFileService, RemoteOpenDecision};
 use crate::terminal::view::{
     SyncEvent, SyncInputType, TerminalAction, NOTIFICATIONS_TROUBLESHOOT_URL,
 };
@@ -304,15 +305,16 @@ use crate::util::bindings::{keybinding_name_to_display_string, keybinding_name_t
 use crate::util::links;
 use crate::util::traffic_lights::{traffic_light_data, TrafficLightMouseStates, TrafficLightSide};
 use crate::util::truncation::truncate_from_end;
-#[cfg(target_family = "wasm")]
-use crate::view_components::action_button::ActionButton;
+use crate::view_components::action_button::{ActionButton, SecondaryTheme};
 use crate::view_components::{AgentToastStack, DismissibleToast, DismissibleToastStack, ToastLink};
 use crate::window_settings::{WindowSettings, WindowSettingsChangedEvent, ZoomLevel};
 use crate::workflows::{
     manager::WorkflowOpenSource, AIWorkflowOrigin, WorkflowObject, WorkflowSelectionSource,
     WorkflowSource, WorkflowType, WorkflowViewMode,
 };
-use crate::workspace::action::CommandSearchOptions;
+use crate::workspace::action::{
+    CommandSearchOptions, SftpDownloadRequest, SftpExternalOpenRequest, SftpOpenRequest,
+};
 use crate::workspace::one_time_modal_model::OneTimeModalModel;
 use crate::workspace::sync_inputs::SyncedInputState;
 use crate::workspace::toast_stack::{
@@ -430,6 +432,7 @@ use std::env;
 use std::fmt::Write;
 #[cfg(all(target_os = "macos", feature = "crash_reporting"))]
 use std::fs;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::Path;
 use std::path::PathBuf;
 #[cfg(target_os = "macos")]
@@ -442,7 +445,8 @@ use warp_editor::editor::NavigationKey;
 use warpui::keymap::Context;
 use warpui::notification::{RequestPermissionsOutcome, UserNotification};
 use warpui::platform::{
-    Cursor, FilePickerConfiguration, FullscreenState, SystemTheme, TerminationMode,
+    Cursor, FilePickerConfiguration, FullscreenState, SaveFilePickerConfiguration, SystemTheme,
+    TerminationMode,
 };
 use warpui::text_layout::ClipConfig;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
@@ -592,6 +596,38 @@ const MOBILE_OVERLAY_SCRIM_ALPHA: u8 = 128;
 
 pub const NEW_TAB_BUTTON_POSITION_ID: &str = "new_tab_button";
 pub const NEW_SESSION_MENU_BUTTON_POSITION_ID: &str = "new_session_menu_button";
+
+fn format_bytes(bytes: u64) -> String {
+    const KIB: f64 = 1024.0;
+    const MIB: f64 = KIB * 1024.0;
+    const GIB: f64 = MIB * 1024.0;
+    let bytes = bytes as f64;
+    if bytes >= GIB {
+        format!("{:.1} GiB", bytes / GIB)
+    } else if bytes >= MIB {
+        format!("{:.1} MiB", bytes / MIB)
+    } else if bytes >= KIB {
+        format!("{:.1} KiB", bytes / KIB)
+    } else {
+        format!("{bytes:.0} B")
+    }
+}
+
+#[cfg(feature = "local_fs")]
+fn sftp_display_identity(node_id: &str) -> Option<String> {
+    let server = warp_ssh_manager::with_conn(|conn| {
+        warp_ssh_manager::SshRepository::get_server(conn, node_id).map_err(anyhow::Error::from)
+    })
+    .ok()
+    .flatten()?;
+    let port = (server.port != 22).then(|| format!(":{}", server.port));
+    Some(format!(
+        "{}@{}{}",
+        server.username,
+        server.host,
+        port.unwrap_or_default()
+    ))
+}
 
 // The max length of the title of a fork toast (after which we truncate it).
 const MAX_FORK_TOAST_TITLE_LENGTH: usize = 100;
@@ -5004,6 +5040,29 @@ impl Workspace {
             }
             #[cfg(not(feature = "local_tty"))]
             LeftPanelEvent::OpenRemoteImage { .. } => {}
+            LeftPanelEvent::OpenSftpFile {
+                node_id,
+                path,
+                backend,
+            } => {
+                log::info!(
+                    "Opening SFTP file requested: node_id={node_id} path={}",
+                    path.display()
+                );
+                #[cfg(feature = "local_fs")]
+                {
+                    self.open_sftp_file_with_decision(
+                        node_id.clone(),
+                        path.clone(),
+                        backend.clone(),
+                        ctx,
+                    );
+                }
+                #[cfg(not(feature = "local_fs"))]
+                {
+                    let _ = backend;
+                }
+            }
             LeftPanelEvent::OpenSkillFile { source } => {
                 #[cfg(feature = "local_fs")]
                 {
@@ -6859,6 +6918,281 @@ impl Workspace {
             Arc::new(HashMap::new()),
             None,
             ctx,
+        );
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn open_sftp_file_with_decision(
+        &mut self,
+        node_id: String,
+        path: PathBuf,
+        backend: Arc<dyn crate::sftp_manager::sftp_backend::SftpBackend>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let decision_backend = backend.clone();
+        let decision_path = path.clone();
+        let code_settings = CodeSettings::as_ref(ctx);
+        let auto_open_text_max_bytes = code_settings.remote_file_auto_open_text_max_bytes();
+        let large_preview_max_bytes = code_settings.remote_file_large_preview_max_bytes();
+        let text_cache_max_bytes = code_settings.remote_file_text_cache_max_bytes();
+        ctx.spawn(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let stat = decision_backend.stat(&decision_path)?;
+                    let service = RemoteFileService::new_with_cache(
+                        auto_open_text_max_bytes,
+                        large_preview_max_bytes,
+                        text_cache_max_bytes,
+                    );
+                    let decision =
+                        service.decide_open(decision_backend.as_ref(), &decision_path)?;
+                    Ok::<_, crate::sftp_manager::sftp_ops::SftpOpsError>((decision, stat.size))
+                })
+                .await
+                .map_err(|error| {
+                    crate::sftp_manager::sftp_ops::SftpOpsError::Operation(error.to_string())
+                })?
+            },
+            move |me, result, ctx| match result {
+                Ok((RemoteOpenDecision::Text(_), _)) => {
+                    me.open_sftp_file_in_editor(node_id, path, backend, None, ctx);
+                }
+                Ok((decision, size)) => {
+                    me.display_sftp_open_decision(decision, node_id, path, backend, size, ctx);
+                }
+                Err(error) => {
+                    me.display_sftp_open_error(format!("SFTP 文件打开失败: {error}"), ctx);
+                }
+            },
+        );
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn open_sftp_file_in_editor(
+        &mut self,
+        node_id: String,
+        path: PathBuf,
+        backend: Arc<dyn crate::sftp_manager::sftp_backend::SftpBackend>,
+        open_limit: Option<u64>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let display_identity = sftp_display_identity(&node_id);
+        let sftp_path = crate::code::buffer_location::SftpPath {
+            node_id,
+            path,
+            display_identity,
+        };
+        crate::code::global_buffer_model::GlobalBufferModel::handle(ctx).update(
+            ctx,
+            |model, _ctx| {
+                model.register_sftp_backend(sftp_path.node_id.clone(), backend.clone());
+                if let Some(open_limit) = open_limit {
+                    model.set_sftp_open_limit(sftp_path.clone(), open_limit);
+                }
+            },
+        );
+        let layout = *EditorSettings::as_ref(ctx).open_file_layout.value();
+        self.open_code(
+            CodeSource::SftpFileTree { sftp_path },
+            layout,
+            None,
+            false,
+            &[],
+            ctx,
+        );
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn display_sftp_open_decision(
+        &mut self,
+        decision: RemoteOpenDecision,
+        node_id: String,
+        path: PathBuf,
+        backend: Arc<dyn crate::sftp_manager::sftp_backend::SftpBackend>,
+        size: u64,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let action_decision = decision.clone();
+        let message = match decision {
+            RemoteOpenDecision::TooLarge { size, max, preview } => {
+                let mut message = format!(
+                    "远程文件超过自动打开限制，未直接加载。文件大小: {}，限制: {}。",
+                    format_bytes(size),
+                    format_bytes(max)
+                );
+                if let Some(preview) = preview {
+                    message.push_str("\n\n预览:\n");
+                    message.push_str(&preview);
+                }
+                message
+            }
+            RemoteOpenDecision::Binary => {
+                format!(
+                    "远程文件看起来是二进制文件，未在文本编辑器中打开: {}",
+                    path.display()
+                )
+            }
+            RemoteOpenDecision::UnsupportedEncoding => format!(
+                "远程文件无法作为 UTF-8/UTF-16 文本安全打开: {}",
+                path.display()
+            ),
+            RemoteOpenDecision::UnsupportedFileType(file_type) => {
+                format!("不支持打开该远程条目类型: {file_type:?}")
+            }
+            RemoteOpenDecision::Text(_) => return,
+        };
+
+        let action_button = match action_decision {
+            RemoteOpenDecision::TooLarge { .. } => {
+                let request = SftpOpenRequest {
+                    node_id,
+                    path: path.clone(),
+                    backend,
+                    max_bytes: size,
+                };
+                ctx.add_view(move |_| {
+                    let request = request.clone();
+                    ActionButton::new("仍然打开", SecondaryTheme).on_click(move |ctx| {
+                        ctx.dispatch_typed_action(WorkspaceAction::OpenSftpFileExplicitly(
+                            request.clone(),
+                        ));
+                    })
+                })
+            }
+            RemoteOpenDecision::Binary
+            | RemoteOpenDecision::UnsupportedEncoding
+            | RemoteOpenDecision::UnsupportedFileType(_) => {
+                let request = SftpExternalOpenRequest {
+                    node_id,
+                    path: path.clone(),
+                    backend,
+                    size,
+                };
+                ctx.add_view(move |_| {
+                    let request = request.clone();
+                    ActionButton::new("外部打开", SecondaryTheme).on_click(move |ctx| {
+                        ctx.dispatch_typed_action(WorkspaceAction::OpenSftpFileExternally(
+                            request.clone(),
+                        ));
+                    })
+                })
+            }
+            RemoteOpenDecision::Text(_) => return,
+        };
+        let toast = DismissibleToast::default(message)
+            .with_action_button(action_button)
+            .with_object_id(format!("sftp_open_decision:{}", path.display()));
+        let window_id = ctx.window_id();
+        WorkspaceToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+            toast_stack.add_ephemeral_toast(toast, window_id, ctx);
+        });
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn display_sftp_open_error(&mut self, message: String, ctx: &mut ViewContext<Self>) {
+        let toast = DismissibleToast::error(message).with_object_id("sftp_open_error".to_string());
+        let window_id = ctx.window_id();
+        WorkspaceToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+            toast_stack.add_ephemeral_toast(toast, window_id, ctx);
+        });
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn open_sftp_file_explicitly(&mut self, request: SftpOpenRequest, ctx: &mut ViewContext<Self>) {
+        self.open_sftp_file_in_editor(
+            request.node_id,
+            request.path,
+            request.backend,
+            Some(request.max_bytes),
+            ctx,
+        );
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn download_sftp_file(&mut self, request: SftpDownloadRequest, ctx: &mut ViewContext<Self>) {
+        let default_name = request
+            .path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .filter(|name| !name.is_empty())
+            .unwrap_or_else(|| "remote-file".to_string());
+        ctx.open_save_file_picker(
+            move |path_opt: Option<String>, me: &mut Self, ctx: &mut ViewContext<Self>| {
+                let Some(local_path) = path_opt.map(PathBuf::from) else {
+                    return;
+                };
+                let started = me.left_panel_view.update(ctx, |left_panel, ctx| {
+                    left_panel.download_sftp_file(
+                        request.path.clone(),
+                        local_path,
+                        request.size,
+                        ctx,
+                    )
+                });
+                if !started {
+                    me.display_sftp_open_error(
+                        "SFTP 项目浏览器不可用，无法启动下载。".to_string(),
+                        ctx,
+                    );
+                }
+            },
+            SaveFilePickerConfiguration::new().with_default_filename(default_name),
+        );
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn open_sftp_file_externally(
+        &mut self,
+        request: SftpExternalOpenRequest,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let file_name = request
+            .path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .filter(|name| !name.is_empty())
+            .unwrap_or_else(|| "remote-file".to_string());
+        let mut hasher = DefaultHasher::new();
+        request.node_id.hash(&mut hasher);
+        request.path.hash(&mut hasher);
+        let temp_path = std::env::temp_dir()
+            .join("zora-sftp-open")
+            .join(format!("{:016x}", hasher.finish()))
+            .join(file_name);
+        let backend = request.backend.clone();
+        let remote_path = request.path.clone();
+        let max_bytes = request.size;
+
+        ctx.spawn(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    let Some(parent) = temp_path.parent() else {
+                        return Err(crate::sftp_manager::sftp_ops::SftpOpsError::Operation(
+                            "临时文件路径无效".to_string(),
+                        ));
+                    };
+                    std::fs::create_dir_all(parent).map_err(|error| {
+                        crate::sftp_manager::sftp_ops::SftpOpsError::LocalIo(error.to_string())
+                    })?;
+                    let file = backend.read_file(&remote_path, max_bytes)?;
+                    std::fs::write(&temp_path, file.bytes).map_err(|error| {
+                        crate::sftp_manager::sftp_ops::SftpOpsError::LocalIo(error.to_string())
+                    })?;
+                    Ok::<_, crate::sftp_manager::sftp_ops::SftpOpsError>(temp_path)
+                })
+                .await
+                .map_err(|error| {
+                    crate::sftp_manager::sftp_ops::SftpOpsError::Operation(error.to_string())
+                })?
+            },
+            move |me, result, ctx| match result {
+                Ok(local_path) => {
+                    ctx.open_file_path(&local_path);
+                }
+                Err(error) => {
+                    me.display_sftp_open_error(format!("外部打开远程文件失败: {error}"), ctx);
+                }
+            },
         );
     }
 
@@ -12328,6 +12662,11 @@ impl Workspace {
             }
             pane_group::Event::RunTabConfigSkill { path } => {
                 self.run_tab_config_skill(path, ctx);
+            }
+            pane_group::Event::SftpFileSaved { sftp_path } => {
+                self.left_panel_view.update(ctx, |left_panel, ctx| {
+                    left_panel.refresh_sftp_directory_for_path(sftp_path, ctx);
+                });
             }
             pane_group::Event::OpenCodeReviewPane(arg) => {
                 self.open_code_review_panel_from_arg(arg, pane_group.clone(), ctx);
@@ -18493,6 +18832,15 @@ impl TypedActionView for Workspace {
             }
             OpenSshTerminal { node_id, server } => {
                 self.open_ssh_terminal(node_id.clone(), server.clone(), ctx);
+            }
+            DownloadSftpFile(request) => {
+                self.download_sftp_file(request.clone(), ctx);
+            }
+            OpenSftpFileExplicitly(request) => {
+                self.open_sftp_file_explicitly(request.clone(), ctx);
+            }
+            OpenSftpFileExternally(request) => {
+                self.open_sftp_file_externally(request.clone(), ctx);
             }
             AddTabWithShell { shell, source } => {
                 self.add_tab_with_shell(shell.clone(), *source, ctx)
