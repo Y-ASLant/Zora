@@ -13471,10 +13471,9 @@ impl Workspace {
             {
                 // 加上 `ServerFileBrowser` 守卫,确保该功能被 `ZAP_UNSTABLE_FEATURES`
                 // 关闭时不要在 SSH 会话激活后偷偷拉取远程目录,避免任何相关后台活动。
-                if is_remote
-                    && FeatureFlag::ServerFileBrowser.is_enabled()
-                    && FeatureFlag::SshRemoteServer.is_enabled()
-                {
+                // 没有 remote-server daemon 时,ServerFileBrowser 会回退到 session 命令
+                // 做基础目录浏览。
+                if is_remote && FeatureFlag::ServerFileBrowser.is_enabled() {
                     let host_id = RemoteServerManager::as_ref(ctx)
                         .host_id_for_session(sid)
                         .cloned()
@@ -18309,8 +18308,7 @@ impl Workspace {
         }
         // openWarp 独有:SSH 管理器,无 feature flag,默认始终显示。
         views.push(ToolPanelView::SshManager);
-        if FeatureFlag::ServerFileBrowser.is_enabled() && FeatureFlag::SshRemoteServer.is_enabled()
-        {
+        if FeatureFlag::ServerFileBrowser.is_enabled() {
             views.push(ToolPanelView::ServerFileBrowser);
         }
         // openWarp 独有:Skill 管理器,无 feature flag,local_fs 构建下默认显示。

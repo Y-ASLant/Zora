@@ -667,6 +667,14 @@ impl LeftPanelView {
         self.server_file_browser_view.update(ctx, |view, ctx| {
             view.set_remote_root(host_id, path, session_id, session, ctx);
         });
+        if matches!(
+            self.active_view.get(),
+            ToolPanelView::ProjectExplorer
+                | ToolPanelView::SshManager
+                | ToolPanelView::ServerFileBrowser
+        ) {
+            active_view_state::set(self, ToolPanelView::ServerFileBrowser, ctx);
+        }
     }
 
     pub fn navigate_server_file_browser(
