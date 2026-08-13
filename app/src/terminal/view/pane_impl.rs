@@ -116,14 +116,21 @@ impl TerminalView {
                 None => {
                     if is_ambient_agent {
                         default_agent_conversation_title()
+                    } else if let Some(label) = self
+                        .ssh_connection_label()
+                        .filter(|_| self.terminal_title.trim().is_empty())
+                    {
+                        label.to_string()
                     } else {
                         self.terminal_title.clone()
                     }
                 }
             }
         };
+        let ssh_connection_label = self.ssh_connection_label().unwrap_or_default().to_string();
         self.pane_configuration.update(ctx, |pane_config, ctx| {
             pane_config.set_title(new_pane_title, ctx);
+            pane_config.set_title_secondary(ssh_connection_label, ctx);
             if FeatureFlag::AgentView.is_enabled() {
                 pane_config.refresh_pane_header_overflow_menu_items(ctx);
             }

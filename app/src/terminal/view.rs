@@ -2640,6 +2640,8 @@ pub struct TerminalView {
 
     /// The title of the terminal view to show when there is no selected conversation.
     terminal_title: String,
+    /// SSH 管理器发起连接时的原始目标地址,用于在 pane chrome 中稳定显示当前远端。
+    ssh_connection_label: Option<String>,
 
     // If there is a selected conversation in the view before bootstrapping (from loading a conversation into a new pane),
     // we want to keep the title as the conversation title, so we should ignore the model event setting the title after bootstrapping finishes
@@ -3974,6 +3976,7 @@ impl TerminalView {
             conversation_completed_callbacks: Default::default(),
             current_repo_path: None,
             terminal_title: Default::default(),
+            ssh_connection_label: None,
             ignore_next_set_title_event: false,
             cli_subagent_views: Default::default(),
             cli_subagent_controller,
@@ -6433,6 +6436,19 @@ impl TerminalView {
         self.active_block_session_id()
             .and_then(|id| self.sessions.as_ref(ctx).get(id))
             .map(|s| s.shell().shell_type())
+    }
+
+    pub fn ssh_connection_label(&self) -> Option<&str> {
+        self.ssh_connection_label.as_deref()
+    }
+
+    pub fn set_ssh_connection_label(&mut self, label: Option<String>, ctx: &mut ViewContext<Self>) {
+        self.ssh_connection_label = label.and_then(|label| {
+            let label = label.trim();
+            (!label.is_empty()).then(|| label.to_string())
+        });
+        self.update_pane_configuration(ctx);
+        ctx.notify();
     }
 
     pub fn active_session_path_if_local<C: ModelAsRef>(&self, ctx: &C) -> Option<PathBuf> {

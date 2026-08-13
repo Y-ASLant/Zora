@@ -166,6 +166,8 @@ pub enum SftpBrowserAction {
 pub struct SftpBrowserView {
     /// 关联的 SSH 服务器节点 ID
     node_id: String,
+    /// SSH 管理器中的连接目标显示名。
+    server_label: Option<String>,
     /// 当前所属窗口，用于按窗口高度限制传输面板。
     window_id: WindowId,
     /// pane 配置句柄
@@ -325,6 +327,7 @@ impl SftpBrowserView {
 
         let mut me = Self {
             node_id,
+            server_label: None,
             window_id: ctx.window_id(),
             pane_configuration,
             focus_handle: None,
@@ -506,9 +509,7 @@ impl SftpBrowserView {
         }
         let path = self.current_path.display();
         let title = format!("SFTP: {path}");
-        self.pane_configuration.update(ctx, |config, ctx| {
-            config.set_title(title, ctx);
-        });
+        self.update_pane_title(title, ctx);
         ctx.notify();
     }
 
@@ -568,6 +569,9 @@ impl SftpBrowserView {
 
         match result {
             Ok(Some(server)) => {
+                self.server_label = Some(crate::ssh_manager::ssh_server_display_label(&server));
+                self.update_pane_title("文件管理".to_string(), ctx);
+
                 // 取消之前的连接尝试
                 if let Some(h) = self.connect_handle.take() {
                     h.abort();
@@ -754,12 +758,18 @@ impl SftpBrowserView {
 
                 let path = me.current_path.display();
                 let title = format!("SFTP: {path}");
-                me.pane_configuration.update(ctx, |config, ctx| {
-                    config.set_title(title, ctx);
-                });
+                me.update_pane_title(title, ctx);
                 ctx.notify();
             },
         );
+    }
+
+    fn update_pane_title(&self, title: String, ctx: &mut ViewContext<Self>) {
+        let server_label = self.server_label.clone().unwrap_or_default();
+        self.pane_configuration.update(ctx, |config, ctx| {
+            config.set_title(title, ctx);
+            config.set_title_secondary(server_label, ctx);
+        });
     }
 
     /// 同步行鼠标句柄数量与条目数量一致

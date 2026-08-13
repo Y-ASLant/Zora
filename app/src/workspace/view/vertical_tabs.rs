@@ -2748,7 +2748,7 @@ fn build_vertical_tabs_summary_data(
             TypedPane::Terminal(terminal_pane) => {
                 let terminal_view = terminal_pane.terminal_view(app);
                 let terminal_view = terminal_view.as_ref(app);
-                let title_text = terminal_view.terminal_title_from_shell();
+                let title_text = terminal_view.terminal_display_title(app);
                 let working_directory = terminal_view.display_working_directory(app);
                 let working_directory_text = working_directory
                     .clone()
@@ -3000,7 +3000,7 @@ fn terminal_pane_search_text_fragments(
 ) -> Vec<String> {
     let terminal_view = terminal_pane.terminal_view(app);
     let terminal_view = terminal_view.as_ref(app);
-    let title_text = terminal_view.terminal_title_from_shell();
+    let title_text = terminal_view.terminal_display_title(app);
     let working_directory = terminal_view
         .display_working_directory(app)
         .filter(|wd| !wd.trim().is_empty())
@@ -3280,7 +3280,7 @@ fn render_terminal_row_content(
     let sub_text_color = theme.sub_text_color(theme.background());
     let primary_info = *TabSettings::as_ref(app).vertical_tabs_primary_info.value();
 
-    let title_text = terminal_view.terminal_title_from_shell();
+    let title_text = terminal_view.terminal_display_title(app);
     let working_directory = terminal_view
         .display_working_directory(app)
         .filter(|wd| !wd.trim().is_empty())
@@ -3931,7 +3931,7 @@ fn render_terminal_primary_line_for_view(
     text_color: WarpThemeFill,
     app: &AppContext,
 ) -> Box<dyn Element> {
-    let title_text = terminal_view.terminal_title_from_shell();
+    let title_text = terminal_view.terminal_display_title(app);
     let working_directory = terminal_view
         .display_working_directory(app)
         .filter(|wd| !wd.trim().is_empty())
@@ -5469,7 +5469,7 @@ fn render_terminal_detail_section(
         None
     };
 
-    let title_text = terminal_view.terminal_title_from_shell();
+    let title_text = terminal_view.terminal_display_title(app);
     let primary_line = terminal_primary_line_data(
         terminal_view.is_long_running_and_user_controlled(),
         conversation_display_title,
@@ -5914,7 +5914,7 @@ fn render_compact_pane_row(props: PaneProps<'_>, app: &AppContext) -> Box<dyn El
     let (title_element, subtitle_element): (Box<dyn Element>, Option<Box<dyn Element>>) =
         if let TypedPane::Terminal(terminal_pane) = &props.typed {
             let terminal_view = terminal_pane.terminal_view(app).as_ref(app);
-            let terminal_title = terminal_view.terminal_title_from_shell();
+            let terminal_title = terminal_view.terminal_display_title(app);
             let git_branch = terminal_view.current_git_branch(app);
             let working_directory = terminal_view
                 .display_working_directory(app)

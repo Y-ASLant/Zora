@@ -5178,6 +5178,8 @@ impl Workspace {
                 }
             };
         let cmd = warp_ssh_manager::build_ssh_command_line(&server_for_connection);
+        let ssh_connection_label =
+            crate::ssh_manager::ssh_server_display_label(&server_for_connection);
         let window_id = ctx.window_id();
 
         // 开新 tab(不分屏 — 之前用 add_terminal_pane(Direction::Right) 会切左/右
@@ -5208,6 +5210,10 @@ impl Workspace {
                 view.set_enter_agent_view_after_ssh_bootstrap();
             });
         }
+
+        terminal_view.update(ctx, |view, ctx| {
+            view.set_ssh_connection_label(Some(ssh_connection_label), ctx);
+        });
 
         // 1. 同步读 keychain(主线程 OK)。OneKey server 会使用共享凭据 id。
         let secret = match KeychainSecretStore.get(&secret_lookup_id, secret_kind) {

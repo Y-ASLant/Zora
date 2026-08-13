@@ -23,3 +23,18 @@ pub use panel::SshManagerPanel;
 // Re-exports for downstream UI consumers (Commit 2b).
 #[allow(unused_imports)]
 pub use panel::{SshManagerPanelAction, SshManagerPanelEvent};
+
+pub(crate) fn ssh_server_display_label(server: &warp_ssh_manager::SshServerInfo) -> String {
+    let host = server.host.trim();
+    let username = server.username.trim();
+    let target = if username.is_empty() {
+        host.to_string()
+    } else {
+        format!("{username}@{host}")
+    };
+    if server.port == 22 {
+        target
+    } else {
+        format!("{target}:{}", server.port)
+    }
+}

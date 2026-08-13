@@ -32,6 +32,35 @@ impl TerminalView {
             .unwrap_or(fallback_title)
     }
 
+    pub fn terminal_remote_location_text(&self, ctx: &AppContext) -> Option<String> {
+        if let Some(label) = self.ssh_connection_label() {
+            return Some(label.to_string());
+        }
+
+        let session = self
+            .active_block_session_id()
+            .and_then(|session_id| self.sessions.as_ref(ctx).get(session_id))?;
+        if session.is_local() && !session.is_legacy_ssh_session() {
+            return None;
+        }
+
+        let host = session.hostname().trim();
+        if host.is_empty() {
+            return None;
+        }
+        let user = session.user().trim();
+        Some(if user.is_empty() {
+            host.to_string()
+        } else {
+            format!("{user}@{host}")
+        })
+    }
+
+    pub fn terminal_display_title(&self, ctx: &AppContext) -> String {
+        self.terminal_remote_location_text(ctx)
+            .unwrap_or_else(|| self.terminal_title_from_shell())
+    }
+
     #[cfg_attr(not(feature = "local_fs"), allow(clippy::unnecessary_lazy_evaluations))]
     pub fn current_git_branch(&self, ctx: &AppContext) -> Option<String> {
         self.prompt_chip_value(&ContextChipKind::ShellGitBranch, ctx)
