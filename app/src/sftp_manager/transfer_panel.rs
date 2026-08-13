@@ -18,7 +18,7 @@ use crate::sftp_manager::types::{format_size, TransferDirection, TransferState, 
 use crate::ui_components::icons::Icon;
 
 /// 进度条高度
-const PROGRESS_BAR_HEIGHT: f32 = 4.0;
+const PROGRESS_BAR_HEIGHT: f32 = 8.0;
 /// 面板内边距
 const PANEL_PADDING: f32 = 8.0;
 /// 传输面板位置 ID
@@ -30,11 +30,13 @@ fn render_direction_icon(
     appearance: &Appearance,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
-    let icon_color = theme.sub_text_color(theme.background());
-
     let icon = match direction {
         TransferDirection::Upload => Icon::UploadCloud,
         TransferDirection::Download => Icon::Download,
+    };
+    let icon_color = match direction {
+        TransferDirection::Upload => theme.accent(),
+        TransferDirection::Download => theme.ui_green_color().into(),
     };
 
     ConstrainedBox::new(icon.to_warpui_icon(icon_color).finish())
@@ -121,7 +123,7 @@ fn render_progress_bar(progress: u8, appearance: &Appearance) -> Box<dyn Element
         return ConstrainedBox::new(
             Container::new(Flex::row().finish())
                 .with_background(theme.surface_3())
-                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(2.0)))
+                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)))
                 .finish(),
         )
         .with_height(PROGRESS_BAR_HEIGHT)
@@ -134,7 +136,7 @@ fn render_progress_bar(progress: u8, appearance: &Appearance) -> Box<dyn Element
     let fill = ConstrainedBox::new(
         Container::new(Flex::row().finish())
             .with_background(theme.accent())
-            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(2.0)))
+            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)))
             .finish(),
     )
     .with_height(PROGRESS_BAR_HEIGHT)
@@ -158,7 +160,7 @@ fn render_progress_bar(progress: u8, appearance: &Appearance) -> Box<dyn Element
                 .finish(),
         )
         .with_background(theme.surface_3())
-        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(2.0)))
+        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)))
         .finish(),
     )
     .with_height(PROGRESS_BAR_HEIGHT)
@@ -176,6 +178,7 @@ fn render_transfer_row(task: &TransferTask, appearance: &Appearance) -> Box<dyn 
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
+    let progress = task.progress_percent();
     let name_el = Text::new_inline(
         file_name,
         appearance.ui_font_family(),
@@ -187,12 +190,21 @@ fn render_transfer_row(task: &TransferTask, appearance: &Appearance) -> Box<dyn 
     // 状态标签
     let state_el = render_state_label(&task.state, appearance);
 
-    // 第一行：图标 + 文件名 + 状态 + 取消按钮
+    // 第一行：图标 + 文件名 + 百分比 + 状态 + 操作按钮
     let mut top_row = Flex::row()
         .with_cross_axis_alignment(CrossAxisAlignment::Center)
         .with_spacing(6.0)
         .with_child(dir_icon)
         .with_child(Shrinkable::new(1.0, name_el).finish())
+        .with_child(
+            Text::new_inline(
+                format!("{progress}%"),
+                appearance.ui_font_family(),
+                appearance.ui_font_size(),
+            )
+            .with_color(appearance.theme().active_ui_text_color().into())
+            .finish(),
+        )
         .with_child(state_el);
 
     let task_id = task.id;
@@ -264,10 +276,10 @@ fn render_transfer_row(task: &TransferTask, appearance: &Appearance) -> Box<dyn 
         task.state,
         TransferState::InProgress | TransferState::Paused
     ) {
-        let bar = render_progress_bar(task.progress_percent(), appearance);
+        let bar = render_progress_bar(progress, appearance);
         col.add_child(bar);
         let mut stats = format!(
-            "{} / {} · {}/s",
+            "已传 {} / {} · 速度 {}/s",
             format_size(task.transferred),
             format_size(task.total_size),
             format_size(task.speed_bytes_per_second),
@@ -282,14 +294,9 @@ fn render_transfer_row(task: &TransferTask, appearance: &Appearance) -> Box<dyn 
             Text::new_inline(
                 stats,
                 appearance.ui_font_family(),
-                appearance.ui_font_size() * 0.8,
+                appearance.ui_font_size() * 0.9,
             )
-            .with_color(
-                appearance
-                    .theme()
-                    .sub_text_color(appearance.theme().background())
-                    .into(),
-            )
+            .with_color(appearance.theme().active_ui_text_color().into())
             .finish(),
         );
     }
