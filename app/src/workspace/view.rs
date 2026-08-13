@@ -5046,11 +5046,9 @@ impl Workspace {
                 self.open_ssh_server(node_id.clone(), ctx);
             }
             LeftPanelEvent::OpenSshTerminal { node_id, server } => {
-                if FeatureFlag::ServerFileBrowser.is_enabled() {
-                    self.left_panel_view.update(ctx, |left_panel, ctx| {
-                        left_panel.open_sftp_browser(node_id.clone(), ctx);
-                    });
-                }
+                self.left_panel_view.update(ctx, |left_panel, ctx| {
+                    left_panel.open_sftp_browser(node_id.clone(), ctx);
+                });
                 self.open_ssh_terminal(node_id.clone(), server.clone(), ctx);
             }
         }
@@ -18310,9 +18308,7 @@ impl Workspace {
         }
         // openWarp 独有:SSH 管理器,无 feature flag,默认始终显示。
         views.push(ToolPanelView::SshManager);
-        if FeatureFlag::ServerFileBrowser.is_enabled() {
-            views.push(ToolPanelView::ServerFileBrowser);
-        }
+        views.push(ToolPanelView::ServerFileBrowser);
         // openWarp 独有:Skill 管理器,无 feature flag,local_fs 构建下默认显示。
         if cfg!(feature = "local_fs") {
             views.push(ToolPanelView::SkillManager);
