@@ -24,13 +24,6 @@ Zora is an open, local-first terminal with first-class AI and agent support. Plu
 - **Localized UI** — English / Simplified Chinese / Japanese out of the box, community-extensible.
 - **Privacy defaults** — Cloud Agent / Computer Use / Referral / telemetry off by default.
 
-## Migrating from OpenWarp or Warp
-
-If you used the project before it was renamed to Zora (formerly **OpenWarp**),
-or are coming from upstream **Warp**, see
-[docs/migrate-from-warp.md](docs/migrate-from-warp.md) to bring your settings
-across.
-
 ## Build from source
 
 From the repository root, use the platform-aware build wrapper:

@@ -24,12 +24,6 @@ Zora 是一个开放、本地优先的终端,带一等公民的 AI 与 Agent 体
 - **多语言界面** —— 原生英文 / 简体中文 / 日语,社区可扩展。
 - **隐私默认值** —— Cloud Agent / Computer Use / Referral / 遥测默认关闭。
 
-## 从 OpenWarp 或 Warp 迁移过来
-
-如果你在项目改名 Zora 之前就一直在用(那时还叫 **OpenWarp**),
-或者你是从上游 **Warp** 切过来的,参见
-[docs/migrate-from-warp.zh-CN.md](docs/migrate-from-warp.zh-CN.md) 把设置带过来。
-
 ## 从源码构建
 
 在仓库根目录执行跨平台构建入口：
