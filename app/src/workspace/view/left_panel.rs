@@ -31,6 +31,7 @@ use crate::pane_group::{PaneGroup, WorkingDirectoriesEvent, WorkingDirectoriesMo
 use crate::server::telemetry::CodePanelsFileOpenEntrypoint;
 use crate::server::telemetry::{FileTreeSource, WarpDriveSource};
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
+use crate::sftp_manager::browser::SftpBrowserView;
 use crate::skill_manager::{SkillManagerPanel, SkillManagerPanelEvent};
 use crate::ssh_manager::SshManagerPanel;
 use crate::terminal::model::session::Session;
@@ -132,11 +133,6 @@ pub enum LeftPanelEvent {
         node_id: String,
         server: warp_ssh_manager::SshServerInfo,
     },
-    /// 用户从 SSH 管理器右键 "SFTP 浏览" → 主窗口开 SFTP 文件浏览器 pane。
-    OpenSftpPane {
-        node_id: String,
-        server: warp_ssh_manager::SshServerInfo,
-    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -216,6 +212,7 @@ pub struct LeftPanelView {
     conversation_list_view: ViewHandle<ConversationListView>,
     ssh_manager_view: ViewHandle<SshManagerPanel>,
     server_file_browser_view: ViewHandle<ServerFileBrowserView>,
+    sftp_browser_view: Option<ViewHandle<SftpBrowserView>>,
     skill_manager_view: ViewHandle<SkillManagerPanel>,
     active_view: active_view_state::ActiveViewState,
     toolbelt_buttons: Vec<ToolbeltButtonConfig>,
@@ -274,12 +271,6 @@ impl LeftPanelView {
                 }
                 SshManagerPanelEvent::OpenSshTerminal { node_id, server } => {
                     ctx.emit(LeftPanelEvent::OpenSshTerminal {
-                        node_id: node_id.clone(),
-                        server: server.clone(),
-                    });
-                }
-                SshManagerPanelEvent::OpenSftpPane { node_id, server } => {
-                    ctx.emit(LeftPanelEvent::OpenSftpPane {
                         node_id: node_id.clone(),
                         server: server.clone(),
                     });
@@ -403,6 +394,7 @@ impl LeftPanelView {
             conversation_list_view,
             ssh_manager_view,
             server_file_browser_view,
+            sftp_browser_view: None,
             skill_manager_view,
             active_view: active_view_state::new(active_view),
             toolbelt_buttons,
@@ -667,6 +659,7 @@ impl LeftPanelView {
         self.server_file_browser_view.update(ctx, |view, ctx| {
             view.set_remote_root(host_id, path, session_id, session, ctx);
         });
+        self.sftp_browser_view = None;
         if matches!(
             self.active_view.get(),
             ToolPanelView::ProjectExplorer
@@ -675,6 +668,12 @@ impl LeftPanelView {
         ) {
             active_view_state::set(self, ToolPanelView::ServerFileBrowser, ctx);
         }
+    }
+
+    pub fn open_sftp_browser(&mut self, node_id: String, ctx: &mut ViewContext<Self>) {
+        let view = ctx.add_typed_action_view(move |ctx| SftpBrowserView::new(node_id, ctx));
+        self.sftp_browser_view = Some(view);
+        active_view_state::set(self, ToolPanelView::ServerFileBrowser, ctx);
     }
 
     pub fn navigate_server_file_browser(
@@ -853,10 +852,14 @@ impl LeftPanelView {
                 ctx.focus(&self.ssh_manager_view);
             }
             ToolPanelView::ServerFileBrowser => {
-                ctx.focus(&self.server_file_browser_view);
-                self.server_file_browser_view.update(ctx, |view, ctx| {
-                    view.on_left_panel_focused(ctx);
-                });
+                if let Some(view) = &self.sftp_browser_view {
+                    ctx.focus(view);
+                } else {
+                    ctx.focus(&self.server_file_browser_view);
+                    self.server_file_browser_view.update(ctx, |view, ctx| {
+                        view.on_left_panel_focused(ctx);
+                    });
+                }
             }
             ToolPanelView::SkillManager => {
                 ctx.focus(&self.skill_manager_view);
@@ -1373,10 +1376,17 @@ impl View for LeftPanelView {
             .finish(),
             ToolPanelView::ServerFileBrowser => Shrinkable::new(
                 1.0,
-                Container::new(ChildView::new(&self.server_file_browser_view).finish())
-                    .with_padding_left(2.)
-                    .with_padding_right(2.)
-                    .finish(),
+                if let Some(view) = &self.sftp_browser_view {
+                    Container::new(ChildView::new(view).finish())
+                        .with_padding_left(2.)
+                        .with_padding_right(2.)
+                        .finish()
+                } else {
+                    Container::new(ChildView::new(&self.server_file_browser_view).finish())
+                        .with_padding_left(2.)
+                        .with_padding_right(2.)
+                        .finish()
+                },
             )
             .finish(),
             ToolPanelView::SkillManager => Shrinkable::new(

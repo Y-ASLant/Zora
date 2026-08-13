@@ -5046,10 +5046,12 @@ impl Workspace {
                 self.open_ssh_server(node_id.clone(), ctx);
             }
             LeftPanelEvent::OpenSshTerminal { node_id, server } => {
+                if FeatureFlag::ServerFileBrowser.is_enabled() {
+                    self.left_panel_view.update(ctx, |left_panel, ctx| {
+                        left_panel.open_sftp_browser(node_id.clone(), ctx);
+                    });
+                }
                 self.open_ssh_terminal(node_id.clone(), server.clone(), ctx);
-            }
-            LeftPanelEvent::OpenSftpPane { node_id, server: _ } => {
-                self.open_sftp_pane(node_id.clone(), ctx);
             }
         }
     }
