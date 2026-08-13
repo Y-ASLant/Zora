@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -13,8 +14,8 @@ use warpui::{
     },
     platform::Cursor,
     ui_components::components::{Coords, UiComponent, UiComponentStyles},
-    AppContext, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle, WeakViewHandle,
+    AppContext, Entity, EntityId, FocusContext, ModelHandle, SingletonEntity, TypedActionView,
+    View, ViewContext, ViewHandle, WeakViewHandle,
 };
 
 use crate::ai::agent::conversation::AIConversationId;
@@ -212,7 +213,8 @@ pub struct LeftPanelView {
     conversation_list_view: ViewHandle<ConversationListView>,
     ssh_manager_view: ViewHandle<SshManagerPanel>,
     server_file_browser_view: ViewHandle<ServerFileBrowserView>,
-    sftp_browser_view: Option<ViewHandle<SftpBrowserView>>,
+    sftp_browser_views: HashMap<EntityId, ViewHandle<SftpBrowserView>>,
+    server_file_browser_is_project_explorer: bool,
     skill_manager_view: ViewHandle<SkillManagerPanel>,
     active_view: active_view_state::ActiveViewState,
     toolbelt_buttons: Vec<ToolbeltButtonConfig>,
@@ -394,7 +396,8 @@ impl LeftPanelView {
             conversation_list_view,
             ssh_manager_view,
             server_file_browser_view,
-            sftp_browser_view: None,
+            sftp_browser_views: HashMap::new(),
+            server_file_browser_is_project_explorer: false,
             skill_manager_view,
             active_view: active_view_state::new(active_view),
             toolbelt_buttons,
@@ -648,6 +651,15 @@ impl LeftPanelView {
             .get_file_tree_view(pane_group_id)
     }
 
+    fn active_sftp_browser_view(&self, app: &AppContext) -> Option<ViewHandle<SftpBrowserView>> {
+        let pane_group_id = self
+            .active_pane_group
+            .as_ref()
+            .and_then(|pane_group| pane_group.upgrade(app))
+            .map(|pane_group| pane_group.id())?;
+        self.sftp_browser_views.get(&pane_group_id).cloned()
+    }
+
     pub fn set_server_file_browser_root(
         &mut self,
         host_id: HostId,
@@ -659,21 +671,38 @@ impl LeftPanelView {
         self.server_file_browser_view.update(ctx, |view, ctx| {
             view.set_remote_root(host_id, path, session_id, session, ctx);
         });
-        self.sftp_browser_view = None;
+        if let Some(pane_group_id) = self
+            .active_pane_group
+            .as_ref()
+            .and_then(|pane_group| pane_group.upgrade(ctx))
+            .map(|pane_group| pane_group.id())
+        {
+            self.sftp_browser_views.remove(&pane_group_id);
+        }
+        self.server_file_browser_is_project_explorer = true;
         if matches!(
             self.active_view.get(),
             ToolPanelView::ProjectExplorer
                 | ToolPanelView::SshManager
                 | ToolPanelView::ServerFileBrowser
         ) {
-            active_view_state::set(self, ToolPanelView::ServerFileBrowser, ctx);
+            active_view_state::set(self, ToolPanelView::ProjectExplorer, ctx);
         }
     }
 
     pub fn open_sftp_browser(&mut self, node_id: String, ctx: &mut ViewContext<Self>) {
+        let Some(pane_group_id) = self
+            .active_pane_group
+            .as_ref()
+            .and_then(|pane_group| pane_group.upgrade(ctx))
+            .map(|pane_group| pane_group.id())
+        else {
+            return;
+        };
         let view = ctx.add_typed_action_view(move |ctx| SftpBrowserView::new(node_id, ctx));
-        self.sftp_browser_view = Some(view);
-        active_view_state::set(self, ToolPanelView::ServerFileBrowser, ctx);
+        self.sftp_browser_views.insert(pane_group_id, view);
+        self.server_file_browser_is_project_explorer = false;
+        active_view_state::set(self, ToolPanelView::ProjectExplorer, ctx);
     }
 
     pub fn navigate_server_file_browser(
@@ -815,7 +844,14 @@ impl LeftPanelView {
     pub fn focus_active_view_on_entry(&mut self, ctx: &mut ViewContext<Self>) {
         match self.active_view.get() {
             ToolPanelView::ProjectExplorer => {
-                if let Some(file_tree_view) = self.active_file_tree_view(ctx) {
+                if let Some(sftp_browser_view) = self.active_sftp_browser_view(ctx) {
+                    ctx.focus(&sftp_browser_view);
+                } else if self.server_file_browser_is_project_explorer {
+                    ctx.focus(&self.server_file_browser_view);
+                    self.server_file_browser_view.update(ctx, |view, ctx| {
+                        view.on_left_panel_focused(ctx);
+                    });
+                } else if let Some(file_tree_view) = self.active_file_tree_view(ctx) {
                     file_tree_view.update(ctx, |view, ctx| {
                         view.on_left_panel_focused(ctx);
                     });
@@ -852,14 +888,10 @@ impl LeftPanelView {
                 ctx.focus(&self.ssh_manager_view);
             }
             ToolPanelView::ServerFileBrowser => {
-                if let Some(view) = &self.sftp_browser_view {
-                    ctx.focus(view);
-                } else {
-                    ctx.focus(&self.server_file_browser_view);
-                    self.server_file_browser_view.update(ctx, |view, ctx| {
-                        view.on_left_panel_focused(ctx);
-                    });
-                }
+                ctx.focus(&self.server_file_browser_view);
+                self.server_file_browser_view.update(ctx, |view, ctx| {
+                    view.on_left_panel_focused(ctx);
+                });
             }
             ToolPanelView::SkillManager => {
                 ctx.focus(&self.skill_manager_view);
@@ -1331,7 +1363,25 @@ impl View for LeftPanelView {
 
         let content_area: Box<dyn Element> = match self.active_view.get() {
             ToolPanelView::ProjectExplorer => {
-                if let Some(file_tree_view) = self.active_file_tree_view(app) {
+                if let Some(sftp_browser_view) = self.active_sftp_browser_view(app) {
+                    Shrinkable::new(
+                        1.0,
+                        Container::new(ChildView::new(&sftp_browser_view).finish())
+                            .with_padding_left(2.)
+                            .with_padding_right(2.)
+                            .finish(),
+                    )
+                    .finish()
+                } else if self.server_file_browser_is_project_explorer {
+                    Shrinkable::new(
+                        1.0,
+                        Container::new(ChildView::new(&self.server_file_browser_view).finish())
+                            .with_padding_left(2.)
+                            .with_padding_right(2.)
+                            .finish(),
+                    )
+                    .finish()
+                } else if let Some(file_tree_view) = self.active_file_tree_view(app) {
                     Shrinkable::new(
                         1.0,
                         Container::new(ChildView::new(&file_tree_view).finish())
@@ -1376,17 +1426,10 @@ impl View for LeftPanelView {
             .finish(),
             ToolPanelView::ServerFileBrowser => Shrinkable::new(
                 1.0,
-                if let Some(view) = &self.sftp_browser_view {
-                    Container::new(ChildView::new(view).finish())
-                        .with_padding_left(2.)
-                        .with_padding_right(2.)
-                        .finish()
-                } else {
-                    Container::new(ChildView::new(&self.server_file_browser_view).finish())
-                        .with_padding_left(2.)
-                        .with_padding_right(2.)
-                        .finish()
-                },
+                Container::new(ChildView::new(&self.server_file_browser_view).finish())
+                    .with_padding_left(2.)
+                    .with_padding_right(2.)
+                    .finish(),
             )
             .finish(),
             ToolPanelView::SkillManager => Shrinkable::new(

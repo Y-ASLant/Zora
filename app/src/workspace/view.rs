@@ -5046,9 +5046,6 @@ impl Workspace {
                 self.open_ssh_server(node_id.clone(), ctx);
             }
             LeftPanelEvent::OpenSshTerminal { node_id, server } => {
-                self.left_panel_view.update(ctx, |left_panel, ctx| {
-                    left_panel.open_sftp_browser(node_id.clone(), ctx);
-                });
                 self.open_ssh_terminal(node_id.clone(), server.clone(), ctx);
             }
         }
@@ -5195,7 +5192,7 @@ impl Workspace {
         );
 
         // 拿新 tab 的 focused terminal view。
-        let pane_group = self.active_tab_pane_group();
+        let pane_group = self.active_tab_pane_group().clone();
         let focused_pane_id = pane_group.as_ref(ctx).focused_pane_id(ctx);
         let Some(terminal_view) = pane_group
             .as_ref(ctx)
@@ -5213,6 +5210,12 @@ impl Workspace {
 
         terminal_view.update(ctx, |view, ctx| {
             view.set_ssh_connection_label(Some(ssh_connection_label), ctx);
+        });
+
+        let working_directories_model = self.working_directories_model.clone();
+        self.left_panel_view.update(ctx, |left_panel, ctx| {
+            left_panel.set_active_pane_group(pane_group.clone(), &working_directories_model, ctx);
+            left_panel.open_sftp_browser(node_id.clone(), ctx);
         });
 
         // 1. 同步读 keychain(主线程 OK)。OneKey server 会使用共享凭据 id。
@@ -18308,7 +18311,6 @@ impl Workspace {
         }
         // openWarp 独有:SSH 管理器,无 feature flag,默认始终显示。
         views.push(ToolPanelView::SshManager);
-        views.push(ToolPanelView::ServerFileBrowser);
         // openWarp 独有:Skill 管理器,无 feature flag,local_fs 构建下默认显示。
         if cfg!(feature = "local_fs") {
             views.push(ToolPanelView::SkillManager);
