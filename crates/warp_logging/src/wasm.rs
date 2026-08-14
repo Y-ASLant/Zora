@@ -30,11 +30,6 @@ pub fn init(_config: LogConfig) -> Result<()> {
 
 pub fn set_diagnostic_logging_enabled(enabled: bool) {
     DIAGNOSTIC_LOGGING_ENABLED.store(enabled, Ordering::SeqCst);
-    log::set_max_level(if enabled {
-        log::LevelFilter::Debug
-    } else {
-        log::LevelFilter::Info
-    });
 }
 
 pub fn diagnostic_logging_enabled() -> bool {

@@ -21,8 +21,6 @@ const MAX_FILES_IN_GUI_ROTATION: usize = 5;
 const MAX_FILES_IN_CLI_ROTATION: usize = 10;
 const CLI_LOG_SUBDIRECTORY: &str = "oz";
 const TEMP_LOG_FILE_SUFFIX: &str = "old.temp";
-const DEFAULT_RUNTIME_LOG_LEVEL: LevelFilter = LevelFilter::Info;
-const DIAGNOSTIC_RUNTIME_LOG_LEVEL: LevelFilter = LevelFilter::Debug;
 
 /// Runtime logging state, computed from `LogConfig` during initialization.
 #[derive(Debug)]
@@ -43,11 +41,6 @@ static DIAGNOSTIC_LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);
 
 pub fn set_diagnostic_logging_enabled(enabled: bool) {
     DIAGNOSTIC_LOGGING_ENABLED.store(enabled, Ordering::SeqCst);
-    log::set_max_level(if enabled {
-        DIAGNOSTIC_RUNTIME_LOG_LEVEL
-    } else {
-        DEFAULT_RUNTIME_LOG_LEVEL
-    });
 }
 
 pub fn diagnostic_logging_enabled() -> bool {
@@ -508,7 +501,7 @@ fn init_internal(
 
     let mut base_logger = env_logger::builder();
 
-    base_logger.filter_level(DIAGNOSTIC_RUNTIME_LOG_LEVEL);
+    base_logger.filter_level(LevelFilter::Info);
 
     // Only include `WARN` or higher logs for wgpu. By default, wgpu outputs logs at the `INFO`
     // level multiple times _per_ frame. See https://github.com/gfx-rs/wgpu/issues/3206.
@@ -528,7 +521,6 @@ fn init_internal(
                 LevelFilter::Warn
             },
         );
-    let has_explicit_log_filter = env::var_os("RUST_LOG").is_some();
     base_logger.parse_default_env();
 
     let stdout_is_a_tty = std::io::stdout().is_terminal();
@@ -566,9 +558,6 @@ fn init_internal(
     }
 
     base_logger.init();
-    if !has_explicit_log_filter {
-        set_diagnostic_logging_enabled(false);
-    }
 
     // If we're logging to a file, initialize the `log_panics` crate, which
     // will install a panic hook that writes out panics using `log::error`.

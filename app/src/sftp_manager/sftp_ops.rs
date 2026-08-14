@@ -94,7 +94,7 @@ pub(crate) fn log_diagnostic_start(operation: &str, detail: &str) -> Option<Inst
         return None;
     }
 
-    log::debug!("[diagnostic][sftp] {operation} started: {detail}");
+    log::info!("[diagnostic][sftp] {operation} started: {detail}");
     Some(Instant::now())
 }
 
@@ -110,8 +110,8 @@ pub(crate) fn log_diagnostic_finish<T, E: std::fmt::Display>(
 
     let elapsed_ms = started.elapsed().as_millis();
     match result {
-        Ok(_) => log::debug!("[diagnostic][sftp] {operation} finished in {elapsed_ms}ms: {detail}"),
-        Err(error) => log::debug!(
+        Ok(_) => log::info!("[diagnostic][sftp] {operation} finished in {elapsed_ms}ms: {detail}"),
+        Err(error) => log::info!(
             "[diagnostic][sftp] {operation} failed in {elapsed_ms}ms: {detail}; error={error}"
         ),
     }

@@ -5209,6 +5209,14 @@ impl Workspace {
     ) {
         use warp_ssh_manager::{KeychainSecretStore, SecretKind, SshRepository, SshSecretStore};
 
+        log::info!(
+            "open_ssh_terminal: requested node_id={node_id} user={} host={} port={} auth_type={:?}",
+            server.username,
+            server.host,
+            server.port,
+            server.auth_type
+        );
+
         let (server_for_connection, secret_lookup_id, secret_kind) =
             match warp_ssh_manager::with_conn(|conn| {
                 let resolved_auth = SshRepository::resolve_server_auth(conn, &server)?;
@@ -5237,6 +5245,13 @@ impl Workspace {
         let ssh_connection_label =
             crate::ssh_manager::ssh_server_display_label(&server_for_connection);
         let window_id = ctx.window_id();
+        log::info!(
+            "open_ssh_terminal: resolved auth node_id={node_id} secret_lookup_id={secret_lookup_id} user={} host={} port={} auth_type={:?}",
+            server_for_connection.username,
+            server_for_connection.host,
+            server_for_connection.port,
+            server_for_connection.auth_type
+        );
 
         // 开新 tab(不分屏 — 之前用 add_terminal_pane(Direction::Right) 会切左/右
         // 分屏,用户反馈不喜欢)。新 tab 添加后会自动成为 active tab。
@@ -5276,6 +5291,10 @@ impl Workspace {
             left_panel.set_active_pane_group(pane_group.clone(), &working_directories_model, ctx);
             left_panel.open_sftp_browser(node_id.clone(), ctx);
         });
+        log::info!(
+            "open_ssh_terminal: opened SFTP browser node_id={node_id} host={}",
+            server_for_connection.host
+        );
 
         // 1. 同步读 keychain(主线程 OK)。OneKey server 会使用共享凭据 id。
         let secret = match KeychainSecretStore.get(&secret_lookup_id, secret_kind) {
@@ -5331,6 +5350,10 @@ impl Workspace {
         terminal_view.update(ctx, |view, ctx| {
             view.execute_command_or_set_pending(&cmd, ctx);
         });
+        log::info!(
+            "open_ssh_terminal: queued ssh command node_id={node_id} host={}",
+            server_for_connection.host
+        );
     }
 
     fn handle_right_panel_event(&mut self, event: RightPanelEvent, ctx: &mut ViewContext<Self>) {

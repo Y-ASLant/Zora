@@ -520,18 +520,29 @@ impl SshManagerPanel {
     }
 
     fn dispatch_connect_for(&self, id: &str, ctx: &mut ViewContext<Self>) {
-        let kind = self.nodes.iter().find(|n| n.id == id).map(|n| n.kind);
+        let node = self.nodes.iter().find(|n| n.id == id);
+        let kind = node.map(|n| n.kind);
         if !matches!(kind, Some(NodeKind::Server)) {
             return;
         }
+        let node_name = node.map(|n| n.name.as_str()).unwrap_or("<unknown>");
         let server = warp_ssh_manager::with_conn(|c| Ok(SshRepository::get_server(c, id)?))
             .ok()
             .flatten();
         if let Some(server) = server {
+            log::info!(
+                "ssh_manager: opening SSH terminal node_id={id} name={node_name:?} user={} host={} port={} auth_type={:?}",
+                server.username,
+                server.host,
+                server.port,
+                server.auth_type
+            );
             ctx.emit(SshManagerPanelEvent::OpenSshTerminal {
                 node_id: id.to_string(),
                 server,
             });
+        } else {
+            log::warn!("ssh_manager: server lookup failed before connect node_id={id}");
         }
     }
 
