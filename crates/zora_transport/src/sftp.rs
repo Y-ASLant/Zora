@@ -115,44 +115,85 @@ impl Sftp {
     }
 
     pub async fn open(&self, path: &Path, options: &OpenOptions) -> Result<RemoteFile> {
-        let handle = self
-            .inner
-            .open_with_flags_and_attributes(
-                remote_path(path)?,
-                to_open_flags(options),
-                options
-                    .mode
-                    .map(|mode| russh_sftp::protocol::FileAttributes {
-                        permissions: Some(mode),
-                        ..Default::default()
-                    })
-                    .unwrap_or_default(),
-            )
-            .await
-            .map_err(sftp_error)?;
+        let handle = sftp_io(async {
+            self.inner
+                .open_with_flags_and_attributes(
+                    remote_path(path)?,
+                    to_open_flags(options),
+                    options
+                        .mode
+                        .map(|mode| russh_sftp::protocol::FileAttributes {
+                            permissions: Some(mode),
+                            ..Default::default()
+                        })
+                        .unwrap_or_default(),
+                )
+                .await
+                .map_err(sftp_error)
+        })
+        .await?;
         Ok(RemoteFile::new(handle))
     }
 
     pub async fn read(&self, path: &Path) -> Result<Vec<u8>> {
+        self.read_limited(path, u64::MAX).await
+    }
+
+    pub async fn read_limited(&self, path: &Path, max_bytes: u64) -> Result<Vec<u8>> {
         let mut file = self.open(path, &OpenOptions::read()).await?;
-        let mut bytes = Vec::new();
+        let max_len = usize::try_from(max_bytes).unwrap_or(usize::MAX);
+        let mut bytes = Vec::with_capacity(max_len.min(64 * 1024));
         let mut buffer = vec![0_u8; 64 * 1024];
         loop {
-            let read = file.read(&mut buffer).await?;
+            let read_len = if max_len == usize::MAX {
+                buffer.len()
+            } else {
+                max_len
+                    .saturating_add(1)
+                    .saturating_sub(bytes.len())
+                    .min(buffer.len())
+            };
+            if read_len == 0 {
+                let _ = sftp_io(file.close()).await;
+                return Err(TransportError::FileTooLarge {
+                    size: bytes.len() as u64,
+                    max: max_bytes,
+                });
+            }
+            let read = match sftp_io(file.read(&mut buffer[..read_len])).await {
+                Ok(read) => read,
+                Err(error) => {
+                    let _ = sftp_io(file.close()).await;
+                    return Err(error);
+                }
+            };
             if read == 0 {
                 break;
             }
             bytes.extend_from_slice(&buffer[..read]);
+            if bytes.len() > max_len {
+                let _ = sftp_io(file.close()).await;
+                return Err(TransportError::FileTooLarge {
+                    size: bytes.len() as u64,
+                    max: max_bytes,
+                });
+            }
         }
-        file.close().await?;
+        sftp_io(file.close()).await?;
         Ok(bytes)
     }
 
     pub async fn write(&self, path: &Path, bytes: &[u8]) -> Result<()> {
         let mut file = self.open(path, &OpenOptions::write()).await?;
-        file.write_all(bytes).await?;
-        file.flush().await?;
-        file.close().await
+        if let Err(error) = sftp_io(file.write_all(bytes)).await {
+            let _ = sftp_io(file.close()).await;
+            return Err(error);
+        }
+        if let Err(error) = sftp_io(file.flush()).await {
+            let _ = sftp_io(file.close()).await;
+            return Err(error);
+        }
+        sftp_io(file.close()).await
     }
 
     pub async fn canonicalize(&self, path: PathBuf) -> Result<PathBuf> {
@@ -239,8 +280,15 @@ where
 {
     match controller {
         Some(controller) => run_transfer_io(controller, TRANSFER_IO_TIMEOUT, future).await,
-        None => tokio::time::timeout(TRANSFER_IO_TIMEOUT, future)
-            .await
-            .map_err(|_| TransportError::Timeout)?,
+        None => sftp_io(future).await,
     }
+}
+
+async fn sftp_io<T, F>(future: F) -> Result<T>
+where
+    F: Future<Output = Result<T>>,
+{
+    tokio::time::timeout(TRANSFER_IO_TIMEOUT, future)
+        .await
+        .map_err(|_| TransportError::Timeout)?
 }

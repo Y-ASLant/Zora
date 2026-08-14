@@ -23,6 +23,9 @@ pub enum TransportError {
     #[error("操作超时")]
     Timeout,
 
+    #[error("文件过大: {size} 字节，最大允许 {max} 字节")]
+    FileTooLarge { size: u64, max: u64 },
+
     #[error("文件未找到: {0}")]
     NoSuchFile(PathBuf),
 

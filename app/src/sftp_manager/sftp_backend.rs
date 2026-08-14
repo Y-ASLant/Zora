@@ -733,7 +733,7 @@ fn read_remote_file(
 ) -> Result<RemoteFileBytes, SftpOpsError> {
     let metadata = sftp_ops::block_on_transport(sftp.stat(path))?;
     validate_readable_file(&metadata, max_bytes)?;
-    let bytes = sftp_ops::block_on_transport(sftp.read(path))?;
+    let bytes = sftp_ops::block_on_transport(sftp.read_limited(path, max_bytes))?;
     if bytes.len() as u64 > max_bytes {
         return Err(SftpOpsError::FileTooLarge {
             size: bytes.len() as u64,

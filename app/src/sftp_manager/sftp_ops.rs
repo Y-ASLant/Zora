@@ -51,6 +51,9 @@ impl From<zora_transport::TransportError> for SftpOpsError {
             | zora_transport::TransportError::General(error)
             | zora_transport::TransportError::Unsupported(error)
             | zora_transport::TransportError::InvalidPath(error) => Self::Operation(error),
+            zora_transport::TransportError::FileTooLarge { size, max } => {
+                Self::FileTooLarge { size, max }
+            }
             zora_transport::TransportError::ConnectionFailed(error)
             | zora_transport::TransportError::AuthenticationFailed(error) => {
                 Self::Connection(error)
