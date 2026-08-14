@@ -13511,12 +13511,23 @@ impl TerminalView {
     /// Executes a command that was submitted by the user and not yet sent to the shell.
     pub fn execute_pending_command(&mut self, _: (), ctx: &mut ViewContext<Self>) {
         let had_pending = self.input.read(ctx, |input, _| input.has_pending_command());
+        if warp_logging::diagnostic_logging_enabled() {
+            log::info!(
+                "[diagnostic][terminal] execute_pending_command start had_pending={had_pending}"
+            );
+        }
         self.input.update(ctx, |input, ctx| {
             input.execute_pending_command(ctx);
         });
+        let still_pending = self.input.read(ctx, |input, _| input.has_pending_command());
+        if warp_logging::diagnostic_logging_enabled() {
+            log::info!(
+                "[diagnostic][terminal] execute_pending_command finish had_pending={had_pending} still_pending={still_pending}"
+            );
+        }
         // If the pending command was just consumed, track that we're waiting
         // for the resulting block to complete.
-        if had_pending && !self.input.read(ctx, |input, _| input.has_pending_command()) {
+        if had_pending && !still_pending {
             self.awaiting_pending_command_completion = true;
         }
     }
@@ -13527,6 +13538,12 @@ impl TerminalView {
     // If we set it as pending, the command will execute when we trigger another call to
     // `execute_pending_command` (either from a `BlockCompleted` or `BootstrapPrecmdDone` event)
     pub fn execute_command_or_set_pending(&mut self, command: &str, ctx: &mut ViewContext<Self>) {
+        if warp_logging::diagnostic_logging_enabled() {
+            log::info!(
+                "[diagnostic][terminal] execute_command_or_set_pending command={}",
+                warp_logging::diagnostic_text_preview(command, 240)
+            );
+        }
         self.set_pending_command(command, ctx);
         self.execute_pending_command((), ctx);
     }

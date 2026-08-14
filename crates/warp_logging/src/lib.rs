@@ -33,3 +33,27 @@ pub use imp::{
     init_for_crash_recovery_process, init_logging_for_unit_tests, on_crash_recovery_process_killed,
     on_parent_process_crash,
 };
+
+pub fn diagnostic_text_preview(text: &str, max_chars: usize) -> String {
+    let mut preview = String::new();
+    let mut truncated = false;
+    for (index, ch) in text.chars().enumerate() {
+        if index >= max_chars {
+            truncated = true;
+            break;
+        }
+        match ch {
+            '\n' => preview.push_str("\\n"),
+            '\r' => preview.push_str("\\r"),
+            '\t' => preview.push_str("\\t"),
+            ch if ch.is_control() => {
+                preview.push_str(&format!("\\u{{{:x}}}", ch as u32));
+            }
+            ch => preview.push(ch),
+        }
+    }
+    if truncated {
+        preview.push_str("...");
+    }
+    preview
+}

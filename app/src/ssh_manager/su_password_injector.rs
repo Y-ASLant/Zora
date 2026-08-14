@@ -57,13 +57,26 @@ pub fn spawn_su_password_injector<O>(
     O: warpui::View + 'static,
 {
     let Some(rx) = pty_reads_rx else {
+        if warp_logging::diagnostic_logging_enabled() {
+            log::info!("[diagnostic][su_injector] skipped: no pty receiver");
+        }
         log::debug!("ssh su password injector: no pty_reads_rx — skip");
         return;
     };
     let Some(root_password) = root_password.filter(|password| !password.is_empty()) else {
+        if warp_logging::diagnostic_logging_enabled() {
+            log::info!("[diagnostic][su_injector] skipped: empty root password");
+        }
         log::debug!("ssh su password injector: empty root password - skip");
         return;
     };
+    if warp_logging::diagnostic_logging_enabled() {
+        log::info!(
+            "[diagnostic][su_injector] spawned shell_ready_timeout_ms={}",
+            SHELL_READY_TIMEOUT.as_millis()
+        );
+    }
+
     // 设置 in-flight 标志,阻止 OneKey 凭据选择框在等待 shell prompt 期间弹出。
     if let Some(view) = terminal_view.upgrade(ctx) {
         view.update(ctx, |view, _| {
@@ -85,10 +98,21 @@ pub fn spawn_su_password_injector<O>(
                         buf.drain(..drop_n);
                     }
                     if bytes_look_like_shell_prompt(&buf) {
+                        if warp_logging::diagnostic_logging_enabled() {
+                            log::info!("[diagnostic][su_injector] shell prompt matched; watching su root prompts");
+                        }
                         break;
                     }
                 }
-                _ => return,
+                _ => {
+                    if warp_logging::diagnostic_logging_enabled() {
+                        log::info!(
+                            "[diagnostic][su_injector] shell prompt wait ended before ready timeout_ms={}",
+                            SHELL_READY_TIMEOUT.as_millis()
+                        );
+                    }
+                    return;
+                }
             }
         }
 
@@ -101,6 +125,9 @@ pub fn spawn_su_password_injector<O>(
                 buf.drain(..drop_n);
             }
             if PASSWORD_PROMPT_REGEX.is_match(&buf) && is_su_to_root(&buf) {
+                if warp_logging::diagnostic_logging_enabled() {
+                    log::info!("[diagnostic][su_injector] su root password prompt matched");
+                }
                 buf.clear();
                 yield ();
             }
@@ -121,6 +148,9 @@ pub fn spawn_su_password_injector<O>(
                 view.su_root_password = Some(root_password.clone());
                 view.show_su_root_confirm_menu(ctx);
                 view.set_ssh_secret_auto_injection_in_flight(false);
+                if warp_logging::diagnostic_logging_enabled() {
+                    log::info!("[diagnostic][su_injector] su root confirmation menu shown");
+                }
             });
         },
         move |_owner, ctx| {
@@ -128,6 +158,9 @@ pub fn spawn_su_password_injector<O>(
                 view.update(ctx, |view, _| {
                     view.set_ssh_secret_auto_injection_in_flight(false);
                 });
+            }
+            if warp_logging::diagnostic_logging_enabled() {
+                log::info!("[diagnostic][su_injector] listener finished");
             }
         },
     );

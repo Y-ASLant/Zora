@@ -34,6 +34,11 @@ const SLIDING_WINDOW_BYTES: usize = 8 * 1024;
 /// 当 buffer 超过这个值,drain 到滑窗大小。
 const BUFFER_HARD_LIMIT: usize = 16 * 1024;
 
+enum PromptWatchResult {
+    Matched { chunks: usize, bytes: usize },
+    Eof { chunks: usize, bytes: usize },
+}
+
 /// 在 owner=Workspace 上下文 spawn 一个一次性注入任务。Workspace drop 时
 /// 任务自动取消;owner 不需要 abort。
 ///
@@ -48,12 +53,25 @@ pub fn spawn_password_injector<O>(
     O: warpui::View + 'static,
 {
     let Some(rx) = pty_reads_rx else {
+        if warp_logging::diagnostic_logging_enabled() {
+            log::info!("[diagnostic][ssh_injector] password injector skipped: no pty receiver");
+        }
         log::debug!("ssh secret injector: no pty_reads_rx (non-local session) — skip");
         return;
     };
     if secret.is_empty() {
+        if warp_logging::diagnostic_logging_enabled() {
+            log::info!("[diagnostic][ssh_injector] password injector skipped: empty secret");
+        }
         log::debug!("ssh secret injector: empty secret — skip");
         return;
+    }
+
+    if warp_logging::diagnostic_logging_enabled() {
+        log::info!(
+            "[diagnostic][ssh_injector] password injector spawned timeout_ms={}",
+            INJECT_TIMEOUT.as_millis()
+        );
     }
 
     // 起飞即把 in-flight 置 true,通知 OneKey listener 在本次 injection 完结前
@@ -68,16 +86,45 @@ pub fn spawn_password_injector<O>(
     let owned_secret = secret.clone();
     let future = async move {
         match watch_for_prompt(rx).with_timeout(INJECT_TIMEOUT).await {
-            Ok(true) => Some(owned_secret),
-            Ok(false) | Err(_) => None, // EOF or timeout → no-op
+            Ok(PromptWatchResult::Matched { chunks, bytes }) => {
+                if warp_logging::diagnostic_logging_enabled() {
+                    log::info!(
+                        "[diagnostic][ssh_injector] password prompt matched chunks={chunks} bytes={bytes}"
+                    );
+                }
+                Some(owned_secret)
+            }
+            Ok(PromptWatchResult::Eof { chunks, bytes }) => {
+                if warp_logging::diagnostic_logging_enabled() {
+                    log::info!(
+                        "[diagnostic][ssh_injector] password injector receiver closed chunks={chunks} bytes={bytes}"
+                    );
+                }
+                None
+            }
+            Err(_) => {
+                if warp_logging::diagnostic_logging_enabled() {
+                    log::info!(
+                        "[diagnostic][ssh_injector] password injector timeout after {}ms",
+                        INJECT_TIMEOUT.as_millis()
+                    );
+                }
+                None
+            }
         }
     };
     ctx.spawn(future, move |_owner, secret_opt, ctx| {
         let Some(view) = terminal_view.upgrade(ctx) else {
+            if warp_logging::diagnostic_logging_enabled() {
+                log::info!("[diagnostic][ssh_injector] terminal view dropped before injection");
+            }
             log::debug!("ssh secret injector: terminal view dropped before injection");
             return;
         };
         let Some(secret) = secret_opt else {
+            if warp_logging::diagnostic_logging_enabled() {
+                log::info!("[diagnostic][ssh_injector] no password injected");
+            }
             log::debug!("ssh secret injector: no prompt seen within timeout");
             view.update(ctx, |view, _| {
                 view.set_ssh_secret_auto_injection_in_flight(false);
@@ -92,24 +139,31 @@ pub fn spawn_password_injector<O>(
             view.write_to_pty(bytes, ctx);
             view.note_ssh_secret_auto_injected(ctx);
             view.set_ssh_secret_auto_injection_in_flight(false);
+            if warp_logging::diagnostic_logging_enabled() {
+                log::info!("[diagnostic][ssh_injector] password secret injected");
+            }
         });
     });
 }
 
 /// 异步循环:消费 PTY 广播,滑窗追加,**正则一旦命中行尾 prompt 就返回 true**;
 /// EOF 返回 false。timeout 由调用方 `with_timeout` 包装。
-async fn watch_for_prompt(rx: InactiveReceiver<Arc<Vec<u8>>>) -> bool {
+async fn watch_for_prompt(rx: InactiveReceiver<Arc<Vec<u8>>>) -> PromptWatchResult {
     let mut active = rx.activate_cloned();
     let mut buf: Vec<u8> = Vec::with_capacity(SLIDING_WINDOW_BYTES);
+    let mut chunks = 0;
+    let mut bytes = 0;
     while let Ok(chunk) = active.recv().await {
+        chunks += 1;
+        bytes += chunk.len();
         buf.extend_from_slice(&chunk);
         if buf.len() > BUFFER_HARD_LIMIT {
             let drop_n = buf.len() - SLIDING_WINDOW_BYTES;
             buf.drain(..drop_n);
         }
         if bytes_look_like_password_prompt(&buf) {
-            return true;
+            return PromptWatchResult::Matched { chunks, bytes };
         }
     }
-    false
+    PromptWatchResult::Eof { chunks, bytes }
 }

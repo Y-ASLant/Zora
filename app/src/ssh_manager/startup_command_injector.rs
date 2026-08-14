@@ -25,26 +25,73 @@ pub fn spawn_startup_command_injector<O>(
     O: warpui::View + 'static,
 {
     let Some(rx) = pty_reads_rx else {
+        if warp_logging::diagnostic_logging_enabled() {
+            log::info!(
+                "[diagnostic][ssh_startup] startup command injector skipped: no pty receiver"
+            );
+        }
         log::debug!("ssh startup command injector: no pty_reads_rx — skip");
         return;
     };
     if startup_command.is_empty() {
+        if warp_logging::diagnostic_logging_enabled() {
+            log::info!("[diagnostic][ssh_startup] startup command injector skipped: empty command");
+        }
         log::debug!("ssh startup command injector: empty command — skip");
         return;
     }
 
+    if warp_logging::diagnostic_logging_enabled() {
+        log::info!(
+            "[diagnostic][ssh_startup] startup command injector spawned command={} timeout_ms={}",
+            warp_logging::diagnostic_text_preview(&startup_command, 240),
+            INJECT_TIMEOUT.as_millis()
+        );
+    }
+
     let future = async move {
         match wait_for_shell_prompt(rx).with_timeout(INJECT_TIMEOUT).await {
-            Ok(true) => Some(startup_command),
-            Ok(false) | Err(_) => None,
+            Ok(true) => {
+                if warp_logging::diagnostic_logging_enabled() {
+                    log::info!(
+                        "[diagnostic][ssh_startup] shell prompt matched for startup command"
+                    );
+                }
+                Some(startup_command)
+            }
+            Ok(false) => {
+                if warp_logging::diagnostic_logging_enabled() {
+                    log::info!(
+                        "[diagnostic][ssh_startup] startup command injector receiver closed"
+                    );
+                }
+                None
+            }
+            Err(_) => {
+                if warp_logging::diagnostic_logging_enabled() {
+                    log::info!(
+                        "[diagnostic][ssh_startup] startup command injector timeout after {}ms",
+                        INJECT_TIMEOUT.as_millis()
+                    );
+                }
+                None
+            }
         }
     };
     ctx.spawn(future, move |_owner, cmd_opt, ctx| {
         let Some(view) = terminal_view.upgrade(ctx) else {
+            if warp_logging::diagnostic_logging_enabled() {
+                log::info!(
+                    "[diagnostic][ssh_startup] terminal view dropped before startup command"
+                );
+            }
             log::debug!("ssh startup command injector: terminal view dropped");
             return;
         };
         let Some(cmd) = cmd_opt else {
+            if warp_logging::diagnostic_logging_enabled() {
+                log::info!("[diagnostic][ssh_startup] no startup command injected");
+            }
             log::debug!("ssh startup command injector: no shell prompt detected within timeout");
             return;
         };
@@ -52,6 +99,9 @@ pub fn spawn_startup_command_injector<O>(
             let mut bytes = cmd.as_bytes().to_vec();
             bytes.push(b'\n');
             view.write_to_pty(bytes, ctx);
+            if warp_logging::diagnostic_logging_enabled() {
+                log::info!("[diagnostic][ssh_startup] startup command injected");
+            }
         });
     });
 }

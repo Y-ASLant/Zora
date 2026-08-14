@@ -2773,6 +2773,14 @@ impl ansi::Handler for TerminalModel {
     }
 
     fn command_finished(&mut self, data: CommandFinishedValue) {
+        if warp_logging::diagnostic_logging_enabled() {
+            log::info!(
+                "[diagnostic][terminal] command_finished exit_code={:?} next_block_id={}",
+                data.exit_code,
+                data.next_block_id
+            );
+        }
+
         // If we ssh from a doesn't-understand-bracketed-paste shell into one
         // that enables it, then get disconnected, we'll be stuck in a state
         // of bracketed paste being enabled, but the local shell doesn't know
@@ -2811,6 +2819,19 @@ impl ansi::Handler for TerminalModel {
     }
 
     fn precmd(&mut self, data: PrecmdValue) {
+        if warp_logging::diagnostic_logging_enabled() {
+            log::info!(
+                "[diagnostic][terminal] precmd session_id={:?} pwd={} ps1_present={} after_in_band={}",
+                data.session_id,
+                data.pwd
+                    .as_deref()
+                    .map(|pwd| warp_logging::diagnostic_text_preview(pwd, 160))
+                    .unwrap_or_else(|| "<none>".to_string()),
+                data.ps1.is_some(),
+                data.was_sent_after_in_band_command()
+            );
+        }
+
         self.ignore_bootstrapping_messages = false;
         let session_id = data.session_id;
         let mut env_vars = HashMap::new();
@@ -2828,6 +2849,13 @@ impl ansi::Handler for TerminalModel {
     }
 
     fn preexec(&mut self, data: PreexecValue) {
+        if warp_logging::diagnostic_logging_enabled() {
+            log::info!(
+                "[diagnostic][terminal] preexec command={}",
+                warp_logging::diagnostic_text_preview(&data.command, 240)
+            );
+        }
+
         delegate!(self.preexec(data));
         self.emit_handler_event(HandlerEvent::Preexec);
     }
