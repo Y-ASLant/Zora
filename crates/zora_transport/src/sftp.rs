@@ -134,17 +134,25 @@ impl Sftp {
     }
 
     pub async fn read(&self, path: &Path) -> Result<Vec<u8>> {
-        self.inner
-            .read(remote_path(path)?)
-            .await
-            .map_err(sftp_error)
+        let mut file = self.open(path, &OpenOptions::read()).await?;
+        let mut bytes = Vec::new();
+        let mut buffer = vec![0_u8; 64 * 1024];
+        loop {
+            let read = file.read(&mut buffer).await?;
+            if read == 0 {
+                break;
+            }
+            bytes.extend_from_slice(&buffer[..read]);
+        }
+        file.close().await?;
+        Ok(bytes)
     }
 
     pub async fn write(&self, path: &Path, bytes: &[u8]) -> Result<()> {
-        self.inner
-            .write(remote_path(path)?, bytes)
-            .await
-            .map_err(sftp_error)
+        let mut file = self.open(path, &OpenOptions::write()).await?;
+        file.write_all(bytes).await?;
+        file.flush().await?;
+        file.close().await
     }
 
     pub async fn canonicalize(&self, path: PathBuf) -> Result<PathBuf> {
