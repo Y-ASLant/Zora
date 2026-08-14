@@ -34,57 +34,70 @@ impl Sftp {
     }
 
     pub async fn read_dir(&self, path: &Path) -> Result<Vec<DirEntry>> {
-        read_dir(&self.inner, &remote_path(path)?).await
+        sftp_io(read_dir(&self.inner, &remote_path(path)?)).await
     }
 
     pub async fn stat(&self, path: &Path) -> Result<Metadata> {
-        Ok(Metadata::from_sftp(
-            &self
-                .inner
+        let metadata = sftp_io(async {
+            self.inner
                 .metadata(remote_path(path)?)
                 .await
-                .map_err(sftp_error)?,
-        ))
+                .map_err(sftp_error)
+        })
+        .await?;
+        Ok(Metadata::from_sftp(&metadata))
     }
 
     pub async fn lstat(&self, path: &Path) -> Result<Metadata> {
-        Ok(Metadata::from_sftp(
-            &self
-                .inner
+        let metadata = sftp_io(async {
+            self.inner
                 .symlink_metadata(remote_path(path)?)
                 .await
-                .map_err(sftp_error)?,
-        ))
+                .map_err(sftp_error)
+        })
+        .await?;
+        Ok(Metadata::from_sftp(&metadata))
     }
 
     pub async fn realpath(&self, path: &Path) -> Result<PathBuf> {
-        Ok(PathBuf::from(
+        let path = sftp_io(async {
             self.inner
                 .canonicalize(remote_path(path)?)
                 .await
-                .map_err(sftp_error)?,
-        ))
+                .map_err(sftp_error)
+        })
+        .await?;
+        Ok(PathBuf::from(path))
     }
 
     pub async fn create_dir(&self, path: &Path) -> Result<()> {
-        self.inner
-            .create_dir(remote_path(path)?)
-            .await
-            .map_err(sftp_error)
+        sftp_io(async {
+            self.inner
+                .create_dir(remote_path(path)?)
+                .await
+                .map_err(sftp_error)
+        })
+        .await
     }
 
     pub async fn remove_file(&self, path: &Path) -> Result<()> {
-        self.inner
-            .remove_file(remote_path(path)?)
-            .await
-            .map_err(sftp_error)
+        sftp_io(async {
+            self.inner
+                .remove_file(remote_path(path)?)
+                .await
+                .map_err(sftp_error)
+        })
+        .await
     }
 
     pub async fn remove_dir(&self, path: &Path) -> Result<()> {
-        self.inner
-            .remove_dir(remote_path(path)?)
-            .await
-            .map_err(sftp_error)
+        sftp_io(async {
+            self.inner
+                .remove_dir(remote_path(path)?)
+                .await
+                .map_err(sftp_error)
+        })
+        .await
     }
 
     pub async fn rename(
@@ -101,17 +114,23 @@ impl Sftp {
                 self.remove_file(new_path).await?;
             }
         }
-        self.inner
-            .rename(remote_path(old_path)?, remote_path(new_path)?)
-            .await
-            .map_err(sftp_error)
+        sftp_io(async {
+            self.inner
+                .rename(remote_path(old_path)?, remote_path(new_path)?)
+                .await
+                .map_err(sftp_error)
+        })
+        .await
     }
 
     pub async fn try_exists(&self, path: &Path) -> Result<bool> {
-        self.inner
-            .try_exists(remote_path(path)?)
-            .await
-            .map_err(sftp_error)
+        sftp_io(async {
+            self.inner
+                .try_exists(remote_path(path)?)
+                .await
+                .map_err(sftp_error)
+        })
+        .await
     }
 
     pub async fn open(&self, path: &Path, options: &OpenOptions) -> Result<RemoteFile> {
