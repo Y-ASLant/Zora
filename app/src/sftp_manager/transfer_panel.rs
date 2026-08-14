@@ -7,8 +7,8 @@
 use warp_core::ui::appearance::Appearance;
 use warpui::elements::{
     ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container, CornerRadius,
-    CrossAxisAlignment, Fill, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle,
-    ParentElement, Radius, SavePosition, ScrollbarWidth, Shrinkable, Text,
+    CrossAxisAlignment, Empty, Fill, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
+    MouseStateHandle, ParentElement, Radius, SavePosition, ScrollbarWidth, Shrinkable, Text,
 };
 use warpui::platform::Cursor;
 use warpui::Element;
@@ -118,49 +118,43 @@ fn render_task_action(
 /// 渲染进度条
 fn render_progress_bar(progress: u8, appearance: &Appearance) -> Box<dyn Element> {
     let theme = appearance.theme();
-
-    if progress == 0 {
-        return ConstrainedBox::new(
-            Container::new(Flex::row().finish())
-                .with_background(theme.surface_3())
-                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)))
-                .finish(),
-        )
-        .with_height(PROGRESS_BAR_HEIGHT)
-        .finish();
-    }
-
-    let remaining = 100u8.saturating_sub(progress);
-
-    // 进度填充
-    let fill = ConstrainedBox::new(
-        Container::new(Flex::row().finish())
-            .with_background(theme.accent())
-            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)))
-            .finish(),
-    )
-    .with_height(PROGRESS_BAR_HEIGHT)
-    .finish();
-
-    // 空白部分
-    let spacer = Shrinkable::new(
-        remaining as f32,
-        ConstrainedBox::new(Flex::row().finish())
-            .with_height(PROGRESS_BAR_HEIGHT)
-            .finish(),
-    )
-    .finish();
+    let progress = (progress as f32 / 100.0).clamp(0.0, 1.0);
+    let filled_weight = progress.max(0.001);
+    let empty_weight = (1.0 - progress).max(0.001);
+    let radius = CornerRadius::with_all(Radius::Pixels(PROGRESS_BAR_HEIGHT / 2.0));
 
     ConstrainedBox::new(
         Container::new(
             Flex::row()
+                .with_main_axis_size(MainAxisSize::Max)
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(Shrinkable::new(progress as f32, fill).finish())
-                .with_child(spacer)
+                .with_child(
+                    Shrinkable::new(
+                        filled_weight,
+                        ConstrainedBox::new(
+                            Container::new(Empty::new().finish())
+                                .with_background(theme.accent())
+                                .with_corner_radius(radius)
+                                .finish(),
+                        )
+                        .with_height(PROGRESS_BAR_HEIGHT)
+                        .finish(),
+                    )
+                    .finish(),
+                )
+                .with_child(
+                    Shrinkable::new(
+                        empty_weight,
+                        ConstrainedBox::new(Empty::new().finish())
+                            .with_height(PROGRESS_BAR_HEIGHT)
+                            .finish(),
+                    )
+                    .finish(),
+                )
                 .finish(),
         )
         .with_background(theme.surface_3())
-        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)))
+        .with_corner_radius(radius)
         .finish(),
     )
     .with_height(PROGRESS_BAR_HEIGHT)

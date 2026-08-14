@@ -1054,6 +1054,10 @@ impl GlobalBufferModel {
         self.sftp_open_limits.insert(sftp_path, max_bytes);
     }
 
+    pub fn clear_sftp_text_cache(&self) {
+        self.remote_file_service.clear_cache();
+    }
+
     fn sync_remote_file_settings(&mut self, ctx: &mut ModelContext<Self>) {
         let code_settings = CodeSettings::as_ref(ctx);
         self.remote_file_service.configure_limits(

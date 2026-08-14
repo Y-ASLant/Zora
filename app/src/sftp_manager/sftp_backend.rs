@@ -733,7 +733,7 @@ fn read_remote_file(
 ) -> Result<RemoteFileBytes, SftpOpsError> {
     let metadata = sftp_ops::block_on_transport(sftp.stat(path))?;
     validate_readable_file(&metadata, max_bytes)?;
-    let bytes = sftp_ops::block_on_transport(sftp.read(path))?;
+    let bytes = read_remote_file_prefix(sftp, path, max_bytes)?;
     if bytes.len() as u64 > max_bytes {
         return Err(SftpOpsError::FileTooLarge {
             size: bytes.len() as u64,
@@ -813,7 +813,14 @@ fn write_remote_file(
         Err(_) => {}
     }
 
-    sftp_ops::block_on_transport(sftp.write(path, bytes))?;
+    sftp_ops::block_on_transport(async {
+        let mut file = sftp
+            .open(path, &zora_transport::OpenOptions::write())
+            .await?;
+        file.write_all(bytes).await?;
+        file.flush().await?;
+        file.close().await
+    })?;
     let metadata = sftp_ops::block_on_transport(sftp.stat(path))?;
     Ok(RemoteFileWriteResult::Saved {
         version: RemoteFileVersion::from_metadata(&metadata),

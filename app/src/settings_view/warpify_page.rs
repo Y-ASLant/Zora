@@ -7,19 +7,22 @@ use regex::Regex;
 use settings::{Setting, ToggleableSetting};
 use strum::IntoEnumIterator;
 use warp_core::features::FeatureFlag;
-use warpui::elements::{FormattedTextElement, HighlightedHyperlink};
+use warpui::elements::{Dismiss, FormattedTextElement, HighlightedHyperlink, Text};
 use warpui::keymap::ContextPredicate;
 use warpui::{
-    elements::{Container, Flex, MouseStateHandle, ParentElement},
+    elements::{Container, Flex, Hoverable, MouseStateHandle, ParentElement},
+    platform::Cursor,
     presenter::ChildView,
     ui_components::{
         components::{Coords, UiComponent, UiComponentStyles},
         switch::SwitchStateHandle,
     },
-    Action, AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle,
+    Action, AppContext, Element, Entity, ModelContext, ModelHandle, SingletonEntity,
+    TypedActionView, View, ViewContext, ViewHandle,
 };
 
+use crate::code::global_buffer_model::GlobalBufferModel;
+use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions, TextOptions};
 use crate::terminal::warpify::settings::{
     EnableSshWarpification, SshExtensionInstallMode, SshExtensionInstallModeSetting,
     UseSshTmuxWrapper, WarpifySettingsChangedEvent,
@@ -29,6 +32,11 @@ use crate::{
     appearance::Appearance,
     report_if_error, send_telemetry_from_ctx,
     server::telemetry::TelemetryEvent,
+    settings::{
+        CodeSettings, REMOTE_FILE_AUTO_OPEN_TEXT_MAX_MIB, REMOTE_FILE_AUTO_OPEN_TEXT_MIN_MIB,
+        REMOTE_FILE_LARGE_PREVIEW_MAX_KIB, REMOTE_FILE_LARGE_PREVIEW_MIN_KIB,
+        REMOTE_FILE_TEXT_CACHE_MAX_MIB, REMOTE_FILE_TEXT_CACHE_MIN_MIB,
+    },
     terminal::warpify::settings::WarpifySettings,
     view_components::{SubmittableTextInput, SubmittableTextInputEvent},
 };
@@ -74,6 +82,7 @@ const ITEM_VERTICAL_SPACING: f32 = 24.;
 /// There's a built-in 10px margin below the text input.
 const BUILT_IN_TEXT_INPUT_MARGIN: f32 = 10.;
 const SPACE_AFTER_TEXT_INPUT: f32 = ITEM_VERTICAL_SPACING - BUILT_IN_TEXT_INPUT_MARGIN;
+const REMOTE_FILE_NUMBER_INPUT_WIDTH: f32 = 96.;
 
 /// This page lets users configure when they get asked to warpify a session. Some shell commands
 /// are recognized by default. Users can add new shell commands, or prevent the default ones from
@@ -93,6 +102,9 @@ pub struct WarpifyPageView {
     add_denylisted_ssh_editor: ViewHandle<SubmittableTextInput>,
 
     ssh_extension_install_mode_dropdown: ViewHandle<Dropdown<WarpifyPageAction>>,
+    remote_file_auto_open_text_max_mib_editor: ViewHandle<EditorView>,
+    remote_file_text_cache_max_mib_editor: ViewHandle<EditorView>,
+    remote_file_large_preview_max_kib_editor: ViewHandle<EditorView>,
 }
 
 impl WarpifyPageView {
@@ -149,6 +161,25 @@ impl WarpifyPageView {
 
         let ssh_extension_install_mode_dropdown =
             Self::create_ssh_extension_install_mode_dropdown(ctx);
+        let code_settings = CodeSettings::as_ref(ctx);
+        let remote_file_auto_open_text_max_mib = *code_settings.remote_file_auto_open_text_max_mib;
+        let remote_file_text_cache_max_mib = *code_settings.remote_file_text_cache_max_mib;
+        let remote_file_large_preview_max_kib = *code_settings.remote_file_large_preview_max_kib;
+        let remote_file_auto_open_text_max_mib_editor = Self::number_editor(
+            remote_file_auto_open_text_max_mib,
+            |view, event, ctx| view.handle_remote_file_auto_open_text_max_mib_editor(event, ctx),
+            ctx,
+        );
+        let remote_file_text_cache_max_mib_editor = Self::number_editor(
+            remote_file_text_cache_max_mib,
+            |view, event, ctx| view.handle_remote_file_text_cache_max_mib_editor(event, ctx),
+            ctx,
+        );
+        let remote_file_large_preview_max_kib_editor = Self::number_editor(
+            remote_file_large_preview_max_kib,
+            |view, event, ctx| view.handle_remote_file_large_preview_max_kib_editor(event, ctx),
+            ctx,
+        );
 
         let mut instance = Self {
             page: Self::build_page(ctx),
@@ -159,6 +190,9 @@ impl WarpifyPageView {
             remove_denylisted_ssh_button_states: Default::default(),
             add_denylisted_ssh_editor,
             ssh_extension_install_mode_dropdown,
+            remote_file_auto_open_text_max_mib_editor,
+            remote_file_text_cache_max_mib_editor,
+            remote_file_large_preview_max_kib_editor,
         };
 
         instance.update_button_states(warpify_settings_handle, ctx);
@@ -193,7 +227,37 @@ impl WarpifyPageView {
                 )),
             );
         }
+        categories.push(
+            Category::new(
+                "SSH / SFTP 远程文件",
+                vec![Box::new(RemoteFileSettingsWidget::default())],
+            )
+            .with_subtitle("配置远程文本打开、预览和内存缓存。"),
+        );
         PageType::new_categorized(categories, None)
+    }
+
+    fn number_editor(
+        initial_value: u64,
+        handler: fn(&mut Self, &EditorEvent, &mut ViewContext<Self>),
+        ctx: &mut ViewContext<Self>,
+    ) -> ViewHandle<EditorView> {
+        let editor = ctx.add_typed_action_view(move |ctx| {
+            let mut editor = EditorView::single_line(
+                SingleLineEditorOptions {
+                    clear_selections_on_blur: true,
+                    text: TextOptions::ui_font_size(Appearance::as_ref(ctx)),
+                    ..Default::default()
+                },
+                ctx,
+            );
+            editor.set_buffer_text(&initial_value.to_string(), ctx);
+            editor
+        });
+        ctx.subscribe_to_view(&editor, move |view, _, event, ctx| {
+            handler(view, event, ctx);
+        });
+        editor
     }
 
     /// This method ensures each command in the SubshellSettings has a matching button state for
@@ -432,6 +496,10 @@ pub enum WarpifyPageAction {
     /// Set the SSH extension installation mode (always ask / always install / always skip).
     SetSshExtensionInstallMode(SshExtensionInstallMode),
     OpenUrl(String),
+    SetRemoteFileAutoOpenTextMaxMiB,
+    SetRemoteFileTextCacheMaxMiB,
+    SetRemoteFileLargePreviewMaxKiB,
+    ClearRemoteFileTextCache,
 }
 
 impl TypedActionView for WarpifyPageView {
@@ -496,7 +564,137 @@ impl TypedActionView for WarpifyPageView {
             OpenUrl(url) => {
                 ctx.open_url(url.as_str());
             }
+            SetRemoteFileAutoOpenTextMaxMiB => {
+                self.set_remote_file_auto_open_text_max_mib(ctx);
+            }
+            SetRemoteFileTextCacheMaxMiB => {
+                self.set_remote_file_text_cache_max_mib(ctx);
+            }
+            SetRemoteFileLargePreviewMaxKiB => {
+                self.set_remote_file_large_preview_max_kib(ctx);
+            }
+            ClearRemoteFileTextCache => {
+                GlobalBufferModel::handle(ctx).update(ctx, |model, _ctx| {
+                    model.clear_sftp_text_cache();
+                });
+            }
         }
+    }
+}
+
+impl WarpifyPageView {
+    fn handle_remote_file_auto_open_text_max_mib_editor(
+        &mut self,
+        event: &EditorEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            EditorEvent::Blurred | EditorEvent::Enter => {
+                self.set_remote_file_auto_open_text_max_mib(ctx);
+            }
+            EditorEvent::Escape => ctx.focus_self(),
+            _ => {}
+        }
+    }
+
+    fn handle_remote_file_text_cache_max_mib_editor(
+        &mut self,
+        event: &EditorEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            EditorEvent::Blurred | EditorEvent::Enter => {
+                self.set_remote_file_text_cache_max_mib(ctx);
+            }
+            EditorEvent::Escape => ctx.focus_self(),
+            _ => {}
+        }
+    }
+
+    fn handle_remote_file_large_preview_max_kib_editor(
+        &mut self,
+        event: &EditorEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            EditorEvent::Blurred | EditorEvent::Enter => {
+                self.set_remote_file_large_preview_max_kib(ctx);
+            }
+            EditorEvent::Escape => ctx.focus_self(),
+            _ => {}
+        }
+    }
+
+    fn set_remote_file_auto_open_text_max_mib(&mut self, ctx: &mut ViewContext<Self>) {
+        self.set_remote_file_number_setting(
+            self.remote_file_auto_open_text_max_mib_editor.clone(),
+            REMOTE_FILE_AUTO_OPEN_TEXT_MIN_MIB,
+            REMOTE_FILE_AUTO_OPEN_TEXT_MAX_MIB,
+            |settings, value, ctx| {
+                report_if_error!(settings
+                    .remote_file_auto_open_text_max_mib
+                    .set_value(value, ctx));
+            },
+            |settings| *settings.remote_file_auto_open_text_max_mib,
+            ctx,
+        );
+    }
+
+    fn set_remote_file_text_cache_max_mib(&mut self, ctx: &mut ViewContext<Self>) {
+        self.set_remote_file_number_setting(
+            self.remote_file_text_cache_max_mib_editor.clone(),
+            REMOTE_FILE_TEXT_CACHE_MIN_MIB,
+            REMOTE_FILE_TEXT_CACHE_MAX_MIB,
+            |settings, value, ctx| {
+                report_if_error!(settings
+                    .remote_file_text_cache_max_mib
+                    .set_value(value, ctx));
+            },
+            |settings| *settings.remote_file_text_cache_max_mib,
+            ctx,
+        );
+    }
+
+    fn set_remote_file_large_preview_max_kib(&mut self, ctx: &mut ViewContext<Self>) {
+        self.set_remote_file_number_setting(
+            self.remote_file_large_preview_max_kib_editor.clone(),
+            REMOTE_FILE_LARGE_PREVIEW_MIN_KIB,
+            REMOTE_FILE_LARGE_PREVIEW_MAX_KIB,
+            |settings, value, ctx| {
+                report_if_error!(settings
+                    .remote_file_large_preview_max_kib
+                    .set_value(value, ctx));
+            },
+            |settings| *settings.remote_file_large_preview_max_kib,
+            ctx,
+        );
+    }
+
+    fn set_remote_file_number_setting(
+        &mut self,
+        editor: ViewHandle<EditorView>,
+        min: u64,
+        max: u64,
+        save: fn(&mut CodeSettings, u64, &mut ModelContext<CodeSettings>),
+        current: fn(&CodeSettings) -> u64,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let raw_value = editor.as_ref(ctx).buffer_text(ctx);
+        let cleaned: String = raw_value
+            .chars()
+            .filter(|c| !c.is_whitespace() && *c != ',')
+            .collect();
+        let parsed = cleaned.parse::<u64>().ok();
+        CodeSettings::handle(ctx).update(ctx, |settings, ctx| {
+            if let Some(value) = parsed {
+                save(settings, value.clamp(min, max), ctx);
+            }
+        });
+        let value = current(CodeSettings::as_ref(ctx)).clamp(min, max);
+        editor.update(ctx, |editor, ctx| {
+            editor.system_reset_buffer_text(&value.to_string(), ctx);
+        });
+        ctx.notify();
     }
 }
 
@@ -645,6 +843,144 @@ impl SettingsWidget for SubshellsWidget {
             .with_margin_bottom(ITEM_VERTICAL_SPACING)
             .finish()
     }
+}
+
+#[derive(Default)]
+struct RemoteFileSettingsWidget {
+    clear_cache_button: MouseStateHandle,
+}
+
+impl SettingsWidget for RemoteFileSettingsWidget {
+    type View = WarpifyPageView;
+
+    fn search_terms(&self) -> &str {
+        "ssh sftp remote file text cache preview open"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        _app: &AppContext,
+    ) -> Box<dyn Element> {
+        let mut column = Flex::column();
+        column.add_child(render_remote_file_number_item(
+            "远程文本自动打开上限 (MiB)".to_string(),
+            "小于或等于该大小的远程文本文件会直接在 Zora 编辑器中打开。范围 1-64 MiB。".to_string(),
+            view.remote_file_auto_open_text_max_mib_editor.clone(),
+            WarpifyPageAction::SetRemoteFileAutoOpenTextMaxMiB,
+            appearance,
+        ));
+        column.add_child(render_remote_file_number_item(
+            "远程文本缓存总量 (MiB)".to_string(),
+            "远程文本文件的内存 LRU 缓存预算，0 表示禁用缓存。范围 0-512 MiB。".to_string(),
+            view.remote_file_text_cache_max_mib_editor.clone(),
+            WarpifyPageAction::SetRemoteFileTextCacheMaxMiB,
+            appearance,
+        ));
+        column.add_child(render_remote_file_number_item(
+            "远程大文件预览读取大小 (KiB)".to_string(),
+            "超过自动打开上限时用于生成预览和识别文本类型的远程文件前缀大小。范围 256-8192 KiB。"
+                .to_string(),
+            view.remote_file_large_preview_max_kib_editor.clone(),
+            WarpifyPageAction::SetRemoteFileLargePreviewMaxKiB,
+            appearance,
+        ));
+        column.add_child(render_body_item::<WarpifyPageAction>(
+            "远程文本缓存".to_string(),
+            None,
+            LocalOnlyIconState::Hidden,
+            ToggleState::Enabled,
+            appearance,
+            render_clear_cache_button(self.clear_cache_button.clone(), appearance),
+            Some("清空当前进程内的远程文本内存缓存；不会删除远程文件。".to_string()),
+        ));
+        Container::new(column.finish())
+            .with_margin_bottom(ITEM_VERTICAL_SPACING)
+            .finish()
+    }
+}
+
+fn render_remote_file_number_item(
+    label: String,
+    description: String,
+    editor: ViewHandle<EditorView>,
+    action: WarpifyPageAction,
+    appearance: &Appearance,
+) -> Box<dyn Element> {
+    let dismiss_editor = editor.clone();
+    let input = Dismiss::new(
+        appearance
+            .ui_builder()
+            .text_input(editor)
+            .with_style(UiComponentStyles {
+                width: Some(REMOTE_FILE_NUMBER_INPUT_WIDTH),
+                padding: Some(Coords {
+                    top: appearance.ui_font_size() / 2.,
+                    bottom: appearance.ui_font_size() / 2.,
+                    left: appearance.ui_font_size() * 5. / 6.,
+                    right: appearance.ui_font_size() * 5. / 6.,
+                }),
+                background: Some(appearance.theme().surface_2().into()),
+                ..Default::default()
+            })
+            .build()
+            .finish(),
+    )
+    .on_dismiss(move |ctx, app| {
+        if !dismiss_editor
+            .as_ref(app)
+            .buffer_text(app)
+            .trim()
+            .is_empty()
+        {
+            ctx.dispatch_typed_action(action.clone());
+        }
+    })
+    .finish();
+
+    render_body_item::<WarpifyPageAction>(
+        label,
+        None,
+        LocalOnlyIconState::Hidden,
+        ToggleState::Enabled,
+        appearance,
+        input,
+        Some(description),
+    )
+}
+
+fn render_clear_cache_button(
+    mouse_state: MouseStateHandle,
+    appearance: &Appearance,
+) -> Box<dyn Element> {
+    let text_color = appearance.theme().active_ui_text_color();
+    let background = appearance.theme().surface_2();
+    let outline = appearance.theme().outline();
+    let font = appearance.ui_font_family();
+    let font_size = appearance.ui_font_size();
+    Hoverable::new(mouse_state, move |_| {
+        Container::new(
+            Text::new_inline("清空缓存", font, font_size)
+                .with_color(text_color.into())
+                .finish(),
+        )
+        .with_padding_left(font_size)
+        .with_padding_right(font_size)
+        .with_padding_top(font_size / 2.0)
+        .with_padding_bottom(font_size / 2.0)
+        .with_background(background)
+        .with_border(warpui::elements::Border::all(1.0).with_border_fill(outline))
+        .with_corner_radius(warpui::elements::CornerRadius::with_all(
+            warpui::elements::Radius::Pixels(4.0),
+        ))
+        .finish()
+    })
+    .with_cursor(Cursor::PointingHand)
+    .on_click(|ctx, _, _| {
+        ctx.dispatch_typed_action(WarpifyPageAction::ClearRemoteFileTextCache);
+    })
+    .finish()
 }
 
 #[derive(Default)]

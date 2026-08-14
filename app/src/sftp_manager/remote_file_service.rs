@@ -244,6 +244,13 @@ impl RemoteFileService {
         }
     }
 
+    pub fn clear_cache(&self) {
+        match self.text_cache.lock() {
+            Ok(mut cache) => cache.clear(),
+            Err(error) => log::warn!("Failed to clear remote text cache: {error}"),
+        }
+    }
+
     pub fn encode_text(text: &str, encoding: &RemoteFileEncoding) -> Vec<u8> {
         match encoding {
             RemoteFileEncoding::Utf8 => text.as_bytes().to_vec(),
