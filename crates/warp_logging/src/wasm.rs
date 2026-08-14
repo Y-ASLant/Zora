@@ -3,8 +3,11 @@
 use crate::LogConfig;
 use anyhow::Result;
 use log::{Level, Log, Metadata, Record};
+use std::sync::atomic::{AtomicBool, Ordering};
 use wasm_bindgen::prelude::*;
 use web_sys::console;
+
+static DIAGNOSTIC_LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);
 
 /// Initializes the global logger for the application.
 /// Note: On WASM, `config` is ignored since we always log to the browser console.
@@ -23,6 +26,19 @@ pub fn init(_config: LogConfig) -> Result<()> {
     init_logger(Config::new(log::Level::Info).module_prefix("warp"));
 
     Ok(())
+}
+
+pub fn set_diagnostic_logging_enabled(enabled: bool) {
+    DIAGNOSTIC_LOGGING_ENABLED.store(enabled, Ordering::SeqCst);
+    log::set_max_level(if enabled {
+        log::LevelFilter::Debug
+    } else {
+        log::LevelFilter::Info
+    });
+}
+
+pub fn diagnostic_logging_enabled() -> bool {
+    DIAGNOSTIC_LOGGING_ENABLED.load(Ordering::SeqCst)
 }
 
 /// Specify what to be logged

@@ -36,10 +36,10 @@ use super::{
     initializer::SettingsInitializer, language::LanguageSettings,
     native_preference::NativePreferenceSettings, network::NetworkSettings, AISettings,
     AccessibilitySettings, AliasExpansionSettings, AppEditorSettings, AutoupdateSettings,
-    BlockVisibilitySettings, CodeSettings, DebugSettings, EmacsBindingsSettings, FontSettings,
-    FontSettingsChangedEvent, GPUSettings, InputBoxType, InputModeSettings, InputSettings,
-    PaneSettings, SameLinePromptBlockSettings, ScrollSettings, SelectionSettings, SshSettings,
-    ThemeSettings, VimBannerSettings, WarpDrivePrivacySettings,
+    BlockVisibilitySettings, CodeSettings, DebugSettings, DebugSettingsChangedEvent,
+    EmacsBindingsSettings, FontSettings, FontSettingsChangedEvent, GPUSettings, InputBoxType,
+    InputModeSettings, InputSettings, PaneSettings, SameLinePromptBlockSettings, ScrollSettings,
+    SelectionSettings, SshSettings, ThemeSettings, VimBannerSettings, WarpDrivePrivacySettings,
 };
 
 pub struct UserDefaultsOnStartup {
@@ -121,6 +121,17 @@ pub fn init(
     ctx.add_singleton_model(|_| SettingsInitializer::new());
 
     register_all_settings(ctx);
+    apply_diagnostic_logging_setting(ctx);
+    ctx.subscribe_to_model(&DebugSettings::handle(ctx), |debug_settings, event, ctx| {
+        if let DebugSettingsChangedEvent::DiagnosticLoggingEnabled { .. } = event {
+            warp_logging::set_diagnostic_logging_enabled(
+                *debug_settings
+                    .as_ref(ctx)
+                    .diagnostic_logging_enabled
+                    .value(),
+            );
+        }
+    });
 
     // One-time migration: copy public settings from the platform-native store
     // into the TOML file so existing users don't lose their customizations
@@ -238,6 +249,14 @@ pub fn init(
     }
 
     user_defaults_on_startup
+}
+
+fn apply_diagnostic_logging_setting(ctx: &AppContext) {
+    warp_logging::set_diagnostic_logging_enabled(
+        *DebugSettings::as_ref(ctx)
+            .diagnostic_logging_enabled
+            .value(),
+    );
 }
 
 /// 读取当前 `NetworkSettings` + 外部传入的 `password`,同时更新

@@ -48,6 +48,13 @@ define_settings_group!(DebugSettings, settings: [
         sync_to_cloud: SyncToCloud::Never,
         private: true,
     },
+    diagnostic_logging_enabled: DiagnosticLoggingEnabled {
+        type: bool,
+        default: false,
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Never,
+        private: true,
+    },
     show_memory_stats: ShowMemoryStats {
         type: bool,
         default: true,

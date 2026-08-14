@@ -6,7 +6,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use warp_ssh_manager::secrets::SshSecretStore;
 use warp_ssh_manager::types::{AuthType, ResolvedSshAuth, SshServerInfo};
@@ -78,6 +78,45 @@ pub type ProgressCallback = Box<dyn Fn(u64, u64) + Send>;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
+pub(crate) fn log_diagnostic_operation<T>(
+    operation: &str,
+    detail: String,
+    run: impl FnOnce() -> Result<T, SftpOpsError>,
+) -> Result<T, SftpOpsError> {
+    let started = log_diagnostic_start(operation, &detail);
+    let result = run();
+    log_diagnostic_finish(operation, &detail, started, &result);
+    result
+}
+
+pub(crate) fn log_diagnostic_start(operation: &str, detail: &str) -> Option<Instant> {
+    if !warp_logging::diagnostic_logging_enabled() {
+        return None;
+    }
+
+    log::debug!("[diagnostic][sftp] {operation} started: {detail}");
+    Some(Instant::now())
+}
+
+pub(crate) fn log_diagnostic_finish<T, E: std::fmt::Display>(
+    operation: &str,
+    detail: &str,
+    started: Option<Instant>,
+    result: &Result<T, E>,
+) {
+    let Some(started) = started else {
+        return;
+    };
+
+    let elapsed_ms = started.elapsed().as_millis();
+    match result {
+        Ok(_) => log::debug!("[diagnostic][sftp] {operation} finished in {elapsed_ms}ms: {detail}"),
+        Err(error) => log::debug!(
+            "[diagnostic][sftp] {operation} failed in {elapsed_ms}ms: {detail}; error={error}"
+        ),
+    }
+}
+
 /// 驱动传输层 future。
 ///
 /// 生产 SFTP 操作运行在 Tokio 的 blocking 线程中，必须用 Tokio 自己驱动
@@ -102,17 +141,23 @@ pub fn connect_from_server(
     server: &SshServerInfo,
     secret_store: &dyn SshSecretStore,
 ) -> Result<SftpSession, SftpOpsError> {
-    let resolved_auth = resolve_sftp_auth(server)?;
-    let auth = build_auth_method(server, &resolved_auth, secret_store)?;
-    block_on_transport(SftpSession::connect_with_policy(
-        &server.host,
-        server.port,
-        &resolved_auth.username,
-        auth,
-        Some(CONNECT_TIMEOUT),
-        ServerKeyPolicy::AcceptAny,
-    ))
-    .map_err(|error| SftpOpsError::Connection(error.to_string()))
+    log_diagnostic_operation(
+        "connect",
+        format!("host={} port={}", server.host, server.port),
+        || {
+            let resolved_auth = resolve_sftp_auth(server)?;
+            let auth = build_auth_method(server, &resolved_auth, secret_store)?;
+            block_on_transport(SftpSession::connect_with_policy(
+                &server.host,
+                server.port,
+                &resolved_auth.username,
+                auth,
+                Some(CONNECT_TIMEOUT),
+                ServerKeyPolicy::AcceptAny,
+            ))
+            .map_err(|error| SftpOpsError::Connection(error.to_string()))
+        },
+    )
 }
 
 fn resolve_sftp_auth(server: &SshServerInfo) -> Result<ResolvedSshAuth, SftpOpsError> {
@@ -125,39 +170,61 @@ fn resolve_sftp_auth(server: &SshServerInfo) -> Result<ResolvedSshAuth, SftpOpsE
 }
 
 pub fn list_dir(sftp: &Sftp, path: &Path) -> Result<Vec<FileEntry>, SftpOpsError> {
-    let entries = block_on_transport(sftp.read_dir(path))?;
-    Ok(entries.into_iter().map(file_entry_from_transport).collect())
+    log_diagnostic_operation("list_dir", path.display().to_string(), || {
+        let entries = block_on_transport(sftp.read_dir(path))?;
+        Ok(entries.into_iter().map(file_entry_from_transport).collect())
+    })
 }
 
 pub fn delete_file(sftp: &Sftp, path: &Path) -> Result<(), SftpOpsError> {
-    block_on_transport(sftp.remove_file(path))?;
-    Ok(())
+    log_diagnostic_operation("delete_file", path.display().to_string(), || {
+        block_on_transport(sftp.remove_file(path))?;
+        Ok(())
+    })
 }
 
 pub fn delete_dir_recursive(sftp: &Sftp, path: &Path) -> Result<(), SftpOpsError> {
-    block_on_transport(RemoteFs::remove_dir_all(sftp, path))?;
-    Ok(())
+    log_diagnostic_operation("delete_dir_recursive", path.display().to_string(), || {
+        block_on_transport(RemoteFs::remove_dir_all(sftp, path))?;
+        Ok(())
+    })
 }
 
 pub fn create_dir(sftp: &Sftp, path: &Path) -> Result<(), SftpOpsError> {
-    block_on_transport(sftp.create_dir(path))?;
-    Ok(())
+    log_diagnostic_operation("create_dir", path.display().to_string(), || {
+        block_on_transport(sftp.create_dir(path))?;
+        Ok(())
+    })
 }
 
 pub fn rename(sftp: &Sftp, old_path: &Path, new_path: &Path) -> Result<(), SftpOpsError> {
-    block_on_transport(sftp.rename(old_path, new_path, zora_transport::RenameOptions::default()))?;
-    Ok(())
+    log_diagnostic_operation(
+        "rename",
+        format!("{} -> {}", old_path.display(), new_path.display()),
+        || {
+            block_on_transport(sftp.rename(
+                old_path,
+                new_path,
+                zora_transport::RenameOptions::default(),
+            ))?;
+            Ok(())
+        },
+    )
 }
 
 pub fn realpath(sftp: &Sftp, path: &Path) -> Result<PathBuf, SftpOpsError> {
-    Ok(block_on_transport(sftp.realpath(path))?)
+    log_diagnostic_operation("realpath", path.display().to_string(), || {
+        Ok(block_on_transport(sftp.realpath(path))?)
+    })
 }
 
 pub fn stat(sftp: &Sftp, path: &Path) -> Result<FileEntry, SftpOpsError> {
-    Ok(file_entry_from_transport_path(
-        path.to_path_buf(),
-        block_on_transport(sftp.stat(path))?,
-    ))
+    log_diagnostic_operation("stat", path.display().to_string(), || {
+        Ok(file_entry_from_transport_path(
+            path.to_path_buf(),
+            block_on_transport(sftp.stat(path))?,
+        ))
+    })
 }
 
 pub fn upload_file_streaming(
@@ -327,6 +394,12 @@ fn run_transfer(
     cancel_flag: &AtomicBool,
     controller: Arc<TransferController>,
 ) -> Result<(), SftpOpsError> {
+    let detail = format!(
+        "direction={direction:?} source={} target={}",
+        source.display(),
+        target.display()
+    );
+    let started = log_diagnostic_start("transfer_file", &detail);
     let result = block_on_transport(async {
         let operation = async {
             match direction {
@@ -353,7 +426,9 @@ fn run_transfer(
         }
     });
     report_progress(progress_cb, &controller);
-    result.map_err(Into::into)
+    let result = result.map_err(Into::into);
+    log_diagnostic_finish("transfer_file", &detail, started, &result);
+    result
 }
 
 async fn run_async_transfer(
@@ -364,6 +439,12 @@ async fn run_async_transfer(
     cancel_flag: &AtomicBool,
     controller: Arc<TransferController>,
 ) -> zora_transport::Result<()> {
+    let detail = format!(
+        "direction={direction:?} source={} target={}",
+        source.display(),
+        target.display()
+    );
+    let started = log_diagnostic_start("transfer_file_async", &detail);
     let operation = async {
         match direction {
             TransferDirection::Upload => {
@@ -374,7 +455,9 @@ async fn run_async_transfer(
             }
         }
     };
-    run_transfer_with_cancel(operation, cancel_flag, &controller).await
+    let result = run_transfer_with_cancel(operation, cancel_flag, &controller).await;
+    log_diagnostic_finish("transfer_file_async", &detail, started, &result);
+    result
 }
 
 async fn run_async_directory_transfer(
@@ -385,6 +468,12 @@ async fn run_async_directory_transfer(
     cancel_flag: &AtomicBool,
     controller: Arc<TransferController>,
 ) -> zora_transport::Result<()> {
+    let detail = format!(
+        "direction={direction:?} source={} target={}",
+        source.display(),
+        target.display()
+    );
+    let started = log_diagnostic_start("transfer_directory_async", &detail);
     let operation = async {
         match direction {
             TransferDirection::Upload => {
@@ -395,7 +484,9 @@ async fn run_async_directory_transfer(
             }
         }
     };
-    run_transfer_with_cancel(operation, cancel_flag, &controller).await
+    let result = run_transfer_with_cancel(operation, cancel_flag, &controller).await;
+    log_diagnostic_finish("transfer_directory_async", &detail, started, &result);
+    result
 }
 
 async fn run_transfer_with_cancel<T, F>(

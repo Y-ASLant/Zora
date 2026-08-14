@@ -137,9 +137,11 @@ impl SftpBackend for LiveSftpBackend {
     }
 
     fn file_version(&self, path: &Path) -> Result<RemoteFileVersion, SftpOpsError> {
-        let metadata = sftp_ops::block_on_transport(self.sftp.stat(path))?;
-        validate_regular_file(&metadata)?;
-        Ok(RemoteFileVersion::from_metadata(&metadata))
+        sftp_ops::log_diagnostic_operation("file_version", path.display().to_string(), || {
+            let metadata = sftp_ops::block_on_transport(self.sftp.stat(path))?;
+            validate_regular_file(&metadata)?;
+            Ok(RemoteFileVersion::from_metadata(&metadata))
+        })
     }
 
     fn read_file(&self, path: &Path, max_bytes: u64) -> Result<RemoteFileBytes, SftpOpsError> {
@@ -218,13 +220,19 @@ impl SftpBackend for LiveSftpBackend {
         remote_path: &Path,
         controller: Option<Arc<zora_transport::TransferController>>,
     ) -> Result<(), SftpOpsError> {
-        sftp_ops::block_on_transport(zora_transport::RemoteFs::upload_directory(
-            &self.sftp,
-            local_path,
-            remote_path,
-            controller,
-        ))?;
-        Ok(())
+        sftp_ops::log_diagnostic_operation(
+            "upload_directory",
+            format!("{} -> {}", local_path.display(), remote_path.display()),
+            || {
+                sftp_ops::block_on_transport(zora_transport::RemoteFs::upload_directory(
+                    &self.sftp,
+                    local_path,
+                    remote_path,
+                    controller,
+                ))?;
+                Ok(())
+            },
+        )
     }
 
     fn download_directory(
@@ -233,13 +241,19 @@ impl SftpBackend for LiveSftpBackend {
         local_path: &Path,
         controller: Option<Arc<zora_transport::TransferController>>,
     ) -> Result<(), SftpOpsError> {
-        sftp_ops::block_on_transport(zora_transport::RemoteFs::download_directory(
-            &self.sftp,
-            remote_path,
-            local_path,
-            controller,
-        ))?;
-        Ok(())
+        sftp_ops::log_diagnostic_operation(
+            "download_directory",
+            format!("{} -> {}", remote_path.display(), local_path.display()),
+            || {
+                sftp_ops::block_on_transport(zora_transport::RemoteFs::download_directory(
+                    &self.sftp,
+                    remote_path,
+                    local_path,
+                    controller,
+                ))?;
+                Ok(())
+            },
+        )
     }
 
     async fn upload_file_async(
@@ -731,16 +745,22 @@ fn read_remote_file(
     path: &Path,
     max_bytes: u64,
 ) -> Result<RemoteFileBytes, SftpOpsError> {
-    let metadata = sftp_ops::block_on_transport(sftp.stat(path))?;
-    validate_readable_file(&metadata, max_bytes)?;
-    let bytes = sftp_ops::block_on_transport(sftp.read_limited(path, max_bytes))?;
-    if bytes.len() as u64 > max_bytes {
-        return Err(SftpOpsError::FileTooLarge {
-            size: bytes.len() as u64,
-            max: max_bytes,
-        });
-    }
-    Ok(remote_file_bytes(bytes, metadata))
+    sftp_ops::log_diagnostic_operation(
+        "read_file",
+        format!("path={} max_bytes={max_bytes}", path.display()),
+        || {
+            let metadata = sftp_ops::block_on_transport(sftp.stat(path))?;
+            validate_readable_file(&metadata, max_bytes)?;
+            let bytes = sftp_ops::block_on_transport(sftp.read_limited(path, max_bytes))?;
+            if bytes.len() as u64 > max_bytes {
+                return Err(SftpOpsError::FileTooLarge {
+                    size: bytes.len() as u64,
+                    max: max_bytes,
+                });
+            }
+            Ok(remote_file_bytes(bytes, metadata))
+        },
+    )
 }
 
 fn read_remote_file_range(
@@ -749,17 +769,23 @@ fn read_remote_file_range(
     offset: u64,
     len: u64,
 ) -> Result<Vec<u8>, SftpOpsError> {
-    let metadata = sftp_ops::block_on_transport(sftp.stat(path))?;
-    validate_regular_file(&metadata)?;
-    let max_bytes = offset.saturating_add(len);
-    let bytes = read_remote_file_prefix(sftp, path, max_bytes)?;
-    let start = usize::try_from(offset)
-        .unwrap_or(usize::MAX)
-        .min(bytes.len());
-    let end = usize::try_from(max_bytes)
-        .unwrap_or(usize::MAX)
-        .min(bytes.len());
-    Ok(bytes[start..end].to_vec())
+    sftp_ops::log_diagnostic_operation(
+        "read_file_range",
+        format!("path={} offset={offset} len={len}", path.display()),
+        || {
+            let metadata = sftp_ops::block_on_transport(sftp.stat(path))?;
+            validate_regular_file(&metadata)?;
+            let max_bytes = offset.saturating_add(len);
+            let bytes = read_remote_file_prefix(sftp, path, max_bytes)?;
+            let start = usize::try_from(offset)
+                .unwrap_or(usize::MAX)
+                .min(bytes.len());
+            let end = usize::try_from(max_bytes)
+                .unwrap_or(usize::MAX)
+                .min(bytes.len());
+            Ok(bytes[start..end].to_vec())
+        },
+    )
 }
 
 fn read_remote_file_prefix(
@@ -767,25 +793,31 @@ fn read_remote_file_prefix(
     path: &Path,
     max_bytes: u64,
 ) -> Result<Vec<u8>, SftpOpsError> {
-    sftp_ops::block_on_transport(async {
-        let mut file = sftp
-            .open(path, &zora_transport::OpenOptions::read())
-            .await?;
-        let mut bytes = Vec::new();
-        let mut buffer = vec![0_u8; 64 * 1024];
-        while bytes.len() < max_bytes as usize {
-            let remaining = max_bytes as usize - bytes.len();
-            let read_len = remaining.min(buffer.len());
-            let read = file.read(&mut buffer[..read_len]).await?;
-            if read == 0 {
-                break;
-            }
-            bytes.extend_from_slice(&buffer[..read]);
-        }
-        file.close().await?;
-        Ok::<_, zora_transport::TransportError>(bytes)
-    })
-    .map_err(Into::into)
+    sftp_ops::log_diagnostic_operation(
+        "read_file_prefix",
+        format!("path={} max_bytes={max_bytes}", path.display()),
+        || {
+            sftp_ops::block_on_transport(async {
+                let mut file = sftp
+                    .open(path, &zora_transport::OpenOptions::read())
+                    .await?;
+                let mut bytes = Vec::new();
+                let mut buffer = vec![0_u8; 64 * 1024];
+                while bytes.len() < max_bytes as usize {
+                    let remaining = max_bytes as usize - bytes.len();
+                    let read_len = remaining.min(buffer.len());
+                    let read = file.read(&mut buffer[..read_len]).await?;
+                    if read == 0 {
+                        break;
+                    }
+                    bytes.extend_from_slice(&buffer[..read]);
+                }
+                file.close().await?;
+                Ok::<_, zora_transport::TransportError>(bytes)
+            })
+            .map_err(Into::into)
+        },
+    )
 }
 
 fn write_remote_file(
@@ -795,29 +827,40 @@ fn write_remote_file(
     expected: Option<RemoteFileVersion>,
     mode: RemoteFileWriteMode,
 ) -> Result<RemoteFileWriteResult, SftpOpsError> {
-    match sftp_ops::block_on_transport(sftp.stat(path)) {
-        Ok(current_metadata) => {
-            let current = RemoteFileVersion::from_metadata(&current_metadata);
-            match mode {
-                RemoteFileWriteMode::Create => {
-                    return Ok(RemoteFileWriteResult::Conflict { current });
+    sftp_ops::log_diagnostic_operation(
+        "write_file",
+        format!(
+            "path={} bytes={} mode={mode:?} expected={}",
+            path.display(),
+            bytes.len(),
+            expected.is_some()
+        ),
+        || {
+            match sftp_ops::block_on_transport(sftp.stat(path)) {
+                Ok(current_metadata) => {
+                    let current = RemoteFileVersion::from_metadata(&current_metadata);
+                    match mode {
+                        RemoteFileWriteMode::Create => {
+                            return Ok(RemoteFileWriteResult::Conflict { current });
+                        }
+                        RemoteFileWriteMode::Normal
+                            if expected.is_some_and(|version| version != current) =>
+                        {
+                            return Ok(RemoteFileWriteResult::Conflict { current });
+                        }
+                        RemoteFileWriteMode::Normal | RemoteFileWriteMode::Force => {}
+                    }
                 }
-                RemoteFileWriteMode::Normal
-                    if expected.is_some_and(|version| version != current) =>
-                {
-                    return Ok(RemoteFileWriteResult::Conflict { current });
-                }
-                RemoteFileWriteMode::Normal | RemoteFileWriteMode::Force => {}
+                Err(_) => {}
             }
-        }
-        Err(_) => {}
-    }
 
-    sftp_ops::block_on_transport(sftp.write(path, bytes))?;
-    let metadata = sftp_ops::block_on_transport(sftp.stat(path))?;
-    Ok(RemoteFileWriteResult::Saved {
-        version: RemoteFileVersion::from_metadata(&metadata),
-    })
+            sftp_ops::block_on_transport(sftp.write(path, bytes))?;
+            let metadata = sftp_ops::block_on_transport(sftp.stat(path))?;
+            Ok(RemoteFileWriteResult::Saved {
+                version: RemoteFileVersion::from_metadata(&metadata),
+            })
+        },
+    )
 }
 
 impl InMemorySftpBackend {

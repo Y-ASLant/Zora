@@ -21,12 +21,12 @@ pub struct LogConfig {
 #[cfg_attr(target_family = "wasm", path = "wasm.rs")]
 mod imp;
 
-pub use imp::init;
 #[cfg(not(target_family = "wasm"))]
 pub use imp::{
     ExtraFile, InlineFile, LogBundleExtras, create_log_bundle_zip, default_log_bundle_filename,
     log_directory, log_file_path, rotate_log_files, write_log_bundle_zip_to,
 };
+pub use imp::{diagnostic_logging_enabled, init, set_diagnostic_logging_enabled};
 
 #[cfg(not(target_family = "wasm"))]
 pub use imp::{

@@ -10,7 +10,7 @@ use crate::{
     autoupdate::{self, github, AutoupdateStage, AutoupdateState},
     channel::ChannelState,
     report_if_error,
-    settings::AutoupdateSettings,
+    settings::{AutoupdateSettings, DebugSettings},
     workspace::WorkspaceAction,
 };
 use settings::Setting as _;
@@ -43,6 +43,7 @@ pub enum AboutPageAction {
     /// 由 `WorkspaceAction::ExportLogsToPath` 负责实现。
     #[cfg(not(target_family = "wasm"))]
     ExportLogs,
+    ToggleDiagnosticLogging,
 }
 
 pub struct AboutPageView {
@@ -95,6 +96,14 @@ impl TypedActionView for AboutPageView {
                 // (mac OSS: open dmg / Win OSS: 非 silent 安装向导 / Linux: 重启新二进制)。
                 ctx.dispatch_typed_action(&WorkspaceAction::ApplyUpdate);
             }
+            AboutPageAction::ToggleDiagnosticLogging => {
+                DebugSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    report_if_error!(settings
+                        .diagnostic_logging_enabled
+                        .toggle_and_save_value(ctx));
+                });
+                ctx.notify();
+            }
             #[cfg(not(target_family = "wasm"))]
             AboutPageAction::ExportLogs => {
                 // 触发 workspace 层弹出 save-file 对话框、由用户选择保存路径
@@ -119,6 +128,7 @@ impl View for AboutPageView {
 struct AboutPageWidget {
     copy_version_button_mouse_state: MouseStateHandle,
     automatic_updates_switch_state: SwitchStateHandle,
+    diagnostic_logging_switch_state: SwitchStateHandle,
     update_action_link_mouse_state: MouseStateHandle,
     /// "导出日志"链接的悬停 / 按下状态。
     #[cfg(not(target_family = "wasm"))]
@@ -250,6 +260,39 @@ impl SettingsWidget for AboutPageWidget {
 
             content.add_child(Container::new(export_section).with_margin_top(16.).finish());
         }
+
+        content.add_child(
+            Container::new(
+                ConstrainedBox::new(render_body_item::<AboutPageAction>(
+                    "详细诊断日志".to_string(),
+                    None,
+                    LocalOnlyIconState::Hidden,
+                    ToggleState::Enabled,
+                    appearance,
+                    appearance
+                        .ui_builder()
+                        .switch(self.diagnostic_logging_switch_state.clone())
+                        .check(
+                            *DebugSettings::as_ref(app)
+                                .diagnostic_logging_enabled
+                                .value(),
+                        )
+                        .build()
+                        .on_click(move |ctx, _, _| {
+                            ctx.dispatch_typed_action(AboutPageAction::ToggleDiagnosticLogging);
+                        })
+                        .finish(),
+                    Some(
+                        "打开后记录全软件 Debug 级诊断日志；默认关闭，排查问题后建议关闭。"
+                            .to_string(),
+                    ),
+                ))
+                .with_max_width(520.)
+                .finish(),
+            )
+            .with_margin_top(16.)
+            .finish(),
+        );
 
         if AppExecutionMode::as_ref(app).can_autoupdate() {
             content.add_child(
