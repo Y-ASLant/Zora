@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::{collections::HashMap, fmt::Display};
 
-use super::task_store::TaskStore;
+use super::{conversation_secrets, task_store::TaskStore};
 use uuid::Uuid;
 use vec1::{Size0Error, Vec1};
 use warp_core::command::ExitCode;
@@ -3035,16 +3035,10 @@ impl AIConversation {
                 .filter_map(|task| task.source().cloned())
                 .collect(),
             conversation_data: AgentConversationData {
-                server_conversation_token: self
-                    .server_conversation_token
-                    .clone()
-                    .map(|token| token.into()),
+                server_conversation_token: None,
                 conversation_usage_metadata: Some(self.conversation_usage_metadata.clone()),
                 reverted_action_ids,
-                forked_from_server_conversation_token: self
-                    .forked_from_server_conversation_token
-                    .clone()
-                    .map(|token| token.into()),
+                forked_from_server_conversation_token: None,
                 artifacts_json,
                 parent_agent_id: self.parent_agent_id.clone(),
                 agent_name: self.agent_name.clone(),
@@ -3117,6 +3111,12 @@ impl AIConversation {
         // 调用方(`append_byop_preflight_messages_to_task`)在写入前已经调用过
         // `ensure_can_persist_byop_preflight_state`,此处不再重复校验 sender 是否存在;
         // 只关心 try_send 自身的 Full/Closed 错误,沿用现有的 ByopPreflightPersistenceSend。
+        conversation_secrets::persist_for_conversation(
+            ctx,
+            self.id,
+            self.server_conversation_token.as_ref(),
+            self.forked_from_server_conversation_token.as_ref(),
+        );
         let sqlite_sender = GlobalResourceHandlesProvider::as_ref(ctx)
             .get()
             .model_event_sender
@@ -3146,6 +3146,12 @@ impl AIConversation {
             return;
         }
 
+        conversation_secrets::persist_for_conversation(
+            ctx,
+            self.id,
+            self.server_conversation_token.as_ref(),
+            self.forked_from_server_conversation_token.as_ref(),
+        );
         let Some(sqlite_sender) = GlobalResourceHandlesProvider::as_ref(ctx)
             .get()
             .model_event_sender

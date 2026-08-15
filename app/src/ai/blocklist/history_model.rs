@@ -22,6 +22,7 @@ use diesel::SqliteConnection;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::ConversationStatus;
 use crate::ai::agent::conversation::UpdateConversationError;
+use crate::ai::agent::conversation_secrets;
 use crate::ai::agent::task::helper::{MessageExt, ToolCallExt};
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::AIAgentExchangeId;
@@ -1073,10 +1074,18 @@ impl BlocklistAIHistoryModel {
             cli_subagent_block_snapshots_json: None,
         };
         let forked_conversation_id = AIConversationId::new();
+        conversation_secrets::persist_for_conversation(
+            app,
+            forked_conversation_id,
+            None,
+            source_conversation.server_conversation_token(),
+        );
+        let mut persisted_conversation_data = conversation_data.clone();
+        persisted_conversation_data.forked_from_server_conversation_token = None;
         if let Err(e) = sqlite_sender.send(ModelEvent::UpdateMultiAgentConversation {
             conversation_id: forked_conversation_id.to_string(),
             updated_tasks: updated_tasks_with_new_ids.clone(),
-            conversation_data: conversation_data.clone(),
+            conversation_data: persisted_conversation_data,
         }) {
             return Err(anyhow!("Failed to persist forked conversation: {e:?}."));
         }
@@ -1244,10 +1253,18 @@ impl BlocklistAIHistoryModel {
         };
 
         let forked_conversation_id = AIConversationId::new();
+        conversation_secrets::persist_for_conversation(
+            app,
+            forked_conversation_id,
+            None,
+            conversation.server_conversation_token(),
+        );
+        let mut persisted_conversation_data = conversation_data.clone();
+        persisted_conversation_data.forked_from_server_conversation_token = None;
         if let Err(e) = sqlite_sender.send(ModelEvent::UpdateMultiAgentConversation {
             conversation_id: forked_conversation_id.to_string(),
             updated_tasks: updated_tasks_with_new_ids.clone(),
-            conversation_data: conversation_data.clone(),
+            conversation_data: persisted_conversation_data,
         }) {
             return Err(anyhow!(
                 "Failed to persist forked conversation at block: {e:?}."

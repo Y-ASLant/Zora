@@ -1364,7 +1364,7 @@ impl TemplatableMCPServerManager {
 
         if let Some(conn) = &self.database_connection {
             let mut conn = conn.lock();
-            legacy_mcp_server.fill_environment_variables(&mut conn);
+            legacy_mcp_server.fill_environment_variables(&mut conn, ctx);
         } else {
             return Err(LegacyToTemplatableMCPConversionError::NoDBConnection);
         }

@@ -27,6 +27,40 @@ use std::process::Stdio;
 use std::time::Duration;
 use zeroize::Zeroizing;
 
+const SSH_CONNECT_TIMEOUT_OPTION: &str = "ConnectTimeout=5";
+const SSH_SERVER_ALIVE_INTERVAL_OPTION: &str = "ServerAliveInterval=30";
+const SSH_SERVER_ALIVE_COUNT_MAX_OPTION: &str = "ServerAliveCountMax=3";
+const SSH_STRICT_HOST_KEY_CHECKING_OPTION: &str = "StrictHostKeyChecking=yes";
+
+fn push_ssh_option(args: &mut Vec<String>, option: &str) {
+    args.push("-o".into());
+    args.push(option.into());
+}
+
+fn push_options_before_target(args: &mut Vec<String>, options: &[&str]) {
+    let Some(target) = args.pop() else {
+        return;
+    };
+    for option in options {
+        push_ssh_option(args, option);
+    }
+    args.push(target);
+}
+
+fn build_interactive_ssh_args(server: &SshServerInfo) -> Vec<String> {
+    let mut args = build_ssh_args(server);
+    push_options_before_target(
+        &mut args,
+        &[
+            SSH_CONNECT_TIMEOUT_OPTION,
+            SSH_SERVER_ALIVE_INTERVAL_OPTION,
+            SSH_SERVER_ALIVE_COUNT_MAX_OPTION,
+            SSH_STRICT_HOST_KEY_CHECKING_OPTION,
+        ],
+    );
+    args
+}
+
 pub fn build_ssh_args(server: &SshServerInfo) -> Vec<String> {
     let mut args: Vec<String> = vec!["ssh".into()];
     if server.port != 22 {
@@ -51,7 +85,7 @@ pub fn build_ssh_args(server: &SshServerInfo) -> Vec<String> {
 }
 
 pub fn build_ssh_command_line(server: &SshServerInfo) -> String {
-    let args = build_ssh_args(server);
+    let args = build_interactive_ssh_args(server);
     args.iter()
         .map(|a| shell_escape::unix::escape(Cow::Borrowed(a.as_str())).to_string())
         .collect::<Vec<_>>()
@@ -95,20 +129,15 @@ pub async fn test_connection(
 
 async fn test_key_auth(server: &SshServerInfo) -> Result<(), String> {
     let mut args = build_ssh_args(server);
-    // build_ssh_args 末尾是 destination (user@host),-o 选项必须插在
-    // destination 之前,否则 SSH 把 -o 当作远程命令的一部分而非自身选项。
-    let target = args.pop().unwrap();
-    args.extend([
-        "-o".into(),
-        "BatchMode=yes".into(),
-        "-o".into(),
-        "ConnectTimeout=5".into(),
-        "-o".into(),
-        "StrictHostKeyChecking=no".into(),
-        "-o".into(),
-        "LogLevel=ERROR".into(),
-    ]);
-    args.push(target);
+    push_options_before_target(
+        &mut args,
+        &[
+            "BatchMode=yes",
+            SSH_CONNECT_TIMEOUT_OPTION,
+            SSH_STRICT_HOST_KEY_CHECKING_OPTION,
+            "LogLevel=ERROR",
+        ],
+    );
     args.push("echo ok".into());
     let cmd_args = args;
 
@@ -275,9 +304,9 @@ fn build_password_auth_stdin(password: &Zeroizing<String>) -> Zeroizing<Vec<u8>>
 ///   prompt 次数,kbd-int 仍可走;两个开关都设才是 defense in depth。
 /// - `NumberOfPasswordPrompts=1`:password 子方法只允许 1 次重试。
 /// - `ConnectTimeout=5`:单次 TCP 连接超时。
-/// - `StrictHostKeyChecking=no`:不拦 known_hosts(测试场景下避免 host key
-///   变化导致误报,真实终端连接走别的路径)。
-/// - `LogLevel=ERROR`:抑制 host key 提示 / banner 等噪音。
+/// - `StrictHostKeyChecking=yes`:测试连接必须校验 known_hosts,避免把
+///   仅可达但身份未知/变化的主机判成在线。
+/// - `LogLevel=ERROR`:抑制 banner 等噪音。
 ///
 /// `echo ok` 作为远端命令,严格匹配 stdout 判定成功(避免 banner / motd
 /// 末尾恰好含 "ok" 的误判)。
@@ -289,24 +318,18 @@ fn build_password_auth_cmd_args(server: &SshServerInfo) -> Vec<String> {
     // ["-p","2222","user@host"]。-o 选项必须插在 destination 之前,
     // 否则 SSH 把 -o 当作远程命令的一部分而非自身选项。
     let mut args: Vec<String> = build_ssh_args(server).into_iter().skip(1).collect();
-    let target = args.pop().unwrap();
-    args.extend([
-        "-o".into(),
-        "BatchMode=no".into(),
-        "-o".into(),
-        "PreferredAuthentications=password".into(),
-        "-o".into(),
-        "KbdInteractiveAuthentication=no".into(),
-        "-o".into(),
-        "NumberOfPasswordPrompts=1".into(),
-        "-o".into(),
-        "ConnectTimeout=5".into(),
-        "-o".into(),
-        "StrictHostKeyChecking=no".into(),
-        "-o".into(),
-        "LogLevel=ERROR".into(),
-    ]);
-    args.push(target);
+    push_options_before_target(
+        &mut args,
+        &[
+            "BatchMode=no",
+            "PreferredAuthentications=password",
+            "KbdInteractiveAuthentication=no",
+            "NumberOfPasswordPrompts=1",
+            SSH_CONNECT_TIMEOUT_OPTION,
+            SSH_STRICT_HOST_KEY_CHECKING_OPTION,
+            "LogLevel=ERROR",
+        ],
+    );
     args.push("echo ok".into());
     args
 }

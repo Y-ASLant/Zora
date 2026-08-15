@@ -1571,6 +1571,19 @@ fn initialize_app(
     let _: Option<ObjectTypeAndId> = None;
 
     timer.mark_interval_end("CLOUD_MODEL_INITIALIZED");
+    let mut multi_agent_conversations = multi_agent_conversations;
+    {
+        let sqlite_sender =
+            crate::global_resource_handles::GlobalResourceHandlesProvider::as_ref(ctx)
+                .get()
+                .model_event_sender
+                .as_ref();
+        ai::agent::conversation_secrets::migrate_and_scrub_persisted_conversation_secrets(
+            ctx,
+            &mut multi_agent_conversations,
+            sqlite_sender,
+        );
+    }
 
     {
         let conversations = &multi_agent_conversations;

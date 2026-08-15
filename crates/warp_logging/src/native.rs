@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::{
     env,
     fs::{self, File},
-    io::{IsTerminal, Write, copy},
+    io::{IsTerminal, Write},
 };
 
 use anyhow::Result;
@@ -14,7 +14,7 @@ use std::sync::{
 };
 use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
-use crate::{LogConfig, LogDestination};
+use crate::{LogConfig, LogDestination, redact_sensitive_text};
 use warp_core::channel::ChannelState;
 
 const MAX_FILES_IN_GUI_ROTATION: usize = 5;
@@ -369,8 +369,9 @@ fn write_log_bundle_zip_inner(zip_path: &Path, extras: &LogBundleExtras) -> Resu
             .ok_or_else(|| anyhow::anyhow!("Invalid log file name: {}", log_file.display()))?;
         zip_writer.start_file(entry_name, zip_options)?;
 
-        let mut source = File::open(&log_file)?;
-        copy(&mut source, &mut zip_writer)?;
+        let bytes = fs::read(&log_file)?;
+        let redacted = redact_sensitive_text(&String::from_utf8_lossy(&bytes));
+        zip_writer.write_all(redacted.as_bytes())?;
     }
 
     // 额外的磁盘文件:存在则打包,不存在/读取失败仅打印 warn,不影响主流程。
@@ -384,20 +385,21 @@ fn write_log_bundle_zip_inner(zip_path: &Path, extras: &LogBundleExtras) -> Resu
             log::warn!("Skipping extra log file {source_display}: invalid zip entry name {raw:?}");
             continue;
         };
-        match File::open(&extra.source_path) {
-            Ok(mut source) => {
-                if let Err(err) = zip_writer.start_file(&safe_entry, zip_options) {
-                    log::warn!("Skipping extra log file {source_display} in bundle: {err}");
-                    continue;
-                }
-                if let Err(err) = copy(&mut source, &mut zip_writer) {
+        if let Err(err) = zip_writer.start_file(&safe_entry, zip_options) {
+            log::warn!("Skipping extra log file {source_display} in bundle: {err}");
+            continue;
+        }
+        match fs::read(&extra.source_path) {
+            Ok(bytes) => {
+                let redacted = redact_sensitive_text(&String::from_utf8_lossy(&bytes));
+                if let Err(err) = zip_writer.write_all(redacted.as_bytes()) {
                     log::warn!(
                         "Failed to write extra log file {source_display} into bundle: {err}"
                     );
                 }
             }
             Err(err) => {
-                log::warn!("Failed to open extra log file {source_display} for bundle: {err}");
+                log::warn!("Failed to read extra log file {source_display} for bundle: {err}");
             }
         }
     }
@@ -413,7 +415,8 @@ fn write_log_bundle_zip_inner(zip_path: &Path, extras: &LogBundleExtras) -> Resu
             log::warn!("Failed to start inline entry {safe_entry} in bundle: {err}");
             continue;
         }
-        if let Err(err) = zip_writer.write_all(inline.contents.as_bytes()) {
+        let redacted = redact_sensitive_text(&inline.contents);
+        if let Err(err) = zip_writer.write_all(redacted.as_bytes()) {
             log::warn!("Failed to write inline entry {safe_entry} into bundle: {err}");
         }
     }

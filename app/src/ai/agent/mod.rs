@@ -1,4 +1,5 @@
 pub(crate) mod conversation;
+pub(crate) mod conversation_secrets;
 pub(crate) mod conversation_yaml;
 pub(crate) mod todos;
 

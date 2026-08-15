@@ -30,7 +30,7 @@ pub type ServerKeyVerifier = Arc<dyn Fn(&russh::keys::ssh_key::PublicKey) -> boo
 
 impl Default for ServerKeyPolicy {
     fn default() -> Self {
-        Self::AcceptAny
+        Self::KnownHosts
     }
 }
 

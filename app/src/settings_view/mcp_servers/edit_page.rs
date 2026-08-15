@@ -31,6 +31,7 @@ use crate::{
         blocklist::secret_redaction::find_secrets_in_text,
         mcp::{
             parsing::{prettify_json, resolve_json, ParsedTemplatableMCPServerResult},
+            persist_mcp_env_vars_to_secure_storage, persistable_mcp_env_vars_json,
             templatable::TemplatableMCPServerObject,
             MCPServer, TemplatableMCPServer, TemplatableMCPServerInstallation,
             TemplatableMCPServerManager, TransportType,
@@ -607,10 +608,8 @@ impl MCPServersEditPageView {
                 .iter()
                 .map(|env_var| (env_var.name.clone(), env_var.value.clone()))
                 .collect();
-            let Ok(env_vars_string) = serde_json::to_string(&env_vars) else {
-                log::error!("Could not serialize MCP env vars");
-                return;
-            };
+            persist_mcp_env_vars_to_secure_storage(ctx, mcp_server.uuid, &env_vars);
+            let env_vars_string = persistable_mcp_env_vars_json(&env_vars);
             let global_resource_handles = GlobalResourceHandlesProvider::as_ref(ctx).get().clone();
 
             if let Some(model_event_sender) = &global_resource_handles.model_event_sender {

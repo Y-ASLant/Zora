@@ -34,12 +34,14 @@ fn server() -> SshServerInfo {
 fn default_port_omitted() {
     let s = server();
     assert_eq!(build_ssh_args(&s), vec!["ssh", "alice@1.2.3.4"]);
-    // shell-escape 出于保守会把 user@host 用单引号引起来,这是合法且
-    // shell-equivalent 的形式 — 不强求未引用版本。
     let line = build_ssh_command_line(&s);
     assert!(
-        line == "ssh alice@1.2.3.4" || line == "ssh 'alice@1.2.3.4'",
-        "unexpected: {line}"
+        line.contains("ConnectTimeout=5")
+            && line.contains("ServerAliveInterval=30")
+            && line.contains("ServerAliveCountMax=3")
+            && line.contains("StrictHostKeyChecking=yes")
+            && line.contains("alice@1.2.3.4"),
+        "interactive ssh command should carry timeout/keepalive options; got {line}"
     );
 }
 
@@ -324,7 +326,7 @@ fn key_auth_args_destination_comes_after_options() {
         "-o".into(),
         "ConnectTimeout=5".into(),
         "-o".into(),
-        "StrictHostKeyChecking=no".into(),
+        "StrictHostKeyChecking=yes".into(),
         "-o".into(),
         "LogLevel=ERROR".into(),
     ]);

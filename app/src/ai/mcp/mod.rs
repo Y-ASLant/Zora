@@ -24,13 +24,72 @@ use crate::{
     server::ids::SyncId,
 };
 #[cfg(not(target_family = "wasm"))]
-use diesel::{QueryDsl, RunQueryDsl, SqliteConnection};
+use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, SqliteConnection};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::Icon;
 
+#[cfg(not(target_family = "wasm"))]
+use warpui_extras::secure_storage::{self, AppContextExt as _};
+
+#[cfg(not(target_family = "wasm"))]
+const MCP_ENV_SECRETS_KEY: &str = "MCPServerEnvironmentVariables";
+
+#[cfg(not(target_family = "wasm"))]
+type PersistedMCPEnvSecrets = HashMap<String, HashMap<String, String>>;
+
+#[cfg(not(target_family = "wasm"))]
+fn load_mcp_env_secrets(app: &mut warpui::AppContext) -> PersistedMCPEnvSecrets {
+    match app.secure_storage().read_value(MCP_ENV_SECRETS_KEY) {
+        Ok(json) => serde_json::from_str(&json).unwrap_or_else(|err| {
+            log::error!("Failed to deserialize MCP env secrets from secure storage: {err:#}");
+            HashMap::new()
+        }),
+        Err(secure_storage::Error::NotFound) => HashMap::new(),
+        Err(err) => {
+            log::error!("Failed to read MCP env secrets from secure storage: {err:#}");
+            HashMap::new()
+        }
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+pub(crate) fn persist_mcp_env_vars_to_secure_storage(
+    app: &mut warpui::AppContext,
+    server_uuid: uuid::Uuid,
+    env_vars: &HashMap<String, String>,
+) {
+    let mut secrets = load_mcp_env_secrets(app);
+    secrets.insert(server_uuid.to_string(), env_vars.clone());
+    let Ok(json) = serde_json::to_string(&secrets) else {
+        log::error!("Failed to serialize MCP env secrets for secure storage");
+        return;
+    };
+    if let Err(err) = app.secure_storage().write_value(MCP_ENV_SECRETS_KEY, &json) {
+        log::error!("Failed to write MCP env secrets to secure storage: {err:#}");
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+fn mcp_env_var_names_json(env_vars: &HashMap<String, String>) -> String {
+    serde_json::to_string(
+        &env_vars
+            .keys()
+            .map(|name| (name.clone(), String::new()))
+            .collect::<HashMap<_, _>>(),
+    )
+    .unwrap_or_else(|err| {
+        log::error!("Failed to serialize MCP env var names: {err:#}");
+        "{}".to_string()
+    })
+}
+
+#[cfg(not(target_family = "wasm"))]
+pub(crate) fn persistable_mcp_env_vars_json(env_vars: &HashMap<String, String>) -> String {
+    mcp_env_var_names_json(env_vars)
+}
 pub mod manager;
 pub mod templatable_manager;
 #[cfg(not(target_family = "wasm"))]
@@ -631,20 +690,46 @@ impl MCPServer {
         }
     }
 
-    pub fn fill_environment_variables(&mut self, conn: &mut SqliteConnection) {
-        if let TransportType::CLIServer(ref mut cli_server) = self.transport_type {
+    pub fn fill_environment_variables(
+        &mut self,
+        conn: &mut SqliteConnection,
+        app: &mut warpui::AppContext,
+    ) {
+        if let TransportType::CLIServer(cli_server) = &mut self.transport_type {
+            use crate::persistence::schema::mcp_environment_variables::dsl::{
+                environment_variables, mcp_environment_variables,
+            };
+
             let uuid = self.uuid.as_bytes().to_vec();
-            match crate::persistence::schema::mcp_environment_variables::dsl::mcp_environment_variables
+            match mcp_environment_variables
                 .find(uuid)
                 .first::<MCPEnvironmentVariables>(conn)
             {
                 Ok(mcp_env_vars) => {
-                    let env_vars: HashMap<String, String> =
-                        serde_json::from_str(&mcp_env_vars.environment_variables).unwrap();
+                    let legacy_env_vars: HashMap<String, String> =
+                        serde_json::from_str(&mcp_env_vars.environment_variables)
+                            .unwrap_or_default();
+                    let secrets = load_mcp_env_secrets(app);
+                    let secure_env_vars = secrets.get(&self.uuid.to_string()).cloned();
+                    let env_vars = secure_env_vars.unwrap_or_else(|| legacy_env_vars.clone());
+                    if legacy_env_vars.values().any(|value| !value.is_empty()) {
+                        persist_mcp_env_vars_to_secure_storage(app, self.uuid, &legacy_env_vars);
+                        let scrubbed = mcp_env_var_names_json(&legacy_env_vars);
+                        if let Err(err) = diesel::update(
+                            mcp_environment_variables.find(self.uuid.as_bytes().to_vec()),
+                        )
+                        .set(environment_variables.eq(scrubbed))
+                        .execute(conn)
+                        {
+                            log::error!("Could not scrub MCP env vars from sqlite: {err:?}");
+                        }
+                    }
                     apply_values(&mut cli_server.static_env_vars, &env_vars);
                 }
                 Err(error) => {
-                    log::error!("Could not read MCP server environment variables from sqlite: {error:?}");
+                    log::error!(
+                        "Could not read MCP server environment variables from sqlite: {error:?}"
+                    );
                 }
             }
         }

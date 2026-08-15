@@ -3,6 +3,8 @@ mod tests {
     #[cfg(not(target_family = "wasm"))]
     use crate::ai::mcp::parsing::normalize_codex_toml_to_json;
     use crate::ai::mcp::parsing::resolve_json;
+    #[cfg(not(target_family = "wasm"))]
+    use crate::ai::mcp::persistable_mcp_env_vars_json;
     use crate::ai::mcp::{
         CLIServer, JsonTemplate, MCPServer, ParsedTemplatableMCPServerResult, ServerSentEvents,
         StaticEnvVar, StaticHeader, TemplatableMCPServer, TemplatableMCPServerInstallation,
@@ -72,6 +74,25 @@ mod tests {
             serialized.contains("PUBLIC_CONFIG"),
             "Serialized config should contain env var key 'PUBLIC_CONFIG': {serialized}",
         );
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn test_persistable_mcp_env_vars_json_excludes_values() {
+        let env_vars = HashMap::from([
+            ("API_KEY".to_string(), "SOME_LEAKED_SECRET".to_string()),
+            (
+                "DATABASE_URL".to_string(),
+                "postgres://user:password@host/db".to_string(),
+            ),
+        ]);
+
+        let persisted = persistable_mcp_env_vars_json(&env_vars);
+
+        assert!(persisted.contains("API_KEY"));
+        assert!(persisted.contains("DATABASE_URL"));
+        assert!(!persisted.contains("SOME_LEAKED_SECRET"));
+        assert!(!persisted.contains("password"));
     }
 
     /// Helper function to create a test TemplatableMCPServerInstallation with custom values

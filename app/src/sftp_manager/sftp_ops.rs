@@ -153,7 +153,7 @@ pub fn connect_from_server(
                 &resolved_auth.username,
                 auth,
                 Some(CONNECT_TIMEOUT),
-                ServerKeyPolicy::AcceptAny,
+                ServerKeyPolicy::KnownHosts,
             ))
             .map_err(|error| SftpOpsError::Connection(error.to_string()))
         },
