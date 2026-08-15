@@ -3,7 +3,6 @@
 #include "environment.iss"
 
 #define MyAppPublisher "Zora"
-#define MyAppURL "https://zap.zerx.dev/"
 #ifndef MyAppName
   #define MyAppName "WarpDev"
 #endif
@@ -58,9 +57,6 @@ AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
 UninstallDisplayName={#MyAppName}
 AppPublisher={#MyAppPublisher}
-AppPublisherURL={#MyAppURL}
-AppSupportURL={#MyAppURL}
-AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 ArchitecturesAllowed={#Arch}
 ArchitecturesInstallIn64BitMode={#Arch}
