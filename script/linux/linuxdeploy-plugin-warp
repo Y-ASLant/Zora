@@ -16,7 +16,7 @@
 #   WARP_BINARY_NAME:           Name of the binary (e.g. "zora").
 #   WARP_OPT_DIR:               Absolute /opt-rooted directory for the
 #                               install layout inside the AppDir (e.g.
-#                               "/opt/zap" for the Zora OSS channel, or
+#                               "/opt/zora" for the Zora OSS channel, or
 #                               "/opt/warpdotdev/warp-terminal-dev" for
 #                               upstream-style internal channels).
 #   WARP_BUNDLED_RESOURCES_DIR: Path to the staged resources directory to copy.
@@ -63,8 +63,7 @@ if [ ! -f "$SRC_BIN" ]; then
 fi
 
 # Create the /opt install directory inside the AppDir. WARP_OPT_DIR is an
-# absolute path on the target machine (e.g. "/opt/zap"); prepend the AppDir
-# to nest it inside the AppImage.
+# absolute path on the target machine (e.g. "/opt/zora"); prepend the AppDir to nest it inside the AppImage.
 OPT_DIR="$APPDIR$WARP_OPT_DIR"
 mkdir -p "$OPT_DIR"
 

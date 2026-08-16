@@ -7,8 +7,8 @@ Type=Application
 Name=Zora
 GenericName=TerminalEmulator
 
-# `zora` 在 deb/rpm 包里是 /opt/zap/zora 的 symlink,
-# 在 arch 包里是 /usr/bin/zap wrapper script —— 三者都在 PATH 上能直接调用。
+# `zora` 在 deb/rpm 包里是 /opt/zora/zora 的 symlink,
+# 在 arch 包里是 /usr/bin/zora wrapper script —— 三者都在 PATH 上能直接调用。
 # AppImage 打包时 bundle_appimage 会用 sed 把这一行替换为 `Exec=zora %U`,
 # 直接指向 AppImage 内部的二进制。
 Exec=zora %U

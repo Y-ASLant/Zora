@@ -3,17 +3,19 @@ pkgver=@@PKGVER@@
 pkgrel=@@RELEASE@@
 pkgdesc="Zora CLI — community fork of Warp's local orchestration platform"
 arch=('@@ARCH@@')
-url="https://github.com/zerx-lab/warp"
+url="https://github.com/Y-ASLant/Zora/"
 license=('custom')
 depends=(
 	'curl'
 	'zlib'
 )
 replaces=(
+	'zap-cli'
 	'warp-cli'
 	'warp-cli-stable'
 )
 conflicts=(
+	'zap-cli'
 	'warp-cli'
 	'warp-cli-stable'
 )

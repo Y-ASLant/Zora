@@ -5,9 +5,9 @@ Depends: zlib1g
 Priority: optional
 Architecture: @@ARCH@@
 Maintainer: Zora Maintainers <zora-maintainers@localhost>
-Homepage: https://github.com/zerx-lab/warp
-Replaces: warp-cli (<< @@VERSION@@)
-Conflicts: warp-cli (<< @@VERSION@@)
+Homepage: https://github.com/Y-ASLant/Zora/
+Replaces: zap-cli, warp-cli (<< @@VERSION@@)
+Conflicts: zap-cli, warp-cli (<< @@VERSION@@)
 Description: Zora CLI — community fork of Warp's local orchestration platform
  Zora CLI is a tool for running, managing, and orchestrating coding agents
  locally. It is the CLI half of the Zora community fork of Warp.
