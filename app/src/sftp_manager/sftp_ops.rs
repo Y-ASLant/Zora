@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use warp_ssh_manager::secrets::SshSecretStore;
-use warp_ssh_manager::types::{AuthType, ResolvedSshAuth, SshServerInfo};
+use warp_ssh_manager::types::{AuthType, ResolvedSshAuth, SshHostKeyPolicy, SshServerInfo};
 use zora_transport::{
     AuthMethod, FileType, RemoteFs, ServerKeyPolicy, Sftp, SftpSession, TransferController,
     TransferDirection,
@@ -153,11 +153,18 @@ pub fn connect_from_server(
                 &resolved_auth.username,
                 auth,
                 Some(CONNECT_TIMEOUT),
-                ServerKeyPolicy::KnownHosts,
+                server_key_policy(server.host_key_policy),
             ))
             .map_err(|error| SftpOpsError::Connection(error.to_string()))
         },
     )
+}
+
+fn server_key_policy(policy: SshHostKeyPolicy) -> ServerKeyPolicy {
+    match policy {
+        SshHostKeyPolicy::KnownHosts => ServerKeyPolicy::KnownHosts,
+        SshHostKeyPolicy::AcceptAny => ServerKeyPolicy::AcceptAny,
+    }
 }
 
 fn resolve_sftp_auth(server: &SshServerInfo) -> Result<ResolvedSshAuth, SftpOpsError> {

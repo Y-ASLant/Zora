@@ -1751,6 +1751,8 @@ pub enum Event {
     /// been submitted and its block has completed.
     PendingCommandCompleted,
     SessionBootstrapped,
+    /// 交互式 SSH 登录已经到达远端 prompt，可重试依赖 known_hosts 的周边连接。
+    SshLoginReady,
     ShellSpawned(ShellType),
 
     /// This terminal pane has initiated a file upload to a remote host.
@@ -23283,6 +23285,8 @@ impl TerminalView {
                 let Some(command) = &self.warpify_state.get_pending_ssh_command() else {
                     return;
                 };
+                ctx.emit(Event::SshLoginReady);
+
                 let ssh_host = &self.warpify_state.get_pending_ssh_host();
 
                 let shell_family = self.shell_family(ctx);

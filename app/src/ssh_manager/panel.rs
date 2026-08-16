@@ -32,8 +32,8 @@ use warpui::{
 };
 
 use warp_ssh_manager::{
-    AuthType, KeychainSecretStore, NodeKind, SecretKind, SshNode, SshRepository, SshSecretStore,
-    SshServerInfo,
+    AuthType, KeychainSecretStore, NodeKind, SecretKind, SshHostKeyPolicy, SshNode, SshRepository,
+    SshSecretStore, SshServerInfo,
 };
 
 use settings::Setting;
@@ -383,6 +383,7 @@ impl SshManagerPanel {
             credential_id: None,
             startup_command: None,
             notes: Some(format!("Imported from {path_display}")),
+            host_key_policy: SshHostKeyPolicy::KnownHosts,
             last_connected_at: None,
         };
 

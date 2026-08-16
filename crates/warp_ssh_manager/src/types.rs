@@ -59,6 +59,29 @@ impl AuthType {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum SshHostKeyPolicy {
+    KnownHosts,
+    AcceptAny,
+}
+
+impl SshHostKeyPolicy {
+    pub fn as_db_str(&self) -> &'static str {
+        match self {
+            SshHostKeyPolicy::KnownHosts => "known_hosts",
+            SshHostKeyPolicy::AcceptAny => "accept_any",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "known_hosts" => Some(SshHostKeyPolicy::KnownHosts),
+            "accept_any" => Some(SshHostKeyPolicy::AcceptAny),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum OneKeyCredentialKind {
     Password,
     Key,
@@ -107,6 +130,7 @@ pub struct SshServerInfo {
     pub credential_id: Option<String>,
     pub startup_command: Option<String>,
     pub notes: Option<String>,
+    pub host_key_policy: SshHostKeyPolicy,
     pub last_connected_at: Option<NaiveDateTime>,
 }
 
@@ -122,6 +146,7 @@ impl SshServerInfo {
             credential_id: None,
             startup_command: None,
             notes: None,
+            host_key_policy: SshHostKeyPolicy::KnownHosts,
             last_connected_at: None,
         }
     }
@@ -138,6 +163,7 @@ impl SshServerInfo {
             credential_id: source.credential_id.clone(),
             startup_command: source.startup_command.clone(),
             notes: source.notes.clone(),
+            host_key_policy: source.host_key_policy,
             last_connected_at: None,
         }
     }

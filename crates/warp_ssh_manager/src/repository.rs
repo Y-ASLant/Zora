@@ -7,14 +7,15 @@
 use chrono::Utc;
 use diesel::prelude::*;
 use diesel::result::Error as DieselError;
+use diesel::sql_types::Text;
 use diesel::sqlite::SqliteConnection;
 use thiserror::Error;
 use uuid::Uuid;
 
 use crate::secrets::SecretKind;
 use crate::types::{
-    AuthType, NodeKind, OneKeyCredentialKind, ResolvedSshAuth, SshNode, SshOneKeyCredential,
-    SshServerInfo,
+    AuthType, NodeKind, OneKeyCredentialKind, ResolvedSshAuth, SshHostKeyPolicy, SshNode,
+    SshOneKeyCredential, SshServerInfo,
 };
 use persistence::model::{
     NewSshNode, NewSshOneKeyCredential, NewSshServer, NewSyncMeta, SshNodeRow,
@@ -49,8 +50,12 @@ impl SshRepository {
         conn: &mut SqliteConnection,
         node_id: &str,
     ) -> Result<Option<SshServerInfo>, SshRepositoryError> {
-        let row: Option<SshServerRow> = ssh_servers::table.find(node_id).first(conn).optional()?;
-        row.map(server_from_row).transpose()
+        let Some(row) = ssh_servers::table.find(node_id).first(conn).optional()? else {
+            return Ok(None);
+        };
+        let mut server = server_from_row(row)?;
+        server.host_key_policy = get_server_host_key_policy(conn, node_id)?;
+        Ok(Some(server))
     }
 
     pub fn create_folder(
@@ -104,6 +109,7 @@ impl SshRepository {
                     credential_id: info.credential_id.as_deref(),
                 })
                 .execute(conn)?;
+            set_server_host_key_policy(conn, &id, info.host_key_policy)?;
             Ok(())
         })?;
         let _ = Self::increment_sync_version(conn);
@@ -147,6 +153,7 @@ impl SshRepository {
         if n == 0 {
             return Err(SshRepositoryError::NotFound(info.node_id.clone()));
         }
+        set_server_host_key_policy(conn, &info.node_id, info.host_key_policy)?;
         diesel::update(ssh_nodes::table.find(&info.node_id))
             .set(ssh_nodes::updated_at.eq(Utc::now().naive_utc()))
             .execute(conn)?;
@@ -420,6 +427,39 @@ fn new_uuid() -> String {
     Uuid::new_v4().to_string()
 }
 
+#[derive(diesel::QueryableByName)]
+struct HostKeyPolicyRow {
+    #[diesel(sql_type = Text)]
+    host_key_policy: String,
+}
+
+fn get_server_host_key_policy(
+    conn: &mut SqliteConnection,
+    node_id: &str,
+) -> Result<SshHostKeyPolicy, SshRepositoryError> {
+    let row: HostKeyPolicyRow =
+        diesel::sql_query("SELECT host_key_policy FROM ssh_servers WHERE node_id = ?")
+            .bind::<Text, _>(node_id)
+            .get_result(conn)?;
+    SshHostKeyPolicy::parse(&row.host_key_policy).ok_or_else(|| SshRepositoryError::InvalidEnum {
+        column: "ssh_servers.host_key_policy",
+
+        value: row.host_key_policy,
+    })
+}
+
+fn set_server_host_key_policy(
+    conn: &mut SqliteConnection,
+    node_id: &str,
+    policy: SshHostKeyPolicy,
+) -> Result<(), DieselError> {
+    diesel::sql_query("UPDATE ssh_servers SET host_key_policy = ? WHERE node_id = ?")
+        .bind::<Text, _>(policy.as_db_str())
+        .bind::<Text, _>(node_id)
+        .execute(conn)?;
+    Ok(())
+}
+
 fn node_from_row(r: SshNodeRow) -> Result<SshNode, SshRepositoryError> {
     let kind = NodeKind::parse(&r.kind).ok_or_else(|| SshRepositoryError::InvalidEnum {
         column: "ssh_nodes.kind",
@@ -453,6 +493,7 @@ fn server_from_row(r: SshServerRow) -> Result<SshServerInfo, SshRepositoryError>
         notes: r.notes,
         last_connected_at: r.last_connected_at,
         credential_id: r.credential_id,
+        host_key_policy: SshHostKeyPolicy::KnownHosts,
     })
 }
 
@@ -581,6 +622,9 @@ pub(crate) fn setup_in_memory() -> SqliteConnection {
         include_str!(
             "../../persistence/migrations/2026-06-09-160000_add_ssh_onekey_key_type/up.sql"
         ),
+        include_str!(
+            "../../persistence/migrations/2026-08-16-120000_add_ssh_host_key_policy/up.sql"
+        ),
     ] {
         conn.batch_execute(up).unwrap();
     }
@@ -602,6 +646,7 @@ mod tests {
             credential_id: None,
             startup_command: None,
             notes: None,
+            host_key_policy: SshHostKeyPolicy::KnownHosts,
             last_connected_at: None,
         }
     }
@@ -673,6 +718,7 @@ mod tests {
         info.port = 2222;
         info.auth_type = AuthType::Key;
         info.key_path = Some("/k".into());
+        info.host_key_policy = SshHostKeyPolicy::AcceptAny;
         SshRepository::update_server(&mut conn, &info).unwrap();
 
         let got = SshRepository::get_server(&mut conn, &s.id)
@@ -682,6 +728,7 @@ mod tests {
         assert_eq!(got.port, 2222);
         assert_eq!(got.auth_type, AuthType::Key);
         assert_eq!(got.key_path.as_deref(), Some("/k"));
+        assert_eq!(got.host_key_policy, SshHostKeyPolicy::AcceptAny);
     }
 
     #[test]

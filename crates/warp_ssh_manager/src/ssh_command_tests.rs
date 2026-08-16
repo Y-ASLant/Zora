@@ -26,6 +26,7 @@ fn server() -> SshServerInfo {
         credential_id: None,
         startup_command: None,
         notes: None,
+        host_key_policy: SshHostKeyPolicy::KnownHosts,
         last_connected_at: None,
     }
 }
@@ -43,6 +44,29 @@ fn default_port_omitted() {
             && line.contains("alice@1.2.3.4"),
         "interactive ssh command should carry timeout/keepalive options; got {line}"
     );
+}
+
+#[test]
+fn accept_any_host_key_policy_disables_strict_checking() {
+    let mut s = server();
+    s.host_key_policy = SshHostKeyPolicy::AcceptAny;
+    let line = build_ssh_command_line(&s);
+    assert!(
+        line.contains("StrictHostKeyChecking=no") && !line.contains("StrictHostKeyChecking=yes"),
+        "accept-any host key policy should disable strict checking; got {line}"
+    );
+}
+
+#[test]
+fn host_key_failure_gets_actionable_message() {
+    let s = server();
+    let message = explain_connection_error(
+        &s,
+        "No ED25519 host key is known for 1.2.3.4 and you have requested strict checking.\nHost key verification failed.".into(),
+    );
+    assert!(message.contains("known_hosts"));
+    assert!(message.contains("跳过主机密钥校验"));
+    assert!(message.contains("1.2.3.4"));
 }
 
 #[test]
@@ -250,6 +274,19 @@ fn password_auth_args_disable_kbd_interactive() {
     assert!(
         joined.contains("KbdInteractiveAuthentication=no"),
         "missing KbdInteractiveAuthentication=no; got {args:?}"
+    );
+}
+
+#[test]
+fn password_auth_args_honor_accept_any_host_key_policy() {
+    let mut s = server();
+    s.host_key_policy = SshHostKeyPolicy::AcceptAny;
+    let args = build_password_auth_cmd_args(&s);
+    let joined = args.join(" ");
+    assert!(
+        joined.contains("StrictHostKeyChecking=no")
+            && !joined.contains("StrictHostKeyChecking=yes"),
+        "password test args should honor accept-any host key policy; got {joined}"
     );
 }
 

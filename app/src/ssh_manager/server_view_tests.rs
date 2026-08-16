@@ -187,6 +187,7 @@ fn onekey_test_connection_uses_shared_password_credential() {
         credential_id: Some("cred-1".to_string()),
         startup_command: None,
         notes: None,
+        host_key_policy: SshHostKeyPolicy::KnownHosts,
         last_connected_at: None,
     };
 
@@ -217,6 +218,7 @@ fn onekey_test_connection_prefers_editor_password() {
         credential_id: Some("cred-1".to_string()),
         startup_command: None,
         notes: None,
+        host_key_policy: SshHostKeyPolicy::KnownHosts,
         last_connected_at: None,
     };
 
@@ -245,6 +247,7 @@ fn onekey_key_credential_resolves_test_connection_to_key_auth() {
         credential_id: Some("cred-1".to_string()),
         startup_command: None,
         notes: None,
+        host_key_policy: SshHostKeyPolicy::KnownHosts,
         last_connected_at: None,
     };
 

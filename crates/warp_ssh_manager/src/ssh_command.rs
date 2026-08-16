@@ -19,7 +19,7 @@
 //! 通过临时文件传给 askpass 脚本(不写 env var,降低泄漏面),整个生命周期
 //! 由 `AskpassSession` RAII 守卫保证 ssh 退出后立即清理。
 
-use crate::types::{AuthType, ConnectionStatus, SshServerInfo};
+use crate::types::{AuthType, ConnectionStatus, SshHostKeyPolicy, SshServerInfo};
 #[cfg(not(windows))]
 use futures_lite::io::AsyncWriteExt as _;
 use std::borrow::Cow;
@@ -31,6 +31,7 @@ const SSH_CONNECT_TIMEOUT_OPTION: &str = "ConnectTimeout=5";
 const SSH_SERVER_ALIVE_INTERVAL_OPTION: &str = "ServerAliveInterval=30";
 const SSH_SERVER_ALIVE_COUNT_MAX_OPTION: &str = "ServerAliveCountMax=3";
 const SSH_STRICT_HOST_KEY_CHECKING_OPTION: &str = "StrictHostKeyChecking=yes";
+const SSH_SKIP_HOST_KEY_CHECKING_OPTION: &str = "StrictHostKeyChecking=no";
 
 fn push_ssh_option(args: &mut Vec<String>, option: &str) {
     args.push("-o".into());
@@ -47,15 +48,23 @@ fn push_options_before_target(args: &mut Vec<String>, options: &[&str]) {
     args.push(target);
 }
 
+fn ssh_host_key_checking_option(policy: SshHostKeyPolicy) -> &'static str {
+    match policy {
+        SshHostKeyPolicy::KnownHosts => SSH_STRICT_HOST_KEY_CHECKING_OPTION,
+        SshHostKeyPolicy::AcceptAny => SSH_SKIP_HOST_KEY_CHECKING_OPTION,
+    }
+}
+
 fn build_interactive_ssh_args(server: &SshServerInfo) -> Vec<String> {
     let mut args = build_ssh_args(server);
+    let host_key_option = ssh_host_key_checking_option(server.host_key_policy);
     push_options_before_target(
         &mut args,
         &[
             SSH_CONNECT_TIMEOUT_OPTION,
             SSH_SERVER_ALIVE_INTERVAL_OPTION,
             SSH_SERVER_ALIVE_COUNT_MAX_OPTION,
-            SSH_STRICT_HOST_KEY_CHECKING_OPTION,
+            host_key_option,
         ],
     );
     args
@@ -122,19 +131,20 @@ pub async fn test_connection(
         Err(e) => ConnectionTestResult {
             status: ConnectionStatus::Offline,
             latency_ms: Some(latency),
-            error_message: Some(e),
+            error_message: Some(explain_connection_error(server, e)),
         },
     }
 }
 
 async fn test_key_auth(server: &SshServerInfo) -> Result<(), String> {
     let mut args = build_ssh_args(server);
+    let host_key_option = ssh_host_key_checking_option(server.host_key_policy);
     push_options_before_target(
         &mut args,
         &[
             "BatchMode=yes",
             SSH_CONNECT_TIMEOUT_OPTION,
-            SSH_STRICT_HOST_KEY_CHECKING_OPTION,
+            host_key_option,
             "LogLevel=ERROR",
         ],
     );
@@ -304,8 +314,8 @@ fn build_password_auth_stdin(password: &Zeroizing<String>) -> Zeroizing<Vec<u8>>
 ///   prompt 次数,kbd-int 仍可走;两个开关都设才是 defense in depth。
 /// - `NumberOfPasswordPrompts=1`:password 子方法只允许 1 次重试。
 /// - `ConnectTimeout=5`:单次 TCP 连接超时。
-/// - `StrictHostKeyChecking=yes`:测试连接必须校验 known_hosts,避免把
-///   仅可达但身份未知/变化的主机判成在线。
+/// - `StrictHostKeyChecking`:默认校验 known_hosts;用户显式开启不安全开关时
+///   改成 `no`,用于兼容可信内网或临时主机。
 /// - `LogLevel=ERROR`:抑制 banner 等噪音。
 ///
 /// `echo ok` 作为远端命令,严格匹配 stdout 判定成功(避免 banner / motd
@@ -318,6 +328,7 @@ fn build_password_auth_cmd_args(server: &SshServerInfo) -> Vec<String> {
     // ["-p","2222","user@host"]。-o 选项必须插在 destination 之前,
     // 否则 SSH 把 -o 当作远程命令的一部分而非自身选项。
     let mut args: Vec<String> = build_ssh_args(server).into_iter().skip(1).collect();
+    let host_key_option = ssh_host_key_checking_option(server.host_key_policy);
     push_options_before_target(
         &mut args,
         &[
@@ -326,12 +337,42 @@ fn build_password_auth_cmd_args(server: &SshServerInfo) -> Vec<String> {
             "KbdInteractiveAuthentication=no",
             "NumberOfPasswordPrompts=1",
             SSH_CONNECT_TIMEOUT_OPTION,
-            SSH_STRICT_HOST_KEY_CHECKING_OPTION,
+            host_key_option,
             "LogLevel=ERROR",
         ],
     );
     args.push("echo ok".into());
     args
+}
+
+fn explain_connection_error(server: &SshServerInfo, message: String) -> String {
+    if server.host_key_policy == SshHostKeyPolicy::KnownHosts
+        && is_host_key_verification_error(&message)
+    {
+        format!(
+            "主机密钥未受信任或已变更。Zora 默认要求 known_hosts 校验；请先用系统 ssh 接受 {} 的主机密钥，或在此服务器设置中开启“跳过主机密钥校验（不安全）”。原始错误: {}",
+            server.host,
+            abbreviate_error(&message)
+        )
+    } else {
+        message
+    }
+}
+
+fn is_host_key_verification_error(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    lower.contains("host key verification failed")
+        || lower.contains("no ed25519 host key is known")
+        || lower.contains("remote host identification has changed")
+}
+
+fn abbreviate_error(message: &str) -> String {
+    let snippet: String = message.chars().take(240).collect();
+    if message.chars().count() > 240 {
+        format!("{snippet}...")
+    } else {
+        snippet
+    }
 }
 
 async fn run_ssh_test(args: &[String]) -> Result<String, std::io::Error> {

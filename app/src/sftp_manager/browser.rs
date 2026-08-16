@@ -653,6 +653,26 @@ impl SftpBrowserView {
         }
     }
 
+    pub(crate) fn retry_connection_after_ssh_ready(
+        &mut self,
+        node_id: &str,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        if self.node_id != node_id || matches!(self.connection, ConnectionState::Connected) {
+            return;
+        }
+
+        self.connect_to_server(ctx);
+    }
+
+    fn refresh_or_reconnect(&mut self, ctx: &mut ViewContext<Self>) {
+        if matches!(self.connection, ConnectionState::Connected) && self.sftp.is_some() {
+            self.refresh_dir(ctx);
+        } else {
+            self.connect_to_server(ctx);
+        }
+    }
+
     /// 执行阻塞操作并回调
     /// 生产环境：通过 ctx.spawn + spawn_blocking 在后台线程执行
     /// 测试环境：直接同步执行（避免异步执行器时序问题）
@@ -1927,7 +1947,7 @@ impl TypedActionView for SftpBrowserView {
                 self.go_forward(ctx);
             }
             SftpBrowserAction::Refresh => {
-                self.refresh_dir(ctx);
+                self.refresh_or_reconnect(ctx);
             }
             SftpBrowserAction::SelectEntry(index) => {
                 let index = *index;

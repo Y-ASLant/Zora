@@ -5286,10 +5286,31 @@ impl Workspace {
             view.set_ssh_connection_label(Some(ssh_connection_label), ctx);
         });
 
+        let sftp_pane_group_id = pane_group.id();
+
         let working_directories_model = self.working_directories_model.clone();
         self.left_panel_view.update(ctx, |left_panel, ctx| {
             left_panel.set_active_pane_group(pane_group.clone(), &working_directories_model, ctx);
             left_panel.open_sftp_browser(node_id.clone(), ctx);
+        });
+        let node_id_for_sftp_retry = node_id.clone();
+        ctx.subscribe_to_view(&terminal_view, {
+            let mut did_retry_sftp_after_ssh_ready = false;
+            move |workspace, _, event, ctx| {
+                if !matches!(event, terminal::Event::SshLoginReady)
+                    || did_retry_sftp_after_ssh_ready
+                {
+                    return;
+                }
+                did_retry_sftp_after_ssh_ready = true;
+                workspace.left_panel_view.update(ctx, |left_panel, ctx| {
+                    left_panel.retry_sftp_browser_connection(
+                        sftp_pane_group_id,
+                        &node_id_for_sftp_retry,
+                        ctx,
+                    );
+                });
+            }
         });
         log::info!(
             "open_ssh_terminal: opened SFTP browser node_id={node_id} host={}",

@@ -26,6 +26,7 @@ use warpui::fonts::Weight;
 use warpui::platform::{Cursor, FilePickerConfiguration};
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::ui_components::switch::SwitchStateHandle;
 use warpui::{
     AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle,
@@ -33,8 +34,8 @@ use warpui::{
 
 use warp_ssh_manager::{
     AuthType, ConnectionStatus, KeychainSecretStore, NodeKind, OneKeyCredentialKind, SecretKind,
-    SshNode, SshOneKeyCredential, SshRepository, SshSecretStore, SshSecretStoreError,
-    SshServerInfo,
+    SshHostKeyPolicy, SshNode, SshOneKeyCredential, SshRepository, SshSecretStore,
+    SshSecretStoreError, SshServerInfo,
 };
 use zeroize::Zeroizing;
 
@@ -57,6 +58,7 @@ pub enum SshServerAction {
     SetAuthPassword,
     SetAuthKey,
     SetAuthOneKey,
+    ToggleHostKeyPolicy,
     /// 打开系统文件选择器选私钥文件,把路径写入 key_path editor。
     PickKeyFile,
     /// 选择分组(None 表示根级,Some(index) 表示 self.folders[index])。
@@ -113,10 +115,13 @@ pub struct SshServerView {
 
     /// 当前选中的认证方式。Save 按钮提交此值到 DB。
     auth_type: AuthType,
+    /// 主机密钥校验策略。默认要求 known_hosts;用户可显式跳过校验。
+    host_key_policy: SshHostKeyPolicy,
 
     save_btn_state: MouseStateHandle,
     connect_btn_state: MouseStateHandle,
     test_btn_state: MouseStateHandle,
+    host_key_switch_state: SwitchStateHandle,
     auth_password_btn_state: MouseStateHandle,
     auth_key_btn_state: MouseStateHandle,
     auth_onekey_btn_state: MouseStateHandle,
@@ -216,9 +221,11 @@ impl SshServerView {
             startup_command_editor,
             notes_editor,
             auth_type: AuthType::Password,
+            host_key_policy: SshHostKeyPolicy::KnownHosts,
             save_btn_state: MouseStateHandle::default(),
             connect_btn_state: MouseStateHandle::default(),
             test_btn_state: MouseStateHandle::default(),
+            host_key_switch_state: SwitchStateHandle::default(),
             auth_password_btn_state: MouseStateHandle::default(),
             auth_key_btn_state: MouseStateHandle::default(),
             auth_onekey_btn_state: MouseStateHandle::default(),
@@ -373,6 +380,7 @@ impl SshServerView {
 
         if let Some(srv) = self.server.clone() {
             self.auth_type = srv.auth_type;
+            self.host_key_policy = srv.host_key_policy;
             self.selected_onekey_credential_id = srv.credential_id.clone();
             let host = srv.host.clone();
             let port_str = srv.port.to_string();
@@ -691,6 +699,7 @@ impl SshServerView {
             } else {
                 Some(notes_text.trim().to_string())
             },
+            host_key_policy: self.host_key_policy,
             last_connected_at: self.server.as_ref().and_then(|s| s.last_connected_at),
         };
 
@@ -812,6 +821,7 @@ impl SshServerView {
             } else {
                 Some(notes_text.trim().to_string())
             },
+            host_key_policy: self.host_key_policy,
             last_connected_at: self.server.as_ref().and_then(|s| s.last_connected_at),
         };
         ctx.dispatch_typed_action(&crate::workspace::WorkspaceAction::OpenSshTerminal {
@@ -853,6 +863,7 @@ impl SshServerView {
             credential_id,
             startup_command: None,
             notes: None,
+            host_key_policy: self.host_key_policy,
             last_connected_at: None,
         };
 
@@ -1360,6 +1371,60 @@ impl SshServerView {
                     appearance,
                 ))
                 .with_child(auth_row.finish())
+                .finish(),
+        )
+        .with_margin_bottom(FIELD_BLOCK_MARGIN_BOTTOM)
+        .finish()
+    }
+
+    fn render_host_key_policy_toggle(&self, appearance: &Appearance) -> Box<dyn Element> {
+        let theme = appearance.theme();
+        let skip_host_key_verification = self.host_key_policy == SshHostKeyPolicy::AcceptAny;
+        let title = Text::new_inline(
+            crate::t!("workspace-left-panel-ssh-manager-host-key-skip"),
+            appearance.ui_font_family(),
+            appearance.ui_font_size(),
+        )
+        .with_color(theme.main_text_color(theme.background()).into())
+        .finish();
+        let switch = appearance
+            .ui_builder()
+            .switch(self.host_key_switch_state.clone())
+            .check(skip_host_key_verification)
+            .build()
+            .on_click(|ctx, _, _| ctx.dispatch_typed_action(SshServerAction::ToggleHostKeyPolicy))
+            .finish();
+        let description = if skip_host_key_verification {
+            crate::t!("workspace-left-panel-ssh-manager-host-key-skip-warning")
+        } else {
+            crate::t!("workspace-left-panel-ssh-manager-host-key-strict-description")
+        };
+        let description_color = if skip_host_key_verification {
+            theme.ui_warning_color()
+        } else {
+            theme.sub_text_color(theme.background()).into()
+        };
+        let description = Text::new_inline(
+            description,
+            appearance.ui_font_family(),
+            appearance.ui_font_size(),
+        )
+        .with_color(description_color)
+        .finish();
+
+        Container::new(
+            Flex::column()
+                .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+                .with_child(
+                    Flex::row()
+                        .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
+                        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                        .with_spacing(12.0)
+                        .with_child(title)
+                        .with_child(switch)
+                        .finish(),
+                )
+                .with_child(Container::new(description).with_margin_top(4.0).finish())
                 .finish(),
         )
         .with_margin_bottom(FIELD_BLOCK_MARGIN_BOTTOM)
@@ -1965,6 +2030,13 @@ impl TypedActionView for SshServerView {
             SshServerAction::SetAuthPassword => self.on_set_auth(AuthType::Password, ctx),
             SshServerAction::SetAuthKey => self.on_set_auth(AuthType::Key, ctx),
             SshServerAction::SetAuthOneKey => self.on_set_auth(AuthType::OneKey, ctx),
+            SshServerAction::ToggleHostKeyPolicy => {
+                self.host_key_policy = match self.host_key_policy {
+                    SshHostKeyPolicy::KnownHosts => SshHostKeyPolicy::AcceptAny,
+                    SshHostKeyPolicy::AcceptAny => SshHostKeyPolicy::KnownHosts,
+                };
+                ctx.notify();
+            }
             SshServerAction::PickKeyFile => self.on_pick_key_file(ctx),
             SshServerAction::PickOneKeyKeyFile => self.on_pick_onekey_key_file(ctx),
             SshServerAction::OpenOneKeyManager => {
@@ -2178,6 +2250,8 @@ impl View for SshServerView {
                 }
             }
         }
+
+        col.add_child(self.render_host_key_policy_toggle(appearance));
 
         // 启动命令
         col.add_child(self.render_text_field(

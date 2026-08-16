@@ -66,6 +66,7 @@ pub fn create_server_via_db(name: &str, parent_id: Option<&str>) -> String {
             credential_id: None,
             startup_command: None,
             notes: None,
+            host_key_policy: warp_ssh_manager::SshHostKeyPolicy::KnownHosts,
             last_connected_at: None,
         };
         let node = SshRepository::create_server(c, parent.as_deref(), &name, &info)

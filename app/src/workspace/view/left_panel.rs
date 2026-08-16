@@ -761,6 +761,21 @@ impl LeftPanelView {
         active_view_state::set(self, ToolPanelView::ProjectExplorer, ctx);
     }
 
+    pub fn retry_sftp_browser_connection(
+        &mut self,
+        pane_group_id: EntityId,
+        node_id: &str,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let Some(view) = self.sftp_browser_views.get(&pane_group_id).cloned() else {
+            return;
+        };
+
+        view.update(ctx, |view, ctx| {
+            view.retry_connection_after_ssh_ready(node_id, ctx);
+        });
+    }
+
     pub fn navigate_server_file_browser(
         &mut self,
         host_id: HostId,

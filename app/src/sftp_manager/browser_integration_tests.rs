@@ -143,6 +143,61 @@ fn test_connection_failure_shows_error_state() {
     });
 }
 
+/// 验证失败状态下点击刷新会重新走连接流程，而不是停留在旧错误上。
+#[test]
+fn test_refresh_retries_connection_after_failure() {
+    warpui::App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let (_, view) = create_view(&mut app);
+
+        view.update(&mut app, |v, ctx| {
+            v.connection = ConnectionState::Failed("旧连接错误".to_string());
+            v.handle_action(&SftpBrowserAction::Refresh, ctx);
+        });
+
+        view.read(&app, |v, _| {
+            let ConnectionState::Failed(message) = &v.connection else {
+                panic!("刷新后应仍为失败状态，因为测试没有 SSH 配置");
+            };
+            assert_ne!(message, "旧连接错误");
+            assert!(
+                message.contains("服务器配置"),
+                "刷新应重新读取服务器配置，实际错误: {message}"
+            );
+        });
+    });
+}
+
+/// 验证 SSH 登录完成事件只会重试对应节点的 SFTP 浏览器。
+#[test]
+fn test_ssh_ready_retries_matching_browser_after_failure() {
+    warpui::App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let (_, view) = create_view(&mut app);
+
+        view.update(&mut app, |v, ctx| {
+            v.connection = ConnectionState::Failed("旧连接错误".to_string());
+            v.retry_connection_after_ssh_ready("other-node", ctx);
+        });
+        view.read(&app, |v, _| {
+            let ConnectionState::Failed(message) = &v.connection else {
+                panic!("非匹配节点不应改变连接状态");
+            };
+            assert_eq!(message, "旧连接错误");
+        });
+
+        view.update(&mut app, |v, ctx| {
+            v.retry_connection_after_ssh_ready("test-node", ctx);
+        });
+        view.read(&app, |v, _| {
+            let ConnectionState::Failed(message) = &v.connection else {
+                panic!("测试没有 SSH 配置，重试后应仍为失败状态");
+            };
+            assert_ne!(message, "旧连接错误");
+        });
+    });
+}
+
 /// 验证从 Failed 状态重新连接
 #[test]
 fn test_reconnect_after_failure() {
