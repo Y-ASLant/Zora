@@ -97,11 +97,15 @@ fn format_for_file_output(
     writeln!(
         buf,
         "{} [{}] {}{}",
-        buf.timestamp(),
+        local_timestamp_for_file_output(),
         record.level(),
         target,
         record.args()
     )
+}
+
+fn local_timestamp_for_file_output() -> String {
+    Local::now().format("%Y-%m-%dT%H:%M:%S%.3f%:z").to_string()
 }
 
 /// Handles the crash recovery process being killed by removing the crash recovery process log file
@@ -618,4 +622,23 @@ pub fn init_logging_for_unit_tests() {
         .parse_default_env()
         .format(format_for_terminal_output)
         .init();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_timestamp_for_file_output_includes_numeric_offset() {
+        let timestamp = local_timestamp_for_file_output();
+
+        assert_eq!(timestamp.len(), "2026-08-17T00:02:41.123+08:00".len());
+        assert!(!timestamp.ends_with('Z'));
+        assert!(
+            timestamp
+                .chars()
+                .nth("2026-08-17T00:02:41.123".len())
+                .is_some_and(|offset_sign| offset_sign == '+' || offset_sign == '-')
+        );
+    }
 }
