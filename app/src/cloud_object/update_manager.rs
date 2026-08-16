@@ -1440,11 +1440,7 @@ impl UpdateManager {
         initiated_by: InitiatedBy,
         ctx: &mut ModelContext<Self>,
     ) {
-        // If the object isn't known to the server yet, we can't delete it.
-        let Some(server_id) = id.server_id() else {
-            return;
-        };
-
+        let sync_id = id.sync_id();
         let uid = id.uid();
         // If there's a pending online-only operation for this object, don't delete it.
         let Some((has_pending_online_only_operation, has_pending_delete)) =
@@ -1464,15 +1460,18 @@ impl UpdateManager {
             return;
         }
 
-        // Zora:云端 delete RPC 已删除,这里折叠为本地直接清除。
-        let num_deleted_objects =
-            self.on_object_delete_success(vec![SyncId::ServerId(server_id)], ctx);
+        // Zora:本地 object 可能永久只有 ClientId,删除必须按实际 SyncId 清 SQLite。
+        let num_deleted_objects = self.on_object_delete_success(vec![sync_id], ctx);
+        let (client_id, server_id) = match sync_id {
+            SyncId::ClientId(client_id) => (Some(client_id), None),
+            SyncId::ServerId(server_id) => (None, Some(server_id)),
+        };
         ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
             result: ObjectOperationResult {
                 success_type: OperationSuccessType::Success,
                 operation: ObjectOperation::Delete { initiated_by },
-                client_id: None,
-                server_id: Some(ServerId::from_string_lossy(&uid)),
+                client_id,
+                server_id,
                 num_objects: Some(num_deleted_objects),
             },
         });
