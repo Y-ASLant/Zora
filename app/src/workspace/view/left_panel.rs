@@ -130,8 +130,8 @@ pub enum LeftPanelEvent {
         conversation_title: String,
         terminal_view_id: Option<warpui::EntityId>,
     },
-    /// 用户从 SSH 管理器树点击 server / 双击 / 右键 "编辑" → 主窗口应在中央
-    /// 区开/聚焦 `SshServerPane`(具体 `WorkspaceView::open_ssh_server`)。
+    /// 用户从 SSH 管理器树点击 server / 双击 / 右键 "编辑" → 主窗口应在新的
+    /// workspace tab 打开 `SshServerPane`(具体 `WorkspaceView::open_ssh_server`)。
     OpenSshServerEditor {
         node_id: String,
     },

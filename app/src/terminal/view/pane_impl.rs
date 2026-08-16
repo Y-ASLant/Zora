@@ -392,6 +392,14 @@ impl TerminalView {
     }
 }
 
+fn should_render_terminal_header(
+    is_shared: bool,
+    is_fullscreen_agent_view: bool,
+    is_in_split_pane: bool,
+) -> bool {
+    is_shared || is_fullscreen_agent_view || is_in_split_pane
+}
+
 impl BackingView for TerminalView {
     type PaneHeaderOverflowMenuAction = TerminalAction;
     type CustomAction = TerminalAction;
@@ -473,10 +481,11 @@ impl BackingView for TerminalView {
             .is_sharer_or_viewer();
         let is_fullscreen_agent_view = FeatureFlag::AgentView.is_enabled()
             && self.agent_view_controller.as_ref(app).is_fullscreen();
-        is_shared
-            || is_fullscreen_agent_view
-            || FeatureFlag::ContextWindowUsageV2.is_enabled()
-                && self.split_pane_state(app).is_in_split_pane()
+        should_render_terminal_header(
+            is_shared,
+            is_fullscreen_agent_view,
+            self.split_pane_state(app).is_in_split_pane(),
+        )
     }
 
     fn render_header_content(
@@ -814,4 +823,25 @@ impl TerminalView {
 
 fn default_agent_conversation_title() -> String {
     crate::t!("terminal-pane-new-agent-conversation-title")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_render_terminal_header;
+
+    #[test]
+    fn renders_header_for_split_terminal_panes() {
+        assert!(should_render_terminal_header(false, false, true));
+    }
+
+    #[test]
+    fn keeps_header_for_shared_and_fullscreen_agent_panes() {
+        assert!(should_render_terminal_header(true, false, false));
+        assert!(should_render_terminal_header(false, true, false));
+    }
+
+    #[test]
+    fn hides_header_for_plain_single_terminal_panes() {
+        assert!(!should_render_terminal_header(false, false, false));
+    }
 }

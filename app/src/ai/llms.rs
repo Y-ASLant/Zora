@@ -620,9 +620,9 @@ impl LLMPreferences {
 
     /// Returns `LLMInfo` for the currently selected LLM to be used for Agent Mode.
     ///
-    /// 优先级:terminal-view override > AISettings.byop_last_used_model_id(全局
-    /// 最近使用 — picker 切换后立即写入,新 tab/重启沿用)> profile.base_model >
-    /// default_llm_info()。
+    /// 优先级:terminal-view override > profile.base_model >
+    /// AISettings.byop_last_used_model_id(全局最近使用 — picker 切换后立即写入,
+    /// 新 tab/重启兜底沿用)> default_llm_info()。
     fn get_preferred_base_model(
         &self,
         app: &AppContext,
@@ -637,7 +637,17 @@ impl LLMPreferences {
             }
         }
 
-        // BYOP picker last_used 比 profile 默认更贴近用户最新意图。
+        let profile = AIExecutionProfilesModel::as_ref(app).active_profile(terminal_view_id, app);
+
+        if let Some(llm_info) = profile
+            .data()
+            .base_model
+            .clone()
+            .and_then(|id| self.models_by_feature.agent_mode.info_for_id(&id))
+        {
+            return llm_info;
+        }
+
         let last_used = crate::settings::AISettings::as_ref(app)
             .byop_last_used_model_id
             .to_string();
@@ -648,14 +658,7 @@ impl LLMPreferences {
             }
         }
 
-        let profile = AIExecutionProfilesModel::as_ref(app).active_profile(terminal_view_id, app);
-
-        profile
-            .data()
-            .base_model
-            .clone()
-            .and_then(|id| self.models_by_feature.agent_mode.info_for_id(&id))
-            .unwrap_or_else(|| self.models_by_feature.agent_mode.default_llm_info())
+        self.models_by_feature.agent_mode.default_llm_info()
     }
 
     pub fn get_active_coding_model<'a>(
@@ -916,6 +919,47 @@ impl LLMPreferences {
             ctx.emit(LLMPreferencesEvent::UpdatedActiveAgentModeLLM);
         }
 
+        self.update_last_used_agent_mode_llm(preferred_llm_id, ctx);
+    }
+
+    /// 从 profile/model selector 更新 active profile 的默认 base 模型。
+    pub fn update_profile_default_agent_mode_llm(
+        &mut self,
+        preferred_llm_id: &LLMId,
+        terminal_view_id: EntityId,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let active_profile =
+            AIExecutionProfilesModel::as_ref(ctx).active_profile(Some(terminal_view_id), ctx);
+        let active_profile_id = *active_profile.id();
+        let profile_changed = active_profile.data().base_model.as_ref() != Some(preferred_llm_id);
+
+        if profile_changed {
+            AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles, ctx| {
+                profiles.set_base_model(active_profile_id, Some(preferred_llm_id.clone()), ctx);
+            });
+        }
+
+        let removed_terminal_override = self
+            .base_llm_for_terminal_view
+            .remove(&terminal_view_id)
+            .is_some();
+        if removed_terminal_override {
+            self.trigger_snapshot_save(ctx);
+        }
+
+        self.update_last_used_agent_mode_llm(preferred_llm_id, ctx);
+
+        if profile_changed || removed_terminal_override {
+            ctx.emit(LLMPreferencesEvent::UpdatedActiveAgentModeLLM);
+        }
+    }
+
+    fn update_last_used_agent_mode_llm(
+        &self,
+        preferred_llm_id: &LLMId,
+        ctx: &mut ModelContext<Self>,
+    ) {
         // 始终写 byop_last_used_model_id(即便 changed=false 也覆盖一遍,统一新 tab 行为)。
         // picker 显式切换 = 用户最强意图,新 tab/重启都应沿用。
         use warp_core::errors::report_if_error;

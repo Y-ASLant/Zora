@@ -5110,22 +5110,46 @@ impl Workspace {
         }
     }
 
-    /// 在中央区域打开给定 SSH 节点的编辑 pane。MVP 实现:**每次都开新
-    /// pane**(暂未做去重 / find_pane);Phase 2 起加 manager singleton 做
-    /// dedupe + 切窗口聚焦。
+    /// 在新的 workspace tab 打开给定 SSH 节点的编辑 pane。
+    ///
+    /// SSH 表单是 `PaneGroup` 的 leaf，不是可自由拖动的系统窗口。默认放进当前
+    /// tab 会触发 split，容易把表单和终端挤在同一个 pane tree 里；这里复用
+    /// 既有 `add_tab_from_existing_pane` 路径，让它像 SSH 连接终端一样进入独立
+    /// tab，同时遵守用户的新 tab 位置设置。
     pub fn open_ssh_server(&mut self, node_id: String, ctx: &mut ViewContext<Self>) {
         use crate::pane_group::pane::ssh_server_pane::SshServerPane;
-        self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-            let pane = SshServerPane::new(node_id, ctx);
-            let smart_split_direction =
-                pane_group.smart_split_direction(ctx, WORKFLOW_AND_ENV_VAR_SPLIT_RATIO);
-            pane_group.add_pane_with_direction(
-                smart_split_direction,
-                pane,
-                true, /* focus_new_pane */
-                ctx,
-            );
-        });
+
+        if let Some((tab_index, pane_id)) = self.find_ssh_server_pane(&node_id, ctx) {
+            self.set_active_tab_index(tab_index, ctx);
+            if let Some(pane_group) = self.get_pane_group_view(tab_index).cloned() {
+                pane_group.update(ctx, |pane_group, ctx| {
+                    pane_group.focus_pane_by_id(pane_id, ctx);
+                });
+            }
+            self.update_window_title(ctx);
+            ctx.notify();
+            return;
+        }
+
+        let pane = SshServerPane::new(node_id, ctx);
+        self.add_existing_pane_in_new_tab(Box::new(pane), ctx);
+    }
+
+    fn find_ssh_server_pane(&self, node_id: &str, ctx: &AppContext) -> Option<(usize, PaneId)> {
+        use crate::pane_group::pane::ssh_server_pane::SshServerPane;
+
+        self.tabs.iter().enumerate().find_map(|(tab_index, tab)| {
+            let pane_group = tab.pane_group.as_ref(ctx);
+            pane_group
+                .visible_pane_ids()
+                .into_iter()
+                .find_map(|pane_id| {
+                    pane_group
+                        .downcast_pane_by_id::<SshServerPane>(pane_id)
+                        .is_some_and(|pane| pane.node_id() == node_id)
+                        .then_some((tab_index, pane_id))
+                })
+        })
     }
 
     /// 在中央区域打开给定 SSH 节点的 SFTP 文件浏览器 pane。
@@ -10641,6 +10665,30 @@ impl Workspace {
                 pg.set_left_panel_open(true, ctx);
             });
         }
+    }
+
+    fn new_tab_insert_index(
+        tab_count: usize,
+        active_tab_index: usize,
+        new_tab_placement: NewTabPlacement,
+    ) -> usize {
+        match new_tab_placement {
+            NewTabPlacement::AfterAllTabs => tab_count,
+            NewTabPlacement::AfterCurrentTab => active_tab_index + 1,
+        }
+    }
+
+    fn add_existing_pane_in_new_tab(
+        &mut self,
+        pane: Box<dyn AnyPaneContent>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let new_idx = Self::new_tab_insert_index(
+            self.tab_count(),
+            self.active_tab_index,
+            TabSettings::as_ref(ctx).new_tab_placement,
+        );
+        self.add_tab_from_existing_pane(pane, new_idx, ctx);
     }
 
     pub fn add_tab_from_existing_pane(

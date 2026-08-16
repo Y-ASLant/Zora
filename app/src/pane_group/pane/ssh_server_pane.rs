@@ -40,6 +40,10 @@ impl SshServerPane {
             node_id,
         }
     }
+
+    pub(crate) fn node_id(&self) -> &str {
+        &self.node_id
+    }
 }
 
 impl PaneContent for SshServerPane {

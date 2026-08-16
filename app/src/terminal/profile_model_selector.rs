@@ -977,7 +977,11 @@ impl ProfileModelSelector {
                 &llm.id
             );
             LLMPreferences::handle(ctx).update(ctx, |preferences, ctx| {
-                preferences.update_preferred_agent_mode_llm(&llm.id, self.terminal_view_id, ctx);
+                preferences.update_profile_default_agent_mode_llm(
+                    &llm.id,
+                    self.terminal_view_id,
+                    ctx,
+                );
             });
         }
         self.set_model_menu_visibility(false, ctx);
@@ -1815,7 +1819,11 @@ impl TypedActionView for ProfileModelSelector {
             ProfileModelSelectorAction::SelectModel(llm_id) => {
                 LLMPreferences::handle(ctx).update(ctx, |preferences, ctx| {
                     log::info!("Selecting base agent model {llm_id} (from model selector)");
-                    preferences.update_preferred_agent_mode_llm(llm_id, self.terminal_view_id, ctx);
+                    preferences.update_profile_default_agent_mode_llm(
+                        llm_id,
+                        self.terminal_view_id,
+                        ctx,
+                    );
                 });
                 self.set_model_menu_visibility(false, ctx);
             }

@@ -108,7 +108,7 @@ pub enum SshManagerPanelAction {
 
 #[derive(Clone, Debug)]
 pub enum SshManagerPanelEvent {
-    /// 用户右键 "编辑" 选了个 server,中央 pane 应打开/聚焦该 server 的编辑
+    /// 用户右键 "编辑" 选了个 server,新的 workspace tab 应打开该 server 的编辑
     /// (`Workspace::open_ssh_server`)。
     OpenServerEditor {
         node_id: String,
@@ -404,7 +404,7 @@ impl SshManagerPanel {
                 let new_id = node.id.clone();
                 self.selected_id = Some(new_id.clone());
                 self.refresh_tree(ctx);
-                // 与手动新建保持一致:打开中央编辑 pane,让用户填密码/微调字段。
+                // 与手动新建保持一致:打开新的 workspace tab,让用户填密码/微调字段。
                 ctx.emit(SshManagerPanelEvent::OpenServerEditor { node_id: new_id });
                 // 广播树变更 —— Candidates 区段的 added_aliases 据此刷新。
                 SshTreeChangedNotifier::handle(ctx).update(ctx, |_, ctx| {
@@ -435,7 +435,7 @@ impl SshManagerPanel {
                 let new_id = node.id.clone();
                 self.selected_id = Some(new_id.clone());
                 self.refresh_tree(ctx);
-                // 服务器新建后打开中央编辑 pane(用户填字段)— 名字编辑跟字段
+                // 服务器新建后打开新的 workspace tab(用户填字段)— 名字编辑跟字段
                 // 一起在那里改,不在树里内联编辑。
                 ctx.emit(SshManagerPanelEvent::OpenServerEditor { node_id: new_id });
             }
@@ -1735,8 +1735,8 @@ impl SshManagerPanel {
             })
             .with_cursor(Cursor::PointingHand)
             .on_click(move |ctx, _, _| {
-                ctx.dispatch_typed_action(row_action.clone());
                 ctx.dispatch_typed_action(SshManagerPanelAction::DismissContextMenu);
+                ctx.dispatch_typed_action(row_action.clone());
             })
             .finish();
             col.add_child(item);

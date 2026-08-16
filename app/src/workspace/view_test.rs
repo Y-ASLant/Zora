@@ -77,6 +77,14 @@ use warpui::{platform::WindowStyle, App, ViewHandle};
 
 fn initialize_app(app: &mut App) {
     initialize_settings_for_tests(app);
+    let temp_db = std::env::temp_dir().join("warp_workspace_ssh_server_test.sqlite");
+    let _ = warp_ssh_manager::set_database_path(temp_db);
+
+    app.update(|ctx| {
+        crate::settings::CloudSyncSettings::register(ctx);
+        crate::settings::language::LanguageSettings::register(ctx);
+        crate::settings::network::NetworkSettings::register(ctx);
+    });
 
     // Add the necessary singleton models to the App
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
@@ -114,7 +122,11 @@ fn initialize_app(app: &mut App) {
     // Zora(本地化,Phase 5):`PreferencesSyncer` 已物理删除,test singleton 不再需要。
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
+    app.add_singleton_model(crate::terminal::cli_agent::CLIAgentInstallModel::new);
     app.add_singleton_model(AgentConversationsModel::new);
+    app.add_singleton_model(crate::ai::agent_providers::AgentProviderSecrets::new);
+    app.add_singleton_model(crate::settings::CloudSyncTokenStore::new);
+    app.add_singleton_model(crate::settings::network_secrets::ProxyCredentials::new);
     app.add_singleton_model(LLMPreferences::new);
     app.add_singleton_model(|_| SettingsPaneManager::new());
     app.add_singleton_model(|_| AIFactManager::new());
@@ -711,6 +723,44 @@ fn test_set_active_tab_color() {
                 workspace.tabs[active].selected_color,
                 SelectedTabColor::Unset,
             );
+        });
+    });
+}
+
+#[test]
+fn new_tab_insert_index_respects_tab_placement() {
+    assert_eq!(
+        Workspace::new_tab_insert_index(3, 1, NewTabPlacement::AfterAllTabs),
+        3
+    );
+    assert_eq!(
+        Workspace::new_tab_insert_index(3, 1, NewTabPlacement::AfterCurrentTab),
+        2
+    );
+}
+
+#[test]
+fn open_ssh_server_reuses_existing_editor_tab_for_same_node() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let workspace = mock_workspace(&mut app);
+
+        workspace.update(&mut app, |workspace, ctx| {
+            let initial_tab_count = workspace.tab_count();
+
+            workspace.open_ssh_server("server-1".to_string(), ctx);
+            let editor_tab_index = workspace.active_tab_index();
+            assert_eq!(workspace.tab_count(), initial_tab_count + 1);
+
+            workspace.activate_tab_internal(0, ctx);
+            workspace.open_ssh_server("server-1".to_string(), ctx);
+
+            assert_eq!(workspace.tab_count(), initial_tab_count + 1);
+            assert_eq!(workspace.active_tab_index(), editor_tab_index);
+
+            workspace.open_ssh_server("server-2".to_string(), ctx);
+            assert_eq!(workspace.tab_count(), initial_tab_count + 2);
         });
     });
 }
