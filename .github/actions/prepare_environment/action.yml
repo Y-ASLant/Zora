@@ -89,7 +89,20 @@ runs:
       # GitHub-hosted macOS images can include aws/tap without Homebrew trust.
       # We do not consume that tap, and any later brew command emits an annotation
       # until it is removed.
-      run: brew untap aws/tap || true
+      # Do not call `brew untap` here: Homebrew checks tap trust before handling
+      # the untap command, which emits the annotation this step is meant to avoid.
+      run: |
+        for homebrew_repository in "${HOMEBREW_REPOSITORY:-}" /opt/homebrew /usr/local/Homebrew /usr/local; do
+          if [ -z "$homebrew_repository" ]; then
+            continue
+          fi
+
+          for tap_dir in "$homebrew_repository/Library/Taps/aws/homebrew-tap" "$homebrew_repository/Library/Taps/aws/tap"; do
+            if [ -d "$tap_dir" ]; then
+              rm -rf "$tap_dir" || sudo rm -rf "$tap_dir"
+            fi
+          done
+        done
 
     - name: Install cargo-binstall
       uses: cargo-bins/cargo-binstall@dc19f1e48450eefe5a29b8da6c6b00a87d730b37 # v1.18.1
