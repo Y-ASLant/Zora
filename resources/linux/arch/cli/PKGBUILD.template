@@ -9,16 +9,6 @@ depends=(
 	'curl'
 	'zlib'
 )
-replaces=(
-	'zap-cli'
-	'warp-cli'
-	'warp-cli-stable'
-)
-conflicts=(
-	'zap-cli'
-	'warp-cli'
-	'warp-cli-stable'
-)
 optdepends=(
 	'org.freedesktop.secrets: for securely storing passwords'
 )

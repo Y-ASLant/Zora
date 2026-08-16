@@ -10,8 +10,6 @@ Vendor:      Zora Maintainers
 Url:         https://github.com/Y-ASLant/Zora/
 Packager:    Zora Maintainers <zora-maintainers@localhost>
 License:     AGPL-3.0-only AND MIT
-Obsoletes:   warp-cli < %{version}
-Obsoletes:   zap-cli
 
 
 # The prefix specifies where the majority of the application files are,

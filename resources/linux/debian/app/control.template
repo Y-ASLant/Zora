@@ -7,8 +7,6 @@ Priority: optional
 Architecture: @@ARCH@@
 Maintainer: Zora Maintainers <zora-maintainers@localhost>
 Homepage: https://github.com/Y-ASLant/Zora/
-Replaces: zap
-Conflicts: zap
 Description: Zora, a community fork of the Rust-based Warp terminal
  Zora strips the mandatory cloud dependency from Warp, opens up the AI
  provider layer, ships a built-in SSH host manager, and lets you plug in

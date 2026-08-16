@@ -4,8 +4,6 @@ pkgrel=@@RELEASE@@
 pkgdesc="Zora, a community fork of the Rust-based Warp terminal"
 arch=('@@ARCH@@')
 url="https://github.com/Y-ASLant/Zora/"
-replaces=('zap')
-conflicts=('zap')
 license=('custom')
 depends=(
 	'curl'
