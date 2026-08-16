@@ -412,8 +412,18 @@ pub fn render_full_pane_width_ai_button(
         let bg = appearance.theme().surface_2();
         (appearance.theme().disabled_ui_text_color().into_solid(), bg)
     };
+    let outline = appearance.theme().outline();
+    let hover_bg = appearance.theme().surface_2();
+    let pressed_bg = appearance.theme().background();
 
-    let mut button = Hoverable::new(mouse_state, |_| {
+    let mut button = Hoverable::new(mouse_state, move |state| {
+        let (button_bg, border_fill) = if is_any_ai_enabled && state.is_clicked() {
+            (pressed_bg, hover_bg)
+        } else if is_any_ai_enabled && state.is_hovered() {
+            (hover_bg, outline)
+        } else {
+            (bg, outline)
+        };
         Container::new(
             Flex::row()
                 .with_main_axis_size(MainAxisSize::Max)
@@ -438,7 +448,7 @@ pub fn render_full_pane_width_ai_button(
                 .with_child(
                     ConstrainedBox::new(
                         Icon::ChevronRight
-                            .to_warpui_icon(appearance.theme().main_text_color(bg))
+                            .to_warpui_icon(appearance.theme().main_text_color(button_bg))
                             .finish(),
                     )
                     .with_width(16.)
@@ -447,8 +457,8 @@ pub fn render_full_pane_width_ai_button(
                 )
                 .finish(),
         )
-        .with_background(bg)
-        .with_border(Border::new(1.).with_border_fill(appearance.theme().outline()))
+        .with_background(button_bg)
+        .with_border(Border::new(1.).with_border_fill(border_fill))
         .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
         .with_horizontal_padding(16.)
         .with_vertical_padding(11.)

@@ -1169,27 +1169,38 @@ impl SftpBrowserView {
         icon: Icon,
         handle: MouseStateHandle,
         action: SftpBrowserAction,
-        _tooltip: &str,
         appearance: &Appearance,
         position_id: &'static str,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let icon_color = theme.sub_text_color(theme.background());
+        let active_icon_color = theme.active_ui_text_color();
 
-        let icon_el = ConstrainedBox::new(icon.to_warpui_icon(icon_color).finish())
-            .with_width(TOOLBAR_ICON_SIZE)
-            .with_height(TOOLBAR_ICON_SIZE)
-            .finish();
+        let btn_el = Hoverable::new(handle, move |state| {
+            let (background, rendered_icon_color) = if state.is_clicked() {
+                (Some(theme.surface_3()), active_icon_color)
+            } else if state.is_hovered() {
+                (Some(theme.surface_2()), active_icon_color)
+            } else {
+                (None, icon_color)
+            };
 
-        let btn_el = Hoverable::new(handle, move |_| {
-            Container::new(
+            let icon_el = ConstrainedBox::new(icon.to_warpui_icon(rendered_icon_color).finish())
+                .with_width(TOOLBAR_ICON_SIZE)
+                .with_height(TOOLBAR_ICON_SIZE)
+                .finish();
+
+            let mut container = Container::new(
                 ConstrainedBox::new(Container::new(icon_el).with_uniform_padding(6.0).finish())
                     .with_width(TOOLBAR_BTN_SIZE)
                     .with_height(TOOLBAR_BTN_SIZE)
                     .finish(),
             )
-            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)))
-            .finish()
+            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)));
+            if let Some(background) = background {
+                container = container.with_background(background);
+            }
+            container.finish()
         })
         .with_cursor(Cursor::PointingHand)
         .on_click(move |ctx, _, _| {
@@ -1209,7 +1220,6 @@ impl SftpBrowserView {
                 Icon::ChevronLeft,
                 self.back_btn.clone(),
                 SftpBrowserAction::GoBack,
-                "Back",
                 appearance,
                 "sftp_btn:back",
             ))
@@ -1217,7 +1227,6 @@ impl SftpBrowserView {
                 Icon::ChevronRight,
                 self.forward_btn.clone(),
                 SftpBrowserAction::GoForward,
-                "Forward",
                 appearance,
                 "sftp_btn:forward",
             ))
@@ -1225,7 +1234,6 @@ impl SftpBrowserView {
                 Icon::ArrowUp,
                 self.up_btn.clone(),
                 SftpBrowserAction::GoUp,
-                "Up",
                 appearance,
                 "sftp_btn:up",
             ))
@@ -1233,7 +1241,6 @@ impl SftpBrowserView {
                 Icon::Refresh,
                 self.refresh_btn.clone(),
                 SftpBrowserAction::Refresh,
-                "Refresh",
                 appearance,
                 "sftp_btn:refresh",
             ))
@@ -1247,7 +1254,6 @@ impl SftpBrowserView {
                 Icon::UploadCloud,
                 self.upload_btn.clone(),
                 SftpBrowserAction::UploadFile,
-                "Upload",
                 appearance,
                 "sftp_btn:upload",
             ))
@@ -1255,7 +1261,6 @@ impl SftpBrowserView {
                 Icon::Folder,
                 self.upload_folder_btn.clone(),
                 SftpBrowserAction::UploadDirectory,
-                "Upload folder",
                 appearance,
                 "sftp_btn:upload_folder",
             ))
@@ -1263,7 +1268,6 @@ impl SftpBrowserView {
                 Icon::Plus,
                 self.new_folder_btn.clone(),
                 SftpBrowserAction::NewFolder,
-                "New folder",
                 appearance,
                 "sftp_btn:new_folder",
             ))
@@ -1291,17 +1295,31 @@ impl SftpBrowserView {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_spacing(2.0);
 
-        // 添加根目录 "/" 作为可点击入口
         let root_text_color = text_color;
-        let root_hoverable = Hoverable::new(Default::default(), move |_| {
+        let root_hover_text_color = theme.active_ui_text_color();
+        let root_hover_bg = theme.surface_2();
+        let root_pressed_bg = theme.surface_3();
+        let root_hoverable = Hoverable::new(Default::default(), move |state| {
+            let (color, background) = if state.is_clicked() {
+                (root_hover_text_color, Some(root_pressed_bg))
+            } else if state.is_hovered() {
+                (root_hover_text_color, Some(root_hover_bg))
+            } else {
+                (root_text_color, None)
+            };
             let t = Text::new_inline(
                 "/".to_string(),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
-            .with_color(root_text_color.into())
+            .with_color(color.into())
             .finish();
-            Container::new(t).finish()
+            let mut container =
+                Container::new(t).with_corner_radius(CornerRadius::with_all(Radius::Pixels(3.0)));
+            if let Some(background) = background {
+                container = container.with_background(background);
+            }
+            container.finish()
         })
         .with_cursor(Cursor::PointingHand)
         .on_click(move |ctx, _, _| {

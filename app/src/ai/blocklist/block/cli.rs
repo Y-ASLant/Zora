@@ -116,11 +116,12 @@ use super::{
 };
 const MENU_WIDTH: f32 = 200.0;
 const MAX_HEIGHT: f32 = 320.0;
-// CLI agent 浮窗的最小宽度，避免内容被拖到不可读；外层布局也复用该值保持约束一致。
-pub(crate) const CLI_SUBAGENT_MIN_RESIZABLE_WIDTH: f32 = 360.0;
-const MIN_RESIZABLE_WIDTH: f32 = CLI_SUBAGENT_MIN_RESIZABLE_WIDTH;
+// CLI agent 浮窗最小可拖拽到终端窗口宽度的 15%，避免固定像素值在小窗口里过宽。
+const MIN_RESIZABLE_WINDOW_RATIO: f32 = 0.15;
 // CLI agent 浮窗的最小高度，保留一行以上内容和拖拽命中区域。
 const MIN_RESIZABLE_HEIGHT: f32 = 40.0;
+// CLI agent 浮窗默认占终端窗口宽度的 50%，避免初始内容被压缩到不可读。
+const DEFAULT_RESIZABLE_WINDOW_RATIO: f32 = 0.5;
 // CLI agent 浮窗最大拖拽到终端窗口尺寸的 75%，避免覆盖过多终端内容。
 const MAX_RESIZABLE_WINDOW_RATIO: f32 = 0.75;
 const AVATAR_RIGHT_MARGIN: f32 = 8.;
@@ -128,9 +129,16 @@ const CONTENT_PADDING: f32 = 12.;
 const ALLOW_ACTION_POSITION_ID: &str = "allow-action-position-id";
 const CONVERSATION_SCROLL_BOTTOM_POSITION_ID: &str = "cli-subagent-conversation-bottom-position-id";
 
+fn cli_subagent_default_width(window_width: f32) -> f32 {
+    let (min, max) = cli_subagent_width_bounds(window_width);
+    (window_width * DEFAULT_RESIZABLE_WINDOW_RATIO).clamp(min, max)
+}
+
 fn cli_subagent_width_bounds(window_width: f32) -> (f32, f32) {
-    let max = (window_width * MAX_RESIZABLE_WINDOW_RATIO).max(MIN_RESIZABLE_WIDTH);
-    (MIN_RESIZABLE_WIDTH, max)
+    (
+        window_width * MIN_RESIZABLE_WINDOW_RATIO,
+        window_width * MAX_RESIZABLE_WINDOW_RATIO,
+    )
 }
 
 fn cli_subagent_height_bounds(window_height: f32) -> (f32, f32) {
@@ -826,6 +834,10 @@ impl CLISubagentView {
             }
             _ => {}
         });
+        let initial_resizable_width = ctx
+            .window_bounds(&ctx.window_id())
+            .map(|bounds| cli_subagent_default_width(bounds.width()))
+            .unwrap_or_default();
 
         let mut view = Self {
             block_id,
@@ -857,7 +869,7 @@ impl CLISubagentView {
             hidden_response_scroll_offset: None,
             is_input_dismissed: false,
             input_dismiss_timer_handle: None,
-            resizable_width: resizable_state_handle(MIN_RESIZABLE_WIDTH),
+            resizable_width: resizable_state_handle(initial_resizable_width),
             resizable_height: resizable_state_handle(MAX_HEIGHT),
             current_working_directory,
             shell_launch_data,
@@ -2802,13 +2814,18 @@ mod tests {
     }
 
     #[test]
-    fn cli_subagent_resize_width_bounds_cap_at_seventy_five_percent() {
-        assert_eq!(cli_subagent_width_bounds(1000.0), (360.0, 750.0));
+    fn cli_subagent_resize_width_bounds_use_window_percentages() {
+        assert_eq!(cli_subagent_width_bounds(1000.0), (150.0, 750.0));
     }
 
     #[test]
-    fn cli_subagent_resize_width_bounds_do_not_drop_below_panel_minimum() {
-        assert_eq!(cli_subagent_width_bounds(320.0), (360.0, 360.0));
+    fn cli_subagent_resize_width_bounds_scale_with_small_windows() {
+        assert_eq!(cli_subagent_width_bounds(320.0), (48.0, 240.0));
+    }
+
+    #[test]
+    fn cli_subagent_default_width_is_half_window_width() {
+        assert_eq!(cli_subagent_default_width(1000.0), 500.0);
     }
 
     #[test]

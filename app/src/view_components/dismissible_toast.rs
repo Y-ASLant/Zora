@@ -5,6 +5,7 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use uuid::Uuid;
 use warp_core::ui::builder::UiBuilder;
+use warp_core::ui::color::blend::Blend;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::ChildView;
 use warpui::keymap::Keystroke;
@@ -17,6 +18,7 @@ use warpui::{
         PositionedElementOffsetBounds, Radius, SavePosition, Shrinkable, Stack,
     },
     fonts::Weight,
+    platform::Cursor,
     r#async::SpawnedFutureHandle,
     ui_components::components::{Coords, UiComponent, UiComponentStyles},
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
@@ -457,15 +459,34 @@ impl<A: Action + Clone> DismissibleToast<A> {
         // On mobile devices, always show close button since hover effects don't work with touch
         let is_mobile = warpui::platform::is_mobile_device();
 
-        Hoverable::new(self.close_button_hover_state.clone(), move |mouse_state| {
+        let hoverable = Hoverable::new(self.close_button_hover_state.clone(), move |mouse_state| {
+            let pressed_overlay = appearance.theme().foreground().with_opacity(18);
+            let hover_overlay = appearance.theme().foreground().with_opacity(10);
+            let (background, border_color) = if is_clickable && mouse_state.is_clicked() {
+                (
+                    self.flavor.bg_color(appearance).blend(&pressed_overlay),
+                    appearance.theme().foreground().with_opacity(70).into(),
+                )
+            } else if is_clickable && mouse_state.is_hovered() {
+                (
+                    self.flavor.bg_color(appearance).blend(&hover_overlay),
+                    appearance.theme().foreground().with_opacity(45).into(),
+                )
+            } else {
+                (
+                    self.flavor.bg_color(appearance),
+                    self.flavor.border_color(appearance),
+                )
+            };
+
             let toast_container = Container::new(row.finish())
                 .with_vertical_padding(VERTICAL_PADDING)
                 .with_horizontal_padding(HORIZONTAL_PADDING)
-                .with_background(self.flavor.bg_color(appearance))
+                .with_background(background)
                 .with_corner_radius(warpui::elements::CornerRadius::with_all(Radius::Pixels(
                     TOAST_CORNER_RADIUS,
                 )))
-                .with_border(Border::all(1.).with_border_fill(self.flavor.border_color(appearance)))
+                .with_border(Border::all(1.).with_border_fill(border_color))
                 .finish();
 
             let toast_element: Box<dyn Element> = if is_clickable {
@@ -495,9 +516,17 @@ impl<A: Action + Clone> DismissibleToast<A> {
                 );
             }
             stack.finish()
-        })
-        .with_hover_out_delay(Duration::from_millis(500))
-        .finish()
+        });
+
+        let hoverable = if is_clickable {
+            hoverable.with_cursor(Cursor::PointingHand)
+        } else {
+            hoverable
+        };
+
+        hoverable
+            .with_hover_out_delay(Duration::from_millis(500))
+            .finish()
     }
 
     fn render_icon(&self, icon_size: f32, appearance: &Appearance) -> Option<Box<dyn Element>> {

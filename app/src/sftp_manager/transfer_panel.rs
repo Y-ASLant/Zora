@@ -94,18 +94,31 @@ fn render_task_action(
     let label = label.to_string();
     let font = appearance.ui_font_family();
     let size = appearance.ui_font_size() * 0.8;
-    let text_color = appearance
-        .theme()
-        .sub_text_color(appearance.theme().background());
+    let theme = appearance.theme();
+    let text_color = theme.sub_text_color(theme.background());
+    let hover_text_color = theme.active_ui_text_color();
+    let hover_bg = theme.surface_2();
+    let pressed_bg = theme.surface_3();
     let position_id = format!("sftp_btn:transfer_action:{task_id}:{label}");
-    let element = Hoverable::new(Default::default(), move |_| {
-        Container::new(
+    let element = Hoverable::new(Default::default(), move |state| {
+        let (text_color, background) = if state.is_clicked() {
+            (hover_text_color, Some(pressed_bg))
+        } else if state.is_hovered() {
+            (hover_text_color, Some(hover_bg))
+        } else {
+            (text_color, None)
+        };
+        let mut container = Container::new(
             Text::new_inline(label.clone(), font, size)
                 .with_color(text_color.into())
                 .finish(),
         )
         .with_uniform_padding(2.0)
-        .finish()
+        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(3.0)));
+        if let Some(background) = background {
+            container = container.with_background(background);
+        }
+        container.finish()
     })
     .with_cursor(Cursor::PointingHand)
     .on_mouse_down(move |ctx, _, _| {
@@ -326,17 +339,31 @@ pub fn render_transfer_panel(
 
     // 关闭按钮
     let icon_color = theme.sub_text_color(theme.background());
-    let close_btn = Hoverable::new(close_btn_state, move |_| {
+    let active_icon_color = theme.active_ui_text_color();
+    let hover_bg = theme.surface_2();
+    let pressed_bg = theme.surface_3();
+    let close_btn = Hoverable::new(close_btn_state, move |state| {
+        let (icon_color, background) = if state.is_clicked() {
+            (active_icon_color, Some(pressed_bg))
+        } else if state.is_hovered() {
+            (active_icon_color, Some(hover_bg))
+        } else {
+            (icon_color, None)
+        };
         let icon_el = ConstrainedBox::new(Icon::X.to_warpui_icon(icon_color).finish())
             .with_width(12.0)
             .with_height(12.0)
             .finish();
-        Container::new(icon_el)
+        let mut container = Container::new(icon_el)
             .with_padding_left(4.0)
             .with_padding_right(4.0)
             .with_padding_top(4.0)
             .with_padding_bottom(4.0)
-            .finish()
+            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)));
+        if let Some(background) = background {
+            container = container.with_background(background);
+        }
+        container.finish()
     })
     .with_cursor(Cursor::PointingHand)
     .on_click(|ctx, _, _| {

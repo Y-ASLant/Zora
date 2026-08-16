@@ -2801,16 +2801,21 @@ impl ServerFileBrowserView {
             .with_width(TOOLBAR_ICON_SIZE)
             .with_height(TOOLBAR_ICON_SIZE)
             .finish();
-        Hoverable::new(self.upload_progress_button.clone(), move |_| {
-            Container::new(
+        Hoverable::new(self.upload_progress_button.clone(), move |state| {
+            let mut button = Container::new(
                 ConstrainedBox::new(icon_el)
                     .with_width(TOOLBAR_BUTTON_SIZE)
                     .with_height(TOOLBAR_BUTTON_SIZE)
                     .finish(),
             )
             .with_uniform_padding(2.0)
-            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)))
-            .finish()
+            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)));
+            if state.is_clicked() {
+                button = button.with_background(theme.surface_3());
+            } else if state.is_hovered() {
+                button = button.with_background(theme.surface_2());
+            }
+            button.finish()
         })
         .with_cursor(Cursor::PointingHand)
         .on_click(|ctx, _, _| {
@@ -2843,10 +2848,21 @@ impl ServerFileBrowserView {
         if self.has_completed_upload_tasks() || self.has_completed_download_tasks() {
             let clear_label = crate::t!("server-file-browser-upload-clear-completed");
             header_row.add_child(
-                Hoverable::new(self.clear_completed_uploads_button.clone(), move |_| {
-                    Text::new_inline(clear_label.clone(), appearance.ui_font_family(), 11.0)
-                        .with_color(theme.accent().into())
-                        .finish()
+                Hoverable::new(self.clear_completed_uploads_button.clone(), move |state| {
+                    let mut label_container = Container::new(
+                        Text::new_inline(clear_label.clone(), appearance.ui_font_family(), 11.0)
+                            .with_color(theme.accent().into())
+                            .finish(),
+                    )
+                    .with_horizontal_padding(4.0)
+                    .with_vertical_padding(2.0)
+                    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)));
+                    if state.is_clicked() {
+                        label_container = label_container.with_background(theme.surface_3());
+                    } else if state.is_hovered() {
+                        label_container = label_container.with_background(theme.surface_2());
+                    }
+                    label_container.finish()
                 })
                 .with_cursor(Cursor::PointingHand)
                 .on_click(|ctx, _, _| {
@@ -2985,16 +3001,21 @@ impl ServerFileBrowserView {
                 .with_width(TOOLBAR_ICON_SIZE)
                 .with_height(TOOLBAR_ICON_SIZE)
                 .finish();
-            Hoverable::new(state, move |_| {
-                Container::new(
+            Hoverable::new(state, move |state| {
+                let mut button = Container::new(
                     ConstrainedBox::new(icon_el)
                         .with_width(TOOLBAR_BUTTON_SIZE)
                         .with_height(TOOLBAR_BUTTON_SIZE)
                         .finish(),
                 )
                 .with_uniform_padding(2.0)
-                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)))
-                .finish()
+                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)));
+                if state.is_clicked() {
+                    button = button.with_background(theme.surface_3());
+                } else if state.is_hovered() {
+                    button = button.with_background(theme.surface_2());
+                }
+                button.finish()
             })
             .with_cursor(Cursor::PointingHand)
             .on_click(move |ctx, _, _| {
@@ -3261,7 +3282,7 @@ fn render_entry_row(
         .with_child(Shrinkable::new(1.0, text_column).finish())
         .finish();
 
-    let mut hoverable = Hoverable::new(state, move |_| {
+    let mut hoverable = Hoverable::new(state, move |state| {
         let mut container = Container::new(row)
             .with_padding_top(ITEM_PADDING_VERTICAL)
             .with_padding_bottom(ITEM_PADDING_VERTICAL)
@@ -3270,6 +3291,10 @@ fn render_entry_row(
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)));
         if is_selected {
             container = container.with_background(internal_colors::fg_overlay_3(theme));
+        } else if state.is_clicked() {
+            container = container.with_background(theme.surface_3());
+        } else if state.is_hovered() {
+            container = container.with_background(theme.surface_2());
         }
         container.finish()
     });

@@ -16218,15 +16218,24 @@ impl Workspace {
             let bg_color = blended_colors::neutral_1(appearance.theme());
 
             // Left: Zora logo - clickable to link to warp.dev
-            let warp_logo = Hoverable::new(self.mouse_states.warp_logo.clone(), |_state| {
-                ConstrainedBox::new(
-                    warp_core::ui::Icon::Zap
-                        .to_warpui_icon(appearance.theme().foreground())
-                        .finish(),
+            let warp_logo = Hoverable::new(self.mouse_states.warp_logo.clone(), |state| {
+                let mut logo = Container::new(
+                    ConstrainedBox::new(
+                        warp_core::ui::Icon::Zap
+                            .to_warpui_icon(appearance.theme().foreground())
+                            .finish(),
+                    )
+                    .with_height(24.)
+                    .with_width(24.)
+                    .finish(),
                 )
-                .with_height(24.)
-                .with_width(24.)
-                .finish()
+                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)));
+                if state.is_clicked() {
+                    logo = logo.with_background(appearance.theme().surface_3());
+                } else if state.is_hovered() {
+                    logo = logo.with_background(appearance.theme().surface_2());
+                }
+                logo.finish()
             })
             .on_click(|ctx, _, _| {
                 ctx.dispatch_typed_action(WorkspaceAction::OpenLink("https://warp.dev".to_owned()));
@@ -17278,8 +17287,9 @@ impl Workspace {
                     })
                     .unwrap_or(false))
         {
-            let pill = ConstrainedBox::new(
-                Container::new(
+            let render_pill = |is_hovered: bool, is_clicked: bool| {
+                let theme = appearance.theme();
+                let mut pill_container = Container::new(
                     Flex::row()
                         .with_child(
                             Text::new_inline(
@@ -17298,11 +17308,17 @@ impl Workspace {
                 .with_corner_radius(CornerRadius::with_all(Radius::Percentage(50.)))
                 .with_uniform_margin(4.)
                 .with_uniform_padding(4.)
-                .with_margin_right(5.)
-                .finish(),
-            )
-            .with_width(TAB_BAR_PILL_WIDTH)
-            .finish();
+                .with_margin_right(5.);
+                if is_clicked {
+                    pill_container = pill_container.with_background(theme.surface_3());
+                } else if is_hovered {
+                    pill_container = pill_container.with_background(theme.surface_2());
+                }
+                ConstrainedBox::new(pill_container.finish())
+                    .with_width(TAB_BAR_PILL_WIDTH)
+                    .finish()
+            };
+            let pill = render_pill(false, self.show_tab_bar_overflow_menu);
 
             let button = if self.show_tab_bar_overflow_menu {
                 pill
@@ -17310,13 +17326,15 @@ impl Workspace {
                 // Only attach the event handler in the case where the menu isn't already showing
                 // Otherwise we have a race condition in the case that someone clicks on the button
                 // where the menu tries to dismiss itself onclick and the menu gets reshown on mouseup
-                Hoverable::new(self.mouse_states.overflow_button.clone(), |_state| pill)
-                    .on_click(move |ctx, _, _| {
-                        ctx.dispatch_typed_action(WorkspaceAction::ToggleTabBarOverflowMenu);
-                    })
-                    .with_reset_cursor_after_click()
-                    .with_cursor(Cursor::PointingHand)
-                    .finish()
+                Hoverable::new(self.mouse_states.overflow_button.clone(), move |state| {
+                    render_pill(state.is_hovered(), state.is_clicked())
+                })
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(WorkspaceAction::ToggleTabBarOverflowMenu);
+                })
+                .with_reset_cursor_after_click()
+                .with_cursor(Cursor::PointingHand)
+                .finish()
             };
 
             Some(Align::new(SavePosition::new(button, "tab_bar_overflow_button").finish()).finish())

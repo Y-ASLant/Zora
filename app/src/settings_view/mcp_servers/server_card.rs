@@ -516,8 +516,8 @@ impl ServerCardView {
         let toggle_mouse_state = self.mouse_handles.tools_expandable_hover.clone();
         let chevron_dimensions = 16.;
 
-        Hoverable::new(toggle_mouse_state, move |_is_hovered| {
-            Flex::row()
+        Hoverable::new(toggle_mouse_state, move |state| {
+            let row = Flex::row()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
                 .with_child(
                     Text::new(
@@ -542,7 +542,18 @@ impl ServerCardView {
                     .with_margin_right(4.)
                     .finish(),
                 )
-                .finish()
+                .finish();
+
+            let mut container =
+                Container::new(row).with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)));
+
+            if state.is_clicked() {
+                container = container.with_background(appearance.theme().background());
+            } else if state.is_hovered() {
+                container = container.with_background(appearance.theme().surface_2());
+            }
+
+            container.finish()
         })
         .with_cursor(Cursor::PointingHand)
         .on_click(move |ctx, _, _| {

@@ -8,7 +8,7 @@ use warpui::r#async::Timer;
 use warpui::WindowId;
 use warpui::{
     elements::{
-        ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
+        Border, ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
         DispatchEventResult, EventHandler, Flex, Hoverable, Icon, MouseStateHandle,
         OffsetPositioning, Padding, ParentElement, PositionedElementAnchor,
         PositionedElementOffsetBounds, Radius, SavePosition, Stack,
@@ -376,9 +376,24 @@ impl AgentToast {
         };
         EventHandler::new(
             Hoverable::new(self.container_hover_state.clone(), |mouse_state| {
+                let (background, border_fill) = if mouse_state.is_clicked() {
+                    (
+                        appearance.theme().background(),
+                        appearance.theme().surface_3(),
+                    )
+                } else if mouse_state.is_hovered() {
+                    (appearance.theme().surface_2(), appearance.theme().outline())
+                } else {
+                    (
+                        appearance.theme().surface_3(),
+                        appearance.theme().surface_3(),
+                    )
+                };
+
                 let container = Container::new(content)
                     .with_padding(Padding::uniform(AGENT_TOAST_PADDING))
-                    .with_background(appearance.theme().surface_3())
+                    .with_background(background)
+                    .with_border(Border::all(1.).with_border_fill(border_fill))
                     .with_drop_shadow(DropShadow::default())
                     .with_corner_radius(CornerRadius::with_all(Radius::Pixels(
                         AGENT_TOAST_CORNER_RADIUS,

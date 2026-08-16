@@ -123,17 +123,28 @@ impl View for FeaturePopup {
                         .finish(),
                     )
                     .with_child(
-                        Hoverable::new(self.dismiss_mouse_state.clone(), |_| {
-                            ConstrainedBox::new(
-                                Icon::X
-                                    .to_warpui_icon(appearance.theme().sub_text_color(
-                                        appearance.theme().main_text_color(background),
-                                    ))
+                        Hoverable::new(self.dismiss_mouse_state.clone(), |state| {
+                            let theme = appearance.theme();
+                            let popup_background = theme.main_text_color(background);
+                            let is_active = state.is_hovered() || state.is_clicked();
+                            let icon_color = if is_active {
+                                popup_background
+                            } else {
+                                theme.sub_text_color(popup_background)
+                            };
+                            let mut dismiss_button = Container::new(
+                                ConstrainedBox::new(Icon::X.to_warpui_icon(icon_color).finish())
+                                    .with_height(16.)
+                                    .with_width(16.)
                                     .finish(),
                             )
-                            .with_height(16.)
-                            .with_width(16.)
-                            .finish()
+                            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)));
+                            if state.is_clicked() {
+                                dismiss_button = dismiss_button.with_background(theme.surface_3());
+                            } else if state.is_hovered() {
+                                dismiss_button = dismiss_button.with_background(background);
+                            }
+                            dismiss_button.finish()
                         })
                         .on_click(|ctx, _, _| {
                             ctx.dispatch_typed_action(NewFeaturePopupAction::Dismiss)

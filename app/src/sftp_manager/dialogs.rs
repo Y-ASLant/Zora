@@ -84,17 +84,31 @@ fn render_icon_close_button(
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let icon_color = theme.sub_text_color(theme.background());
-    let icon_el = ConstrainedBox::new(Icon::X.to_warpui_icon(icon_color).finish())
-        .with_width(12.0)
-        .with_height(12.0)
-        .finish();
-    Hoverable::new(mouse_state, move |_| {
-        Container::new(icon_el)
+    let active_icon_color = theme.active_ui_text_color();
+    let hover_bg = theme.surface_2();
+    let pressed_bg = theme.surface_3();
+    Hoverable::new(mouse_state, move |state| {
+        let (icon_color, background) = if state.is_clicked() {
+            (active_icon_color, Some(pressed_bg))
+        } else if state.is_hovered() {
+            (active_icon_color, Some(hover_bg))
+        } else {
+            (icon_color, None)
+        };
+        let icon_el = ConstrainedBox::new(Icon::X.to_warpui_icon(icon_color).finish())
+            .with_width(12.0)
+            .with_height(12.0)
+            .finish();
+        let mut container = Container::new(icon_el)
             .with_padding_left(4.0)
             .with_padding_right(4.0)
             .with_padding_top(4.0)
             .with_padding_bottom(4.0)
-            .finish()
+            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)));
+        if let Some(background) = background {
+            container = container.with_background(background);
+        }
+        container.finish()
     })
     .with_cursor(Cursor::PointingHand)
     .on_click(|ctx, _, _| {
@@ -117,10 +131,20 @@ fn render_button(
     let theme = appearance.theme();
     let ui_font = appearance.ui_font_family();
     let ui_font_size = appearance.ui_font_size();
-    let bg = if is_accent {
+    let base_bg = if is_accent {
         theme.accent()
     } else {
         theme.surface_2()
+    };
+    let hover_bg = if is_accent {
+        theme.accent()
+    } else {
+        theme.surface_3()
+    };
+    let pressed_bg = if is_accent {
+        theme.accent_overlay()
+    } else {
+        theme.background()
     };
     let text_color = if is_accent {
         theme.background()
@@ -129,7 +153,19 @@ fn render_button(
     };
     let label_owned = label.to_string();
 
-    let btn_el = Hoverable::new(mouse_state, move |_| {
+    let btn_el = Hoverable::new(mouse_state, move |state| {
+        let bg = if state.is_clicked() {
+            pressed_bg
+        } else if state.is_hovered() {
+            hover_bg
+        } else {
+            base_bg
+        };
+        let border = if state.is_clicked() || state.is_hovered() {
+            theme.surface_3()
+        } else {
+            base_bg
+        };
         let text_el = Text::new(label_owned.clone(), ui_font, ui_font_size)
             .with_color(text_color.into())
             .finish();
@@ -146,6 +182,7 @@ fn render_button(
                 .finish(),
         )
         .with_background(bg)
+        .with_border(Border::all(1.0).with_border_fill(border))
         .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)))
         .finish()
     })

@@ -7,7 +7,9 @@
 use std::path::{Component, PathBuf};
 
 use warp_core::ui::appearance::Appearance;
-use warpui::elements::{ConstrainedBox, Container, Hoverable, SavePosition, Text};
+use warpui::elements::{
+    ConstrainedBox, Container, CornerRadius, Hoverable, Radius, SavePosition, Text,
+};
 use warpui::platform::Cursor;
 use warpui::Element;
 
@@ -74,11 +76,26 @@ pub fn render_breadcrumb(current_path: &PathBuf, appearance: &Appearance) -> Vec
             let label_for_closure = segment_label.clone();
             let path = accumulated.display();
             let position_id = format!("sftp_breadcrumb:{path}");
-            let hoverable = Hoverable::new(Default::default(), move |_| {
+            let hover_text_color = text_color;
+            let hover_bg = theme.surface_2();
+            let pressed_bg = theme.surface_3();
+            let hoverable = Hoverable::new(Default::default(), move |state| {
+                let (color, background) = if state.is_clicked() {
+                    (hover_text_color, Some(pressed_bg))
+                } else if state.is_hovered() {
+                    (hover_text_color, Some(hover_bg))
+                } else {
+                    (sub_color, None)
+                };
                 let text_el = Text::new_inline(label_for_closure.clone(), ui_font, ui_font_size)
-                    .with_color(sub_color.into())
+                    .with_color(color.into())
                     .finish();
-                Container::new(text_el).finish()
+                let mut container = Container::new(text_el)
+                    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(3.0)));
+                if let Some(background) = background {
+                    container = container.with_background(background);
+                }
+                container.finish()
             })
             .with_cursor(Cursor::PointingHand)
             .on_click(move |ctx, _, _| {

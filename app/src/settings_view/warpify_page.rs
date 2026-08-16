@@ -956,10 +956,21 @@ fn render_clear_cache_button(
 ) -> Box<dyn Element> {
     let text_color = appearance.theme().active_ui_text_color();
     let background = appearance.theme().surface_2();
+    let hover_background = appearance.theme().surface_3();
+    let pressed_background = appearance.theme().background();
     let outline = appearance.theme().outline();
+    let pressed_outline = appearance.theme().surface_3();
     let font = appearance.ui_font_family();
     let font_size = appearance.ui_font_size();
-    Hoverable::new(mouse_state, move |_| {
+    Hoverable::new(mouse_state, move |state| {
+        let (button_background, button_outline) = if state.is_clicked() {
+            (pressed_background, pressed_outline)
+        } else if state.is_hovered() {
+            (hover_background, outline)
+        } else {
+            (background, outline)
+        };
+
         Container::new(
             Text::new_inline("清空缓存", font, font_size)
                 .with_color(text_color.into())
@@ -969,8 +980,8 @@ fn render_clear_cache_button(
         .with_padding_right(font_size)
         .with_padding_top(font_size / 2.0)
         .with_padding_bottom(font_size / 2.0)
-        .with_background(background)
-        .with_border(warpui::elements::Border::all(1.0).with_border_fill(outline))
+        .with_background(button_background)
+        .with_border(warpui::elements::Border::all(1.0).with_border_fill(button_outline))
         .with_corner_radius(warpui::elements::CornerRadius::with_all(
             warpui::elements::Radius::Pixels(4.0),
         ))

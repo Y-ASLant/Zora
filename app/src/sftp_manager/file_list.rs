@@ -63,8 +63,10 @@ pub fn render_file_row(
     let ui_font = appearance.ui_font_family();
     let ui_font_size = appearance.ui_font_size();
     let bg_fill: Fill = bg_color.into();
+    let hover_bg: Fill = theme.surface_2().into();
+    let pressed_bg: Fill = theme.surface_3().into();
 
-    Hoverable::new(mouse_handle, move |_| {
+    Hoverable::new(mouse_handle, move |state| {
         // 图标
         let icon_el = ConstrainedBox::new(
             file_icon(&file_type)
@@ -117,6 +119,16 @@ pub fn render_file_row(
             .with_child(size_el)
             .with_child(date_el)
             .finish();
+
+        let bg_fill = if is_selected {
+            bg_fill
+        } else if state.is_clicked() {
+            pressed_bg
+        } else if state.is_hovered() {
+            hover_bg
+        } else {
+            bg_fill
+        };
 
         Container::new(row_content)
             .with_background(bg_fill)

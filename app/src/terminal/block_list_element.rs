@@ -1,5 +1,4 @@
 use crate::ai::blocklist::agent_view::{agent_view_bg_fill, AgentViewState};
-use crate::ai::blocklist::block::cli::CLI_SUBAGENT_MIN_RESIZABLE_WIDTH;
 use crate::ai::blocklist::{ai_brand_color, ATTACH_AS_AGENT_MODE_CONTEXT_TEXT};
 use crate::ai_assistant::{AI_ASSISTANT_SVG_PATH, ASK_AI_ASSISTANT_TEXT};
 use crate::appearance::Appearance;
@@ -190,10 +189,9 @@ const CLI_SUBAGENT_VERTICAL_MARGIN: f32 = 8.;
 const CLI_SUBAGENT_MAX_WINDOW_RATIO: f32 = 0.75;
 fn cli_subagent_layout_max_size(available_size: Vector2F) -> Vector2F {
     // 由 block list 给 CLI agent 浮窗窗口 75% 的布局上限；最终尺寸由
-    // CLISubagentView 内部 Resizable 处理。不能按当前 block 高度裁剪，否则向上拖大后
-    // 顶部内容和拖拽热区会被所属 block 截掉。
-    let max_width =
-        (available_size.x() * CLI_SUBAGENT_MAX_WINDOW_RATIO).max(CLI_SUBAGENT_MIN_RESIZABLE_WIDTH);
+    // CLISubagentView 内部 Resizable 处理。宽度下限也按窗口比例计算，避免固定像素值
+    // 在小窗口里过宽。不能按当前 block 高度裁剪，否则向上拖大后顶部内容和拖拽热区会被所属 block 截掉。
+    let max_width = available_size.x() * CLI_SUBAGENT_MAX_WINDOW_RATIO;
     let max_height = (available_size.y() * CLI_SUBAGENT_MAX_WINDOW_RATIO).max(0.);
     vec2f(max_width, max_height)
 }

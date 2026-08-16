@@ -45,7 +45,15 @@ pub(crate) fn render_color_dot(
             None
         };
 
-        let dot_element = render_dot_element(dot_color, is_selected, ring_color, overlay);
+        let dot_element = render_dot_element(
+            dot_color,
+            is_selected,
+            ring_color,
+            state.is_hovered(),
+            state.is_clicked(),
+            appearance,
+            overlay,
+        );
 
         if state.is_hovered() {
             let tooltip_element = TooltipComponent.render(
@@ -79,6 +87,9 @@ fn render_dot_element(
     dot_color: ColorU,
     is_selected: bool,
     ring_color: ColorU,
+    is_hovered: bool,
+    is_clicked: bool,
+    appearance: &Appearance,
     overlay: Option<Box<dyn Element>>,
 ) -> Box<dyn Element> {
     let dot = ConstrainedBox::new(Icon::Ellipse.to_warpui_icon(dot_color.into()).finish())
@@ -101,12 +112,24 @@ fn render_dot_element(
 
     let border_color = if is_selected {
         ring_color
+    } else if is_clicked {
+        appearance.theme().accent().into()
+    } else if is_hovered {
+        appearance
+            .theme()
+            .sub_text_color(appearance.theme().background())
+            .into()
     } else {
         ColorU::transparent_black()
     };
 
-    Container::new(inner)
+    let mut container = Container::new(inner)
         .with_border(Border::all(2.).with_border_color(border_color))
-        .with_corner_radius(CornerRadius::with_all(Radius::Percentage(50.)))
-        .finish()
+        .with_corner_radius(CornerRadius::with_all(Radius::Percentage(50.)));
+    if is_clicked {
+        container = container.with_background(appearance.theme().surface_3());
+    } else if is_hovered {
+        container = container.with_background(appearance.theme().surface_2());
+    }
+    container.finish()
 }
