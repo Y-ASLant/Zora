@@ -79,29 +79,34 @@ fn render_menu_item(
     position_id: &str,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
-    let text_color = theme.active_ui_text_color();
-    let hover_bg = theme.surface_3();
     let default_bg = theme.surface_2();
+    let hover_bg = theme.surface_3();
+    let pressed_bg = theme.background();
     let ui_font = appearance.ui_font_family();
     let ui_font_size = appearance.ui_font_size();
     let label_owned = label.to_string();
 
     let item_el = Hoverable::new(Default::default(), move |state| {
-        let bg = if state.is_hovered() || state.is_clicked() {
-            hover_bg
+        let (background, text_background) = if state.is_clicked() {
+            (Some(pressed_bg), pressed_bg)
+        } else if state.is_hovered() {
+            (Some(hover_bg), hover_bg)
         } else {
-            default_bg
+            (None, default_bg)
         };
         let text_el = Text::new_inline(label_owned.clone(), ui_font, ui_font_size)
-            .with_color(text_color.into())
+            .with_color(theme.main_text_color(text_background).into())
             .finish();
-        Container::new(text_el)
-            .with_background(bg)
+        let mut container = Container::new(text_el)
             .with_padding_left(12.0)
             .with_padding_right(12.0)
             .with_padding_top(6.0)
             .with_padding_bottom(6.0)
-            .finish()
+            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)));
+        if let Some(background) = background {
+            container = container.with_background(background);
+        }
+        container.finish()
     })
     .with_cursor(Cursor::PointingHand)
     .on_mouse_down(move |ctx, _, _| {
