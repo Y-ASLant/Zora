@@ -83,6 +83,14 @@ runs:
           rust
           ${{ inputs.target_os == 'macos' && 'brew' || '' }}
 
+    - name: Remove untrusted Homebrew taps
+      if: ${{ inputs.target_os == 'macos' }}
+      shell: bash
+      # GitHub-hosted macOS images can include aws/tap without Homebrew trust.
+      # We do not consume that tap, and any later brew command emits an annotation
+      # until it is removed.
+      run: brew untap aws/tap || true
+
     - name: Install cargo-binstall
       uses: cargo-bins/cargo-binstall@dc19f1e48450eefe5a29b8da6c6b00a87d730b37 # v1.18.1
       env:
